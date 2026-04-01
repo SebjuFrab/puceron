@@ -196,6 +196,7 @@
   </div>
   <div class="d-flex gap-2 flex-wrap">
     <a href="{% url 'producer_create' %}" class="btn btn-success">Nouveau producteur</a>
+    <a href="{% url 'producer_import' %}" class="btn btn-outline-success">Import CSV</a>
     {% if selected_producer %}
       <a href="{% url 'export_records' %}?scope=all&producer={{ selected_producer.user_id }}" class="btn btn-outline-success">Exporter Excel</a>
       <a href="{% url 'technician_records' %}" class="btn btn-outline-secondary">Retour a la carte</a>
@@ -239,13 +240,12 @@
           {% if selected_producer_data and selected_producer_data.photo_url %}
             <img src="{{ selected_producer_data.photo_url }}" alt="{{ selected_producer_data.name }}" class="producer-summary-photo">
           {% else %}
-            <div class="producer-summary-fallback">{{ selected_producer.user.username|slice:":1"|upper }}</div>
+            <div class="producer-summary-fallback">{{ selected_producer.user.get_full_name|default:selected_producer.user.username|slice:":1"|upper }}</div>
           {% endif %}
           <div>
             <div class="small text-uppercase text-success fw-semibold mb-1">Producteur selectionne</div>
-            <h2 class="h4 mb-1">{% if selected_producer_data %}{{ selected_producer_data.name }}{% else %}{{ selected_producer.user.username }}{% endif %}</h2>
+            <h2 class="h4 mb-1">{% if selected_producer_data %}{{ selected_producer_data.name }}{% else %}{{ selected_producer.user.get_full_name|default:selected_producer.user.username }}{% endif %}</h2>
             <div class="text-muted mb-1">{{ selected_producer.full_address|default:"Adresse non renseignee" }}</div>
-            <div class="text-muted mb-2">Compte: {{ selected_producer.user.username }}</div>
             <div class="d-flex gap-2 flex-wrap">
               <span class="tech-chip">{{ selected_series|length }} series actives</span>
               <span class="tech-chip">{{ records|length }} comptages</span>
@@ -462,7 +462,7 @@ function escapeHtml(value) {
 }
 
 function markerIcon(producer) {
-  const initial = escapeHtml((producer.name || producer.username || '?').charAt(0).toUpperCase());
+  const initial = escapeHtml((producer.name || producer.display_name || producer.username || '?').charAt(0).toUpperCase());
   const selectedClass = producer.is_selected ? 'is-selected' : '';
   return L.divIcon({
     className: 'producer-marker-wrap',
@@ -474,7 +474,7 @@ function markerIcon(producer) {
 }
 
 function popupHtml(producer) {
-  const initial = escapeHtml((producer.name || producer.username || '?').charAt(0).toUpperCase());
+  const initial = escapeHtml((producer.name || producer.display_name || producer.username || '?').charAt(0).toUpperCase());
   const media = producer.photo_url
     ? `<img src="${escapeHtml(producer.photo_url)}" alt="${escapeHtml(producer.name)}" class="producer-popup-photo">`
     : `<div class="producer-photo-fallback">${initial}</div>`;
@@ -487,7 +487,6 @@ function popupHtml(producer) {
         ${media}
         <div>
           <div class="producer-popup-name">${escapeHtml(producer.name)}</div>
-          <div class="producer-popup-subtitle">@${escapeHtml(producer.username)}</div>
           <div class="producer-popup-subtitle">${escapeHtml(producer.series_count)} serie(s)</div>
         </div>
       </div>

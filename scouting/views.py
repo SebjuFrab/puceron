@@ -1,12 +1,18 @@
 import datetime
+import csv
 import json
+import secrets
+import string
+import unicodedata
 from collections import defaultdict
 from io import BytesIO
+from io import StringIO
 from statistics import fmean, median
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Avg, Prefetch, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -21,6 +27,7 @@ from .forms import (
     PlantActionForm,
     PlantSeriesForm,
     ProducerAccountCreationForm,
+    ProducerImportForm,
     ProducerProfileUpdateForm,
     RecommendationDismissForm,
     ScoutingRecordForm,
@@ -44,6 +51,9 @@ from .models import (
     UserProfile,
     Variety,
 )
+from .utils import display_user_name
+
+User = get_user_model()
 
 
 def _get_profile(user):
@@ -129,6 +139,213 @@ def _parse_positive_int(value, default=None):
     except (TypeError, ValueError):
         return default
     return parsed if parsed > 0 else default
+
+
+CSV_IMPORT_COLUMN_ALIASES = {
+    'raison social': 'farm_name',
+    'raison sociale': 'farm_name',
+    'nom': 'last_name',
+    'prenom': 'first_name',
+    'departement': 'department',
+    'mail': 'email',
+    'adresse': 'street_address',
+    'code postal': 'postal_code',
+    'commune': 'city',
+    'idtek referents': 'technician_ref',
+    'idtek referent': 'technician_ref',
+    'idtek reference': 'technician_ref',
+    'mobile': 'phone',
+}
+
+CSV_IMPORT_REQUIRED_FIELDS = (
+    'farm_name',
+    'last_name',
+    'first_name',
+    'email',
+    'street_address',
+    'postal_code',
+    'city',
+)
+
+
+def _normalize_csv_header(value):
+    normalized = unicodedata.normalize('NFKD', str(value or ''))
+    ascii_value = normalized.encode('ascii', 'ignore').decode('ascii')
+    ascii_value = ' '.join(ascii_value.replace('_', ' ').replace('\t', ' ').split())
+    return ascii_value.strip().lower()
+
+
+def _decode_csv_upload(uploaded_file):
+    raw = uploaded_file.read()
+    for encoding in ('utf-8-sig', 'utf-8', 'cp1252', 'latin-1'):
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode('utf-8', errors='ignore')
+
+
+def _load_csv_rows(uploaded_file):
+    content = _decode_csv_upload(uploaded_file)
+    sample = content[:2048]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=';,|\t,')
+    except csv.Error:
+        class _FallbackDialect(csv.excel):
+            delimiter = ';'
+        dialect = _FallbackDialect
+
+    reader = csv.DictReader(StringIO(content), dialect=dialect)
+    if not reader.fieldnames:
+        raise ValueError('Le fichier CSV est vide ou sans entetes.')
+
+    normalized_headers = {}
+    for original in reader.fieldnames:
+        normalized = _normalize_csv_header(original)
+        mapped = CSV_IMPORT_COLUMN_ALIASES.get(normalized)
+        if mapped:
+            normalized_headers[original] = mapped
+
+    missing = [field for field in CSV_IMPORT_REQUIRED_FIELDS if field not in normalized_headers.values()]
+    if missing:
+        raise ValueError(
+            'Colonnes manquantes dans le CSV: ' + ', '.join(missing) + '.'
+        )
+
+    rows = []
+    for index, row in enumerate(reader, start=2):
+        mapped_row = {'_line': index}
+        for original, mapped in normalized_headers.items():
+            mapped_row[mapped] = (row.get(original) or '').strip()
+        if not any(value for key, value in mapped_row.items() if key != '_line'):
+            continue
+        rows.append(mapped_row)
+    return rows
+
+
+def _random_temporary_password():
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(10))
+
+
+def _generate_unique_username(first_name, last_name, farm_name, email):
+    if email:
+        base = (email.split('@', 1)[0] or '').strip()
+    else:
+        base = ''
+    if not base:
+        base = '.'.join(part for part in [first_name, last_name] if part).strip('.')
+    if not base:
+        base = farm_name or 'producteur'
+    slug = unicodedata.normalize('NFKD', base).encode('ascii', 'ignore').decode('ascii').lower()
+    slug = ''.join(ch if ch.isalnum() else '.' for ch in slug)
+    slug = '.'.join(filter(None, slug.split('.'))).strip('.')
+    slug = slug[:120] or 'producteur'
+    candidate = slug
+    suffix = 2
+    while User.objects.filter(username__iexact=candidate).exists():
+        candidate = f'{slug[:140]}-{suffix}'
+        suffix += 1
+    return candidate[:150]
+
+
+def _resolve_import_technician(importer, technician_ref):
+    if not importer.is_superuser:
+        technician_profile = _get_profile(importer)
+        if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
+            raise ValueError('Seuls les techniciens ou super-admin peuvent importer des producteurs.')
+        return importer
+
+    reference = (technician_ref or '').strip()
+    if not reference:
+        raise ValueError('Colonne "IDtek referents" obligatoire pour un import super-admin.')
+
+    technician_qs = User.objects.filter(profile__role=UserProfile.ROLE_TECHNICIAN)
+    technician = None
+    if reference.isdigit():
+        technician = technician_qs.filter(id=int(reference)).first()
+    if technician is None:
+        technician = technician_qs.filter(username__iexact=reference).first()
+    if technician is None:
+        technician = technician_qs.filter(email__iexact=reference).first()
+    if technician is None:
+        raise ValueError(f'Technicien introuvable pour la reference "{reference}".')
+    return technician
+
+
+def _upsert_producer_from_csv_row(row, importer, update_existing):
+    technician = _resolve_import_technician(importer, row.get('technician_ref', ''))
+    technician_profile = _get_profile(technician)
+    if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
+        raise ValueError(f'{display_user_name(technician)} n est pas technicien.')
+    if not technician_profile.department:
+        raise ValueError(f'{display_user_name(technician)} n a pas de departement renseigne.')
+
+    email = (row.get('email') or '').strip().lower()
+    if not email:
+        raise ValueError('Email obligatoire pour identifier ou creer le producteur.')
+
+    existing_email_user = User.objects.filter(email__iexact=email).first()
+    if existing_email_user and not update_existing:
+        raise ValueError(f'Un utilisateur existe deja avec l email {email}.')
+    existing_user = existing_email_user if update_existing else None
+    created = False
+    temporary_password = ''
+
+    with transaction.atomic():
+        if existing_user:
+            user = existing_user
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            if profile.role not in (UserProfile.ROLE_PRODUCER, ''):
+                raise ValueError(f'L utilisateur {display_user_name(user)} existe deja avec un role non producteur.')
+            action = 'updated'
+        else:
+            user = User(
+                username=_generate_unique_username(
+                    row.get('first_name', ''),
+                    row.get('last_name', ''),
+                    row.get('farm_name', ''),
+                    email,
+                ),
+                email=email,
+            )
+            temporary_password = _random_temporary_password()
+            user.set_password(temporary_password)
+            action = 'created'
+            created = True
+
+        user.first_name = row.get('first_name', '')
+        user.last_name = row.get('last_name', '')
+        user.email = email
+        user.save()
+
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile.role = UserProfile.ROLE_PRODUCER
+        profile.assigned_technician = technician
+        profile.department = technician_profile.department
+        profile.farm_name = row.get('farm_name', '')
+        profile.phone = row.get('phone', '')
+        profile.street_address = row.get('street_address', '')
+        profile.postal_code = row.get('postal_code', '')
+        profile.city = row.get('city', '')
+        profile.save()
+
+    requested_department = (row.get('department') or '').strip()
+    notes = []
+    if requested_department and requested_department != technician_profile.department:
+        notes.append(
+            f'Departement CSV {requested_department} remplace par {technician_profile.department} (technicien referent).'
+        )
+
+    return {
+        'status': action,
+        'created': created,
+        'user': user,
+        'profile': profile,
+        'technician': technician,
+        'temporary_password': temporary_password,
+        'note': ' '.join(notes),
+    }
 
 
 def _dashboard_series_queryset(user):
@@ -953,7 +1170,10 @@ def producer_create_view(request):
         form = ProducerAccountCreationForm(request.POST, creator=request.user)
         if form.is_valid():
             created_user = form.save()
-            messages.success(request, f'Compte producteur cree: {created_user.username}')
+            messages.success(
+                request,
+                f'Compte producteur cree: {display_user_name(created_user)} (identifiant: {created_user.username})',
+            )
             return redirect('producer_create')
     else:
         form = ProducerAccountCreationForm(creator=request.user)
@@ -964,6 +1184,124 @@ def producer_create_view(request):
         {
             'form': form,
             'is_super_admin_creator': request.user.is_superuser,
+        },
+    )
+
+
+@login_required
+def producer_import_view(request):
+    if not _can_manage_producers(request.user):
+        messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
+        return redirect('dashboard')
+
+    creator_profile = _get_profile(request.user)
+    if (not request.user.is_superuser) and not creator_profile.department:
+        messages.error(request, 'Renseignez votre departement avant d importer des producteurs.')
+        return redirect('my_profile')
+
+    results = []
+    summary = None
+    if request.method == 'POST':
+        form = ProducerImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                rows = _load_csv_rows(form.cleaned_data['csv_file'])
+            except ValueError as exc:
+                form.add_error('csv_file', str(exc))
+            else:
+                update_existing = form.cleaned_data['update_existing']
+                created_count = 0
+                updated_count = 0
+                error_count = 0
+
+                for row in rows:
+                    missing = [
+                        field
+                        for field in CSV_IMPORT_REQUIRED_FIELDS
+                        if not (row.get(field) or '').strip()
+                    ]
+                    if missing:
+                        error_count += 1
+                        results.append(
+                            {
+                                'line': row['_line'],
+                                'status': 'error',
+                                'message': 'Champs obligatoires manquants: ' + ', '.join(missing),
+                            }
+                        )
+                        continue
+
+                    try:
+                        result = _upsert_producer_from_csv_row(row, request.user, update_existing)
+                    except ValueError as exc:
+                        error_count += 1
+                        results.append(
+                            {
+                                'line': row['_line'],
+                                'status': 'error',
+                                'message': str(exc),
+                            }
+                        )
+                        continue
+
+                    if result['created']:
+                        created_count += 1
+                    else:
+                        updated_count += 1
+                    results.append(
+                        {
+                            'line': row['_line'],
+                            'status': result['status'],
+                            'producer_name': display_user_name(result['user']),
+                            'username': result['user'].username,
+                            'email': result['user'].email,
+                            'technician_name': display_user_name(result['technician']),
+                            'temporary_password': result['temporary_password'],
+                            'message': result['note'] or '',
+                        }
+                    )
+
+                summary = {
+                    'total': len(rows),
+                    'created': created_count,
+                    'updated': updated_count,
+                    'errors': error_count,
+                }
+                if error_count:
+                    messages.warning(
+                        request,
+                        f'Import termine: {created_count} crees, {updated_count} mis a jour, {error_count} en erreur.',
+                    )
+                else:
+                    messages.success(
+                        request,
+                        f'Import termine: {created_count} crees, {updated_count} mis a jour.',
+                    )
+    else:
+        form = ProducerImportForm()
+
+    expected_columns = [
+        'Raison social',
+        'Nom',
+        'Prenom',
+        'Departement',
+        'mail',
+        'Adresse',
+        'code postal',
+        'commune',
+        'IDtek referents',
+        'mobile',
+    ]
+    return render(
+        request,
+        'scouting/producer_import.html',
+        {
+            'form': form,
+            'results': results,
+            'summary': summary,
+            'expected_columns': expected_columns,
+            'is_super_admin_creator': request.user.is_superuser,
+            'current_technician_name': display_user_name(request.user) if not request.user.is_superuser else '',
         },
     )
 
@@ -1331,10 +1669,11 @@ def technician_records_view(request):
     for profile in producer_profiles:
         active_series = [series for series in profile.user.plant_series.all() if series.is_active]
         first_photo_series = next((series for series in active_series if series.photo), None)
-        producer_name = profile.farm_name or profile.user.get_full_name() or profile.user.username
+        producer_name = profile.farm_name or display_user_name(profile.user)
         producer_data = {
             'id': profile.user_id,
             'name': producer_name,
+            'display_name': display_user_name(profile.user),
             'username': profile.user.username,
             'address': profile.full_address,
             'photo_url': first_photo_series.photo.url if first_photo_series and first_photo_series.photo else '',
@@ -1464,7 +1803,7 @@ def export_records_view(request):
     for rec in qs:
         means = rec.species_means_per_plant()
         row = [
-            rec.user.username,
+            display_user_name(rec.user),
             rec.department,
             rec.plant_series.name if rec.plant_series else '',
             rec.get_crop_display(),

@@ -12,6 +12,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard_view, name='dashboard'),
     path('mon-profil/', views.my_profile_view, name='my_profile'),
     path('comptes/nouveau-producteur/', views.producer_create_view, name='producer_create'),
+    path('comptes/import-producteurs/', views.producer_import_view, name='producer_import'),
     path('comptes/producteur/<int:producer_id>/modifier/', views.producer_update_view, name='producer_update'),
     path('mes-series/', views.my_series_view, name='my_series'),
     path('mes-recommandations/', views.my_recommendations_view, name='my_recommendations'),

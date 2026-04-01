@@ -13,6 +13,7 @@ from wagtail.fields import RichTextField, StreamField
 from wagtail.images.blocks import ImageChooserBlock
 from wagtail.models import Orderable, Page
 from wagtail.search import index
+from .utils import display_user_name
 
 DEPARTMENT_CHOICES = [
     ('85', 'Vendee (85)'),
@@ -158,7 +159,7 @@ class UserProfile(models.Model):
     )
     department = models.CharField(max_length=2, choices=DEPARTMENT_CHOICES, blank=True, verbose_name='Departement')
     farm_name = models.CharField(max_length=150, blank=True, verbose_name='Nom de ferme')
-    phone = models.CharField(max_length=30, blank=True, verbose_name='Telephone')
+    phone = models.CharField(max_length=30, blank=True, verbose_name='Mobile')
     photo = models.ImageField(upload_to='profile_photos/', blank=True, verbose_name='Photo ou logo')
     farm_address = models.TextField(blank=True, verbose_name='Adresse complete')
     street_address = models.CharField(max_length=255, blank=True, verbose_name='Adresse')
@@ -174,7 +175,7 @@ class UserProfile(models.Model):
         verbose_name_plural = 'Profils utilisateurs'
 
     def __str__(self):
-        return f'{self.user.username} ({self.get_role_display()})'
+        return f'{display_user_name(self.user)} ({self.get_role_display()})'
 
     @property
     def full_address(self):
@@ -471,7 +472,7 @@ class PlantSeries(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.name} ({self.user.username})'
+        return f'{self.name} ({display_user_name(self.user)})'
 
 
 class ScoutingRecord(models.Model):
@@ -536,7 +537,7 @@ class ScoutingRecord(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.user.username} - {self.crop} S{self.week}/{self.year}'
+        return f'{display_user_name(self.user)} - {self.crop} S{self.week}/{self.year}'
 
     @property
     def auxiliaries_per_plant(self):

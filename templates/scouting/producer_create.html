@@ -12,9 +12,12 @@
             <h1 class="h4 mb-1">Creer un compte producteur</h1>
             <p class="text-muted mb-0">Le producteur sera rattache a un technicien referent et localise sur la carte.</p>
           </div>
-          {% if not is_super_admin_creator %}
-          <span class="badge text-bg-success">Rattachement automatique a votre compte technicien</span>
-          {% endif %}
+          <div class="d-flex gap-2 flex-wrap">
+            {% if not is_super_admin_creator %}
+            <span class="badge text-bg-success">Rattachement automatique a votre compte technicien</span>
+            {% endif %}
+            <a class="btn btn-outline-success btn-sm" href="{% url 'producer_import' %}">Import CSV</a>
+          </div>
         </div>
 
         <form method="post" class="row g-3">
@@ -45,6 +48,10 @@
             {{ form.farm_name }}
           </div>
           {% if form.technician.is_hidden %}
+          <div class="col-md-6">
+            <label class="form-label">Technicien referent</label>
+            <input type="text" class="form-control" value="{{ form.technician_display_name }}" readonly>
+          </div>
             {{ form.technician }}
           {% else %}
           <div class="col-md-6">
@@ -60,10 +67,14 @@
             {{ form.street_address }}
           </div>
           <div class="col-md-4">
+            <label class="form-label" for="id_phone">Mobile</label>
+            {{ form.phone }}
+          </div>
+          <div class="col-md-4">
             <label class="form-label" for="id_postal_code">Code postal</label>
             {{ form.postal_code }}
           </div>
-          <div class="col-md-8">
+          <div class="col-md-4">
             <label class="form-label" for="id_city">Commune</label>
             {{ form.city }}
           </div>

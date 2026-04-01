@@ -15,8 +15,14 @@ from .models import (
     UserProfile,
     Variety,
 )
+from .utils import display_user_name
 
 User = get_user_model()
+
+
+class TechnicianChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        return display_user_name(obj)
 
 
 class ScoutingRecordForm(forms.ModelForm):
@@ -71,7 +77,7 @@ class UserProfileForm(forms.ModelForm):
         labels = {
             'farm_name': 'Nom de ferme',
             'photo': 'Photo / logo',
-            'phone': 'Telephone',
+            'phone': 'Mobile',
             'street_address': 'Adresse',
             'postal_code': 'Code postal',
             'city': 'Commune',
@@ -107,8 +113,9 @@ class UserProfileForm(forms.ModelForm):
 
 
 class ProducerAccountCreationForm(UserCreationForm):
-    technician = forms.ModelChoiceField(queryset=User.objects.none(), label='Technicien referent')
+    technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien referent')
     farm_name = forms.CharField(max_length=150, label='Nom de ferme')
+    phone = forms.CharField(required=False, max_length=30, label='Mobile')
     street_address = forms.CharField(max_length=255, label='Adresse')
     postal_code = forms.CharField(max_length=10, label='Code postal')
     city = forms.CharField(max_length=120, label='Commune')
@@ -124,10 +131,16 @@ class ProducerAccountCreationForm(UserCreationForm):
     def __init__(self, *args, **kwargs):
         self.creator = kwargs.pop('creator')
         super().__init__(*args, **kwargs)
+        self.technician_display_name = ''
         for field in self.fields.values():
             if not isinstance(field.widget, forms.HiddenInput):
                 field.widget.attrs['class'] = 'form-control'
-        technician_qs = User.objects.filter(profile__role=UserProfile.ROLE_TECHNICIAN).order_by('username')
+        self.fields['phone'].widget.attrs['type'] = 'tel'
+        technician_qs = User.objects.filter(profile__role=UserProfile.ROLE_TECHNICIAN).order_by(
+            'first_name',
+            'last_name',
+            'username',
+        )
         if self.creator.is_superuser:
             self.fields['technician'].queryset = technician_qs
             self.fields['technician'].widget.attrs['class'] = 'form-select'
@@ -135,6 +148,7 @@ class ProducerAccountCreationForm(UserCreationForm):
             self.fields['technician'].queryset = technician_qs.filter(id=self.creator.id)
             self.fields['technician'].initial = self.creator
             self.fields['technician'].widget = forms.HiddenInput()
+            self.technician_display_name = display_user_name(self.creator)
 
     def clean_technician(self):
         technician = self.cleaned_data['technician']
@@ -162,6 +176,7 @@ class ProducerAccountCreationForm(UserCreationForm):
         profile.assigned_technician = technician
         profile.department = technician_profile.department
         profile.farm_name = self.cleaned_data['farm_name']
+        profile.phone = self.cleaned_data.get('phone', '')
         profile.street_address = self.cleaned_data['street_address']
         profile.postal_code = self.cleaned_data['postal_code']
         profile.city = self.cleaned_data['city']
@@ -177,12 +192,13 @@ class ProducerProfileUpdateForm(forms.ModelForm):
     username = forms.CharField(max_length=150, label='Identifiant')
     first_name = forms.CharField(max_length=150, required=False, label='Prenom')
     last_name = forms.CharField(max_length=150, required=False, label='Nom')
-    technician = forms.ModelChoiceField(queryset=User.objects.none(), label='Technicien referent')
+    technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien referent')
 
     class Meta:
         model = UserProfile
         fields = [
             'farm_name',
+            'phone',
             'street_address',
             'postal_code',
             'city',
@@ -198,6 +214,7 @@ class ProducerProfileUpdateForm(forms.ModelForm):
         }
         labels = {
             'farm_name': 'Nom de ferme',
+            'phone': 'Mobile',
             'street_address': 'Adresse',
             'postal_code': 'Code postal',
             'city': 'Commune',
@@ -209,10 +226,16 @@ class ProducerProfileUpdateForm(forms.ModelForm):
         self.editor = kwargs.pop('editor')
         self.producer_user = kwargs.pop('producer_user')
         super().__init__(*args, **kwargs)
+        self.technician_display_name = ''
         for field in self.fields.values():
             if not isinstance(field.widget, forms.HiddenInput):
                 field.widget.attrs['class'] = 'form-control'
-        technician_qs = User.objects.filter(profile__role=UserProfile.ROLE_TECHNICIAN).order_by('username')
+        self.fields['phone'].widget.attrs['type'] = 'tel'
+        technician_qs = User.objects.filter(profile__role=UserProfile.ROLE_TECHNICIAN).order_by(
+            'first_name',
+            'last_name',
+            'username',
+        )
         if self.editor.is_superuser:
             self.fields['technician'].queryset = technician_qs
             self.fields['technician'].widget.attrs['class'] = 'form-select'
@@ -228,6 +251,8 @@ class ProducerProfileUpdateForm(forms.ModelForm):
         self.fields['technician'].initial = profile.assigned_technician or (
             self.editor if not self.editor.is_superuser else None
         )
+        technician_user = profile.assigned_technician or (self.editor if not self.editor.is_superuser else None)
+        self.technician_display_name = display_user_name(technician_user)
         if profile and profile.farm_address and not profile.street_address:
             self.fields['street_address'].initial = profile.farm_address
 
@@ -276,6 +301,27 @@ class ProducerProfileUpdateForm(forms.ModelForm):
         if commit:
             profile.save()
         return user
+
+
+class ProducerImportForm(forms.Form):
+    csv_file = forms.FileField(label='Fichier CSV')
+    update_existing = forms.BooleanField(
+        required=False,
+        initial=True,
+        label='Mettre a jour les producteurs deja existants (recherche par email)',
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['csv_file'].widget.attrs['class'] = 'form-control'
+        self.fields['csv_file'].widget.attrs['accept'] = '.csv,text/csv'
+        self.fields['update_existing'].widget.attrs['class'] = 'form-check-input'
+
+    def clean_csv_file(self):
+        csv_file = self.cleaned_data['csv_file']
+        if not csv_file.name.lower().endswith('.csv'):
+            raise forms.ValidationError('Importez un fichier .csv.')
+        return csv_file
 
 
 class PlantSeriesForm(forms.ModelForm):

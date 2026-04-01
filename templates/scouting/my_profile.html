@@ -50,9 +50,9 @@
           <div class="col-12">
             <div class="d-flex gap-3 align-items-center flex-wrap">
               {% if profile.photo %}
-                <img src="{{ profile.photo.url }}" alt="{{ profile.farm_name|default:request.user.username }}" class="profile-logo">
+                <img src="{{ profile.photo.url }}" alt="{{ profile.farm_name|default:request.user.get_full_name|default:request.user.username }}" class="profile-logo">
               {% else %}
-                <div class="profile-logo-fallback">{{ profile.farm_name|default:request.user.username|slice:":1"|upper }}</div>
+                <div class="profile-logo-fallback">{{ profile.farm_name|default:request.user.get_full_name|default:request.user.username|slice:":1"|upper }}</div>
               {% endif %}
               <div class="flex-grow-1">
                 <label class="form-label" for="id_photo">Photo / logo</label>
@@ -72,7 +72,7 @@
             {{ form.email }}
           </div>
           <div class="col-md-6">
-            <label class="form-label" for="id_phone">Telephone</label>
+            <label class="form-label" for="id_phone">Mobile</label>
             {{ form.phone }}
           </div>
 
@@ -89,7 +89,7 @@
               </div>
               {% if profile.assigned_technician %}
                 <div class="mt-2">
-                  <div><strong>Telephone:</strong> {% if technician_profile and technician_profile.phone %}{{ technician_profile.phone }}{% else %}Non renseigne{% endif %}</div>
+                  <div><strong>Mobile:</strong> {% if technician_profile and technician_profile.phone %}{{ technician_profile.phone }}{% else %}Non renseigne{% endif %}</div>
                   <div><strong>Email:</strong> {% if profile.assigned_technician.email %}{{ profile.assigned_technician.email }}{% else %}Non renseigne{% endif %}</div>
                 </div>
                 <div class="tech-contact-actions">

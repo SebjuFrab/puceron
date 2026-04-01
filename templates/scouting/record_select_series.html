@@ -217,7 +217,7 @@
             <div>
               <h2 class="series-name">{{ s.name }}</h2>
               {% if is_technician %}
-              <div class="series-sub" style="margin:0 0 6px 0;">Producteur: <b>{{ s.user.username }}</b></div>
+              <div class="series-sub" style="margin:0 0 6px 0;">Producteur: <b>{{ s.user.get_full_name|default:s.user.username }}</b></div>
               {% endif %}
               <div class="series-line">
                 <span class="pill">{{ s.crop.name }}</span>

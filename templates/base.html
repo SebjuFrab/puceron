@@ -87,6 +87,7 @@
           <li class="nav-item"><a class="nav-link" href="{% url 'my_profile' %}">Mon profil</a></li>
           {% if can_manage_producers %}
             <li class="nav-item"><a class="nav-link" href="{% url 'producer_create' %}">Nouveau producteur</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'producer_import' %}">Import producteurs</a></li>
           {% endif %}
           <li class="nav-item"><a class="nav-link" href="{% url 'my_series' %}">Mes series</a></li>
           <li class="nav-item"><a class="nav-link" href="{% url 'my_recommendations' %}">Mes recommandations</a></li>

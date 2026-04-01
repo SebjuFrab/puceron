@@ -74,7 +74,7 @@
           <div class="fw-semibold">{{ selected_series.name }}</div>
           <div class="small text-muted">{{ selected_series.crop.name }} | {{ selected_series.conduct_type.name }} | {{ selected_series.variety.name }}</div>
           {% if is_technician %}
-          <div class="small text-muted">Saisie pour producteur: <b>{{ target_user.username }}</b></div>
+          <div class="small text-muted">Saisie pour producteur: <b>{{ target_user.get_full_name|default:target_user.username }}</b></div>
           {% endif %}
         </div>
       </div>

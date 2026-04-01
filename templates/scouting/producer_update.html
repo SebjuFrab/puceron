@@ -41,6 +41,10 @@
             {{ form.farm_name }}
           </div>
           {% if form.technician.is_hidden %}
+          <div class="col-md-6">
+            <label class="form-label">Technicien referent</label>
+            <input type="text" class="form-control" value="{{ form.technician_display_name }}" readonly>
+          </div>
             {{ form.technician }}
           {% else %}
           <div class="col-md-6">
@@ -56,10 +60,14 @@
             {{ form.street_address }}
           </div>
           <div class="col-md-4">
+            <label class="form-label" for="id_phone">Mobile</label>
+            {{ form.phone }}
+          </div>
+          <div class="col-md-4">
             <label class="form-label" for="id_postal_code">Code postal</label>
             {{ form.postal_code }}
           </div>
-          <div class="col-md-8">
+          <div class="col-md-4">
             <label class="form-label" for="id_city">Commune</label>
             {{ form.city }}
           </div>

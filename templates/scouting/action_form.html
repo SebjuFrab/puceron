@@ -26,7 +26,7 @@
           {{ selected_series.variety.name }}
         </div>
         {% if is_technician %}
-          <div class="text-muted small"><b>Saisie pour producteur:</b> {{ target_user.username }}</div>
+          <div class="text-muted small"><b>Saisie pour producteur:</b> {{ target_user.get_full_name|default:target_user.username }}</div>
         {% endif %}
       </div>
       <span class="badge-step">Etape action</span>
