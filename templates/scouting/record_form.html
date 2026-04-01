@@ -1,0 +1,553 @@
+﻿{% extends 'base.html' %}
+{% block content %}
+<style>
+  .plant-step { display: none; }
+  .plant-step.active { display: block; }
+  .leaf-row { border: 1px solid #dfe3e8; border-radius: 12px; padding: 12px; margin-bottom: 10px; background: #fff; }
+  .leaf-title { color: #1a8754; font-weight: 800; font-size: 1.25rem; }
+  .leaf-actions { display: flex; gap: 10px; }
+  .btn-leaf { min-width: 140px; min-height: 54px; border-radius: 16px; font-weight: 800; font-size: 1.35rem; }
+  .aphid-on { background: #00c2ff; color: #002a33; border-color: #00c2ff; }
+  .aux-on { background: #ff7b00; color: #fff; border-color: #ff7b00; }
+  .plant-nav { position: sticky; bottom: 8px; background: rgba(248,249,250,0.96); border: 1px solid #e5e5e5; border-radius: 12px; padding: 10px; }
+  .aux-summary { display: flex; gap: 6px; flex-wrap: wrap; }
+  .aux-chip { border: 1px solid #fd7e14; background: #fff7ef; color: #a04a00; border-radius: 999px; padding: 2px 10px; font-size: 0.85rem; }
+  input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; }
+  .taxon-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .taxon-item { border: 1px solid #d8e0e6; border-radius: 10px; background: #fff; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 86px; }
+  .taxon-item.selected { border-color: #ff7b00; box-shadow: 0 0 0 2px rgba(255,123,0,0.2) inset; background: #fffaf3; }
+  .taxon-photo-wrap { width: 100%; height: 68px; border-radius: 8px; overflow: hidden; position: relative; border: 1px solid #d9d9d9; background: #eef7f2; }
+  .taxon-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .taxon-fallback { width: 100%; height: 100%; background: #e6f4ec; color: #156b43; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; }
+  .taxon-label-on-photo { position: absolute; left: 4px; right: 4px; bottom: 4px; background: rgba(0,0,0,0.62); color: #fff; border-radius: 6px; padding: 2px 4px; font-size: 0.62rem; line-height: 1.05; text-align: center; font-weight: 700; }
+  #auxModal .modal-dialog { max-width: min(96vw, 560px); margin: 0.5rem auto; }
+  #auxModal .modal-body { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+  .aux-count-row { margin-bottom: 8px; }
+  .series-head {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .series-photo {
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    object-fit: cover;
+    border: 1px solid #cfe1d7;
+    background: #edf7f1;
+  }
+  .series-photo-fallback {
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    border: 1px solid #cfe1d7;
+    background: #edf7f1;
+    color: #2d6a4f;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 1.4rem;
+  }
+</style>
+
+<form method="post">
+  {% csrf_token %}
+  {% if request.GET.next %}
+    <input type="hidden" name="next" value="{{ request.GET.next }}">
+  {% endif %}
+  {% if request.GET.producer %}
+    <input type="hidden" name="producer" value="{{ request.GET.producer }}">
+  {% endif %}
+  <div class="d-none">{{ form.plant_series }}</div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="series-head">
+        {% if selected_series.photo %}
+          <img class="series-photo" src="{{ selected_series.photo.url }}" alt="{{ selected_series.name }}">
+        {% else %}
+          <span class="series-photo-fallback">{{ selected_series.name|slice:":1"|upper }}</span>
+        {% endif %}
+        <div>
+          <div class="fw-semibold">{{ selected_series.name }}</div>
+          <div class="small text-muted">{{ selected_series.crop.name }} | {{ selected_series.conduct_type.name }} | {{ selected_series.variety.name }}</div>
+          {% if is_technician %}
+          <div class="small text-muted">Saisie pour producteur: <b>{{ target_user.username }}</b></div>
+          {% endif %}
+        </div>
+      </div>
+      {% if form_mode == 'edit' %}
+      <div class="alert alert-primary py-2 mb-2">Mode modification de saisie.</div>
+      {% endif %}
+      <div id="offlineStatus" class="alert alert-warning py-2 mb-2 d-none"></div>
+      <div id="draftStatus" class="alert alert-info py-2 mb-2 d-none"></div>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="fw-semibold">Plant <span id="currentPlantNumber">1</span> / {{ plants|length }}</div>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleAllPlants">Voir tous les plants</button>
+      </div>
+      {% if not auxiliary_taxa %}
+      <div class="alert alert-warning py-2">Aucun auxiliaire actif dans l'admin.</div>
+      {% endif %}
+
+      {% for plant in plants %}
+      <section class="plant-step {% if forloop.first %}active{% endif %}" data-plant="{{ plant }}">
+        <div class="mb-2 small text-muted">Cliquez sur <b>puceron</b> si presence, puis sur <b>aux</b> pour ajouter un auxiliaire.</div>
+
+        {% for pos, pos_label in leaf_positions %}
+        <div class="leaf-row" data-leaf-key="{{ plant }}-{{ pos }}">
+          <div class="leaf-title mb-2">Feuille {{ pos_label }}</div>
+          <div class="leaf-actions mb-2">
+            <button type="button" class="btn btn-outline-info btn-leaf aphid-toggle" data-plant="{{ plant }}" data-pos="{{ pos }}">puceron</button>
+            <input type="checkbox" class="d-none aphid-input" name="p{{ plant }}_{{ pos }}_aphid" id="p{{ plant }}_{{ pos }}_aphid">
+            <button type="button" class="btn btn-outline-warning btn-leaf aux-open" data-plant="{{ plant }}" data-pos="{{ pos }}" {% if not auxiliary_taxa %}disabled{% endif %}>aux</button>
+          </div>
+          <div class="aux-summary small text-muted">Aucun auxiliaire saisi.</div>
+          <div class="aux-hidden"></div>
+        </div>
+        {% endfor %}
+
+        <div class="plant-nav d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary w-50 prev-plant" {% if forloop.first %}disabled{% endif %}>Plant precedent</button>
+          {% if not forloop.last %}
+          <button type="button" class="btn btn-outline-success w-50 next-plant">Enregistrer et passer au plant suivant</button>
+          {% else %}
+          <button type="button" class="btn btn-success w-50 next-final">Continuer</button>
+          {% endif %}
+        </div>
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div id="finalStep" class="card shadow-sm mb-3" style="display:none;">
+    <div class="card-body">
+      <h2 class="h5">Finaliser la saisie</h2>
+      <div class="row g-2">
+        <div class="col-12">
+          <label class="form-label">Date observation</label>
+          <div class="input-group">
+            {{ form.scouting_date }}
+            <button class="btn btn-outline-secondary" type="button" id="openDatePicker">Calendrier</button>
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Commentaire</label>
+          {{ form.comment }}
+        </div>
+      </div>
+      {% if form.non_field_errors %}<div class="text-danger mt-2 small">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="d-flex gap-2 mt-3">
+        <button type="button" class="btn btn-outline-secondary w-50" id="backToPlants">Retour aux plants</button>
+        <button type="submit" class="btn btn-success w-50">Enregistrer le comptage</button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="modal fade" id="auxModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Ajouter auxiliaire</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="auxPlant">
+        <input type="hidden" id="auxPos">
+        <input type="hidden" id="auxEditTaxonId">
+        <input type="hidden" id="auxTaxonSelected">
+        <div class="aux-count-row">
+          <label class="form-label mb-1" for="auxCount">Nombre</label>
+          <input id="auxCount" type="number" min="0" inputmode="numeric" class="form-control" value="1">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Type auxiliaire</label>
+          <div id="taxonGrid" class="taxon-grid">
+            {% for taxon in auxiliary_taxa %}
+              <button type="button" class="taxon-item" data-id="{{ taxon.id }}" data-name="{{ taxon.name }}">
+                <span class="taxon-photo-wrap">
+                  {% if taxon.photo %}
+                    <img class="taxon-photo" src="{{ taxon.photo.url }}" alt="{{ taxon.name }}">
+                  {% else %}
+                    <span class="taxon-fallback">{{ taxon.name|slice:":1"|upper }}</span>
+                  {% endif %}
+                  <span class="taxon-label-on-photo">{{ taxon.name }}</span>
+                </span>
+              </button>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+        <button type="button" class="btn btn-outline-danger d-none" id="deleteAuxBtn">Supprimer</button>
+        <button type="button" class="btn btn-warning" id="saveAuxBtn">Ajouter</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const auxData = {};
+let currentPlant = 1;
+let showAllPlants = false;
+let inFinalStep = false;
+let isDirty = false;
+let allowUnload = false;
+const draftStorageKey = "puceron:draft:record:user-{{ user.id }}:{% if record_obj %}record-{{ record_obj.id }}{% else %}series-{{ selected_series.id }}{% endif %}";
+const clearDraftFlagKey = 'puceron:clearDraftKey';
+const initialLeafData = {{ initial_leaf_data_json|safe }};
+const totalPlants = parseInt("{{ plants|length }}", 10) || 1;
+const auxModal = new bootstrap.Modal(document.getElementById('auxModal'));
+const dateInput = document.getElementById('id_scouting_date');
+const auxTaxonSelectedInput = document.getElementById('auxTaxonSelected');
+const taxonButtons = [...document.querySelectorAll('.taxon-item')];
+const auxCountInput = document.getElementById('auxCount');
+const auxEditTaxonIdInput = document.getElementById('auxEditTaxonId');
+const saveAuxBtn = document.getElementById('saveAuxBtn');
+const deleteAuxBtn = document.getElementById('deleteAuxBtn');
+const mainForm = document.querySelector('form[method="post"]');
+const offlineStatus = document.getElementById('offlineStatus');
+const draftStatus = document.getElementById('draftStatus');
+
+function markDirty() {
+  isDirty = true;
+}
+function showDraftStatus(message, level = 'info') {
+  if (!draftStatus) return;
+  draftStatus.classList.remove('d-none', 'alert-info', 'alert-warning', 'alert-success');
+  draftStatus.classList.add(level === 'warning' ? 'alert-warning' : (level === 'success' ? 'alert-success' : 'alert-info'));
+  draftStatus.textContent = message;
+}
+function hideDraftStatus() {
+  if (!draftStatus) return;
+  draftStatus.classList.add('d-none');
+}
+
+function leafKey(plant, pos) { return `${plant}-${pos}`; }
+function getTaxonName(taxonId) {
+  const btn = taxonButtons.find(b => b.dataset.id === String(taxonId));
+  return btn ? btn.dataset.name : '';
+}
+function selectTaxon(taxonId) {
+  auxTaxonSelectedInput.value = String(taxonId || '');
+  taxonButtons.forEach(btn => btn.classList.toggle('selected', btn.dataset.id === String(taxonId)));
+}
+
+function updatePlantDisplay() {
+  const finalStep = document.getElementById('finalStep');
+  const toggleBtn = document.getElementById('toggleAllPlants');
+  if (inFinalStep) {
+    document.querySelectorAll('.plant-step').forEach(section => section.classList.remove('active'));
+    if (finalStep) finalStep.style.display = 'block';
+    if (toggleBtn) toggleBtn.style.display = 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  if (finalStep) finalStep.style.display = 'none';
+  if (toggleBtn) toggleBtn.style.display = '';
+  document.querySelectorAll('.plant-step').forEach(section => {
+    const plant = Number(section.dataset.plant);
+    section.classList.toggle('active', showAllPlants || plant === currentPlant);
+  });
+  document.getElementById('currentPlantNumber').textContent = String(currentPlant);
+  if (toggleBtn) toggleBtn.textContent = showAllPlants ? 'Mode par plant' : 'Voir tous les plants';
+}
+function updateConnectivityUI() {
+  if (!offlineStatus) return;
+  if (navigator.onLine) {
+    offlineStatus.classList.add('d-none');
+    return;
+  }
+  offlineStatus.classList.remove('d-none');
+  offlineStatus.textContent = 'Hors ligne: la saisie est en brouillon local sur ce telephone.';
+}
+function collectDraftData() {
+  const aphids = {};
+  document.querySelectorAll('.aphid-input').forEach(input => {
+    aphids[input.name] = !!input.checked;
+  });
+  return {
+    savedAt: new Date().toISOString(),
+    currentPlant,
+    showAllPlants,
+    inFinalStep,
+    scoutingDate: dateInput ? dateInput.value : '',
+    comment: document.getElementById('id_comment')?.value || '',
+    aphids,
+    auxData: JSON.parse(JSON.stringify(auxData)),
+  };
+}
+function saveDraft() {
+  try {
+    localStorage.setItem(draftStorageKey, JSON.stringify(collectDraftData()));
+    if (!navigator.onLine) {
+      showDraftStatus('Brouillon hors ligne enregistre sur ce telephone.', 'warning');
+    }
+  } catch (e) {}
+}
+let draftTimer = null;
+function saveDraftDebounced() {
+  if (draftTimer) clearTimeout(draftTimer);
+  draftTimer = setTimeout(saveDraft, 250);
+}
+function clearDraft() {
+  try {
+    localStorage.removeItem(draftStorageKey);
+  } catch (e) {}
+  hideDraftStatus();
+}
+function applyDraftData(draft, options = {}) {
+  const quiet = !!options.quiet;
+  const setDirty = !!options.setDirty;
+  if (!draft) return;
+  const aphids = draft.aphids || {};
+  Object.entries(aphids).forEach(([name, checked]) => {
+    const checkbox = document.querySelector(`.aphid-input[name="${name}"]`);
+    if (!checkbox) return;
+    checkbox.checked = !!checked;
+    const match = name.match(/^p(\d+)_(leaf_\d+)_aphid$/);
+    if (!match) return;
+    const plant = match[1];
+    const pos = match[2];
+    const button = document.querySelector(`.aphid-toggle[data-plant="${plant}"][data-pos="${pos}"]`);
+    if (button) button.classList.toggle('aphid-on', checkbox.checked);
+  });
+  const restoredAux = draft.auxData || {};
+  Object.keys(auxData).forEach(key => delete auxData[key]);
+  Object.entries(restoredAux).forEach(([key, val]) => { auxData[key] = val; });
+  document.querySelectorAll('.leaf-row').forEach(row => {
+    const leafKeyValue = row.dataset.leafKey;
+    const parts = leafKeyValue.split('-');
+    const plant = parts[0];
+    const pos = parts.slice(1).join('-');
+    renderLeaf(plant, pos);
+  });
+  if (dateInput && draft.scoutingDate) dateInput.value = draft.scoutingDate;
+  const commentField = document.getElementById('id_comment');
+  if (commentField && draft.comment !== undefined) commentField.value = draft.comment;
+  currentPlant = Math.min(Math.max(parseInt(draft.currentPlant || 1, 10), 1), totalPlants);
+  showAllPlants = !!draft.showAllPlants;
+  inFinalStep = !!draft.inFinalStep;
+  updatePlantDisplay();
+  if (!quiet) {
+    showDraftStatus('Brouillon restaure depuis ce telephone.', 'info');
+  }
+  if (setDirty) {
+    isDirty = true;
+  }
+}
+function restoreDraftIfExists() {
+  try {
+    const raw = localStorage.getItem(draftStorageKey);
+    if (!raw) return;
+    const draft = JSON.parse(raw);
+    applyDraftData(draft, { quiet: false, setDirty: true });
+  } catch (e) {}
+}
+function clearDraftAfterSuccessfulSubmit() {
+  try {
+    const flagKey = sessionStorage.getItem(clearDraftFlagKey);
+    if (flagKey) {
+      localStorage.removeItem(flagKey);
+      sessionStorage.removeItem(clearDraftFlagKey);
+    }
+  } catch (e) {}
+}
+
+function renderLeaf(plant, pos) {
+  const key = leafKey(plant, pos);
+  const data = auxData[key] || {};
+  const leafNode = document.querySelector(`.leaf-row[data-leaf-key="${key}"]`);
+  if (!leafNode) return;
+  const summary = leafNode.querySelector('.aux-summary');
+  const hidden = leafNode.querySelector('.aux-hidden');
+  const entries = Object.values(data).filter(item => item.count > 0);
+  if (entries.length === 0) {
+    summary.textContent = 'Aucun auxiliaire saisi.';
+    leafNode.querySelector('.aux-open').classList.remove('aux-on');
+  } else {
+    summary.innerHTML = '';
+    entries.forEach(item => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'aux-chip';
+      btn.textContent = `${item.name}: ${item.count}`;
+      btn.dataset.plant = String(plant);
+      btn.dataset.pos = pos;
+      btn.dataset.taxonId = String(item.taxonId);
+      summary.appendChild(btn);
+    });
+    leafNode.querySelector('.aux-open').classList.add('aux-on');
+  }
+  hidden.innerHTML = '';
+  entries.forEach(item => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = `aux_${plant}_${pos}_${item.taxonId}`;
+    input.value = item.count;
+    hidden.appendChild(input);
+  });
+}
+
+function openAuxModal(plant, pos, taxonId = null) {
+  document.getElementById('auxPlant').value = plant;
+  document.getElementById('auxPos').value = pos;
+  auxEditTaxonIdInput.value = taxonId || '';
+  if (!taxonId) {
+    auxCountInput.value = 1;
+    deleteAuxBtn.classList.add('d-none');
+    saveAuxBtn.textContent = 'Ajouter';
+    document.querySelector('#auxModal .modal-title').textContent = 'Ajouter auxiliaire';
+    const first = taxonButtons[0];
+    selectTaxon(first ? first.dataset.id : '');
+  } else {
+    const item = auxData[leafKey(plant, pos)]?.[taxonId];
+    selectTaxon(taxonId);
+    auxCountInput.value = item ? item.count : 1;
+    deleteAuxBtn.classList.remove('d-none');
+    saveAuxBtn.textContent = 'Modifier';
+    document.querySelector('#auxModal .modal-title').textContent = 'Modifier auxiliaire';
+  }
+  auxModal.show();
+  setTimeout(() => auxCountInput.focus(), 150);
+}
+
+document.querySelectorAll('.aphid-toggle').forEach(btn => btn.addEventListener('click', () => {
+  const checkbox = document.getElementById(`p${btn.dataset.plant}_${btn.dataset.pos}_aphid`);
+  checkbox.checked = !checkbox.checked;
+  btn.classList.toggle('aphid-on', checkbox.checked);
+  markDirty();
+  saveDraftDebounced();
+}));
+
+document.querySelectorAll('.aux-open').forEach(btn => btn.addEventListener('click', () => openAuxModal(btn.dataset.plant, btn.dataset.pos, null)));
+document.querySelectorAll('.aux-summary').forEach(node => node.addEventListener('click', e => {
+  const chip = e.target.closest('.aux-chip');
+  if (chip) openAuxModal(chip.dataset.plant, chip.dataset.pos, chip.dataset.taxonId);
+}));
+
+saveAuxBtn.addEventListener('click', () => {
+  const plant = document.getElementById('auxPlant').value;
+  const pos = document.getElementById('auxPos').value;
+  if (!taxonButtons.length) { auxModal.hide(); return; }
+  const taxonId = auxTaxonSelectedInput.value;
+  if (!taxonId) { return; }
+  const taxonName = getTaxonName(taxonId);
+  const count = Math.max(0, parseInt(auxCountInput.value || '0', 10));
+  const key = leafKey(plant, pos);
+  const editingTaxonId = auxEditTaxonIdInput.value || null;
+  if (!auxData[key]) auxData[key] = {};
+  if (editingTaxonId) {
+    if (count === 0) delete auxData[key][editingTaxonId];
+    else auxData[key][editingTaxonId] = { taxonId: editingTaxonId, name: taxonName, count };
+  } else {
+    if (auxData[key][taxonId]) auxData[key][taxonId].count += count;
+    else auxData[key][taxonId] = { taxonId, name: taxonName, count };
+  }
+  renderLeaf(plant, pos);
+  auxModal.hide();
+  markDirty();
+  saveDraftDebounced();
+});
+
+deleteAuxBtn.addEventListener('click', () => {
+  const plant = document.getElementById('auxPlant').value;
+  const pos = document.getElementById('auxPos').value;
+  const taxonId = auxEditTaxonIdInput.value;
+  const key = leafKey(plant, pos);
+  if (auxData[key] && auxData[key][taxonId]) delete auxData[key][taxonId];
+  renderLeaf(plant, pos);
+  auxModal.hide();
+  markDirty();
+  saveDraftDebounced();
+});
+
+taxonButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (auxEditTaxonIdInput.value) return;
+    selectTaxon(btn.dataset.id);
+  });
+});
+
+document.querySelectorAll('.next-plant').forEach(btn => btn.addEventListener('click', () => {
+  if (currentPlant < totalPlants) { currentPlant += 1; updatePlantDisplay(); window.scrollTo({ top: 0, behavior: 'smooth' }); saveDraftDebounced(); }
+}));
+document.querySelectorAll('.prev-plant').forEach(btn => btn.addEventListener('click', () => {
+  if (currentPlant > 1) { currentPlant -= 1; updatePlantDisplay(); window.scrollTo({ top: 0, behavior: 'smooth' }); saveDraftDebounced(); }
+}));
+document.querySelectorAll('.next-final').forEach(btn => btn.addEventListener('click', () => { inFinalStep = true; updatePlantDisplay(); saveDraftDebounced(); }));
+document.getElementById('backToPlants')?.addEventListener('click', () => { inFinalStep = false; showAllPlants = false; currentPlant = totalPlants; updatePlantDisplay(); saveDraftDebounced(); });
+document.getElementById('toggleAllPlants')?.addEventListener('click', () => { showAllPlants = !showAllPlants; updatePlantDisplay(); saveDraftDebounced(); });
+
+if (dateInput) {
+  const openPicker = () => {
+    if (typeof dateInput.showPicker === 'function') dateInput.showPicker();
+    else { dateInput.focus(); dateInput.click(); }
+  };
+  document.getElementById('openDatePicker')?.addEventListener('click', openPicker);
+  dateInput.addEventListener('focus', openPicker);
+  dateInput.addEventListener('change', () => { markDirty(); saveDraftDebounced(); });
+}
+document.getElementById('id_comment')?.addEventListener('input', () => { markDirty(); saveDraftDebounced(); });
+
+if (mainForm) {
+  mainForm.addEventListener('submit', event => {
+    if (!navigator.onLine) {
+      event.preventDefault();
+      saveDraft();
+      showDraftStatus('Hors ligne: envoi impossible. Le brouillon est garde localement.', 'warning');
+      return;
+    }
+    saveDraft();
+    try {
+      sessionStorage.setItem(clearDraftFlagKey, draftStorageKey);
+    } catch (e) {}
+    allowUnload = true;
+    isDirty = false;
+  });
+  mainForm.querySelectorAll('input, textarea, select').forEach(el => {
+    el.addEventListener('change', saveDraftDebounced);
+  });
+}
+
+window.addEventListener('beforeunload', event => {
+  if (isDirty && !allowUnload) {
+    event.preventDefault();
+    event.returnValue = '';
+  }
+});
+
+document.addEventListener('click', event => {
+  const link = event.target.closest('a[href]');
+  if (!link) return;
+  if (!isDirty || allowUnload) return;
+  const href = link.getAttribute('href') || '';
+  if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+  const ok = window.confirm('Vous avez une saisie non enregistree. Quitter cette page ?');
+  if (!ok) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+});
+
+window.addEventListener('offline', () => {
+  updateConnectivityUI();
+  saveDraft();
+});
+window.addEventListener('online', () => {
+  updateConnectivityUI();
+  showDraftStatus('Connexion retablie: vous pouvez envoyer la saisie.', 'success');
+});
+
+clearDraftAfterSuccessfulSubmit();
+updateConnectivityUI();
+applyDraftData(initialLeafData, { quiet: true, setDirty: false });
+restoreDraftIfExists();
+updatePlantDisplay();
+</script>
+{% endblock %}

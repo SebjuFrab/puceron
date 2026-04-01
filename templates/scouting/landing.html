@@ -1,0 +1,59 @@
+﻿{% extends 'base.html' %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-12 col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h1 class="h3">Suivi pucerons sous abri</h1>
+        <p class="mb-2">Protocole: 10 pieds, 3 feuilles/pied (bas, milieu, haut). Presence puceron si plus de 5 pucerons/feuille. Comptage auxiliaires sur les memes feuilles.</p>
+        <p class="mb-2">Sorties: pourcentage de feuilles infestees, nombre d auxiliaires/plant, niveau de risque.</p>
+        <p class="mb-0">Semaines de suivi ciblees: S14, S17, S21, S25.</p>
+      </div>
+    </div>
+    {% if user.is_authenticated %}
+      <div class="card shadow-sm mt-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="h5 mb-0">Pages d'information</h2>
+            <a href="{% url 'info_index' %}" class="btn btn-outline-success btn-sm">Voir toutes les pages</a>
+          </div>
+          {% if info_pages %}
+            <div class="row g-3">
+              {% for page in info_pages %}
+                <div class="col-12 col-md-6">
+                  <div class="border rounded-4 p-3 h-100 bg-light">
+                    <div class="small text-uppercase text-success fw-semibold mb-1">{{ page.get_page_key_display_label }}</div>
+                    <div class="fw-bold mb-2">{{ page.title }}</div>
+                    <div class="text-muted small mb-3">{{ page.intro|default:page.body|striptags|truncatechars:140 }}</div>
+                    <a href="{% url 'info_page' page.page_key|default:page.slug %}" class="btn btn-sm btn-success">Ouvrir</a>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="mb-0 text-muted">Aucune page publiee pour le moment.</p>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+  <div class="col-12 col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5">Acces</h2>
+        {% if user.is_authenticated %}
+          <a href="{% url 'dashboard' %}" class="btn btn-success w-100">Aller au dashboard</a>
+        {% else %}
+          <a href="{% url 'login' %}" class="btn btn-success w-100">Se connecter</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card shadow-sm mt-3">
+      <div class="card-body">
+        <h2 class="h6">Financeurs</h2>
+        <p class="mb-0 text-muted">Section a completer avec vos logos et textes.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+﻿{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h1 class="h4 mb-0">Dashboard</h1>
+  <form class="row row-cols-lg-auto g-2" method="get">
+    <div class="col"><input class="form-control" type="number" min="2024" name="year" placeholder="Annee" value="{{ request.GET.year }}"></div>
+    <div class="col">
+      <select class="form-select" name="crop">
+        <option value="">Culture</option>
+        <option value="aubergine" {% if request.GET.crop == 'aubergine' %}selected{% endif %}>Aubergine</option>
+        <option value="concombre" {% if request.GET.crop == 'concombre' %}selected{% endif %}>Concombre</option>
+      </select>
+    </div>
+    <div class="col">
+      <select class="form-select" name="department">
+        <option value="">Departement</option>
+        <option value="85" {% if request.GET.department == '85' %}selected{% endif %}>85</option>
+        <option value="56" {% if request.GET.department == '56' %}selected{% endif %}>56</option>
+        <option value="44" {% if request.GET.department == '44' %}selected{% endif %}>44</option>
+        <option value="35" {% if request.GET.department == '35' %}selected{% endif %}>35</option>
+      </select>
+    </div>
+    <div class="col"><button class="btn btn-outline-success">Filtrer</button></div>
+  </form>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-md-6">
+    <div class="card shadow-sm"><div class="card-body"><h2 class="h6">Pression puceron moyenne</h2><div class="display-6">{{ avg_aphid }} %</div></div></div>
+  </div>
+  <div class="col-12 col-md-6">
+    <div class="card shadow-sm"><div class="card-body"><h2 class="h6">Auxiliaires moyens</h2><div class="display-6">{{ avg_aux_per_plant }} / plant</div></div></div>
+  </div>
+</div>
+<div class="card shadow-sm"><div class="card-body"><canvas id="globalChart" height="100"></canvas></div></div>
+{% endblock %}
+
+{% block scripts %}
+{{ labels|json_script:"labels-data" }}
+{{ aphid_points|json_script:"aphid-data" }}
+{{ aux_points|json_script:"aux-data" }}
+<script>
+const labels = JSON.parse(document.getElementById('labels-data').textContent);
+const aphids = JSON.parse(document.getElementById('aphid-data').textContent);
+const aux = JSON.parse(document.getElementById('aux-data').textContent);
+new Chart(document.getElementById('globalChart'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {label: '% feuilles infestees', data: aphids, borderColor: '#d63384', tension: 0.2},
+      {label: 'Auxiliaires/plant', data: aux, borderColor: '#198754', tension: 0.2}
+    ]
+  },
+  options: {responsive: true, maintainAspectRatio: true}
+});
+</script>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h1 class="h4 mb-3">Mode hors ligne</h1>
+    <p class="mb-2">La connexion internet est indisponible.</p>
+    <p class="mb-3">Vous pouvez continuer la saisie. Les donnees restent en brouillon local, puis seront envoyees des que vous revenez en ligne.</p>
+    <a class="btn btn-success" href="{% url 'record_create' %}">Retour a la saisie</a>
+  </div>
+</div>
+{% endblock %}

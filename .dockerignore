@@ -1,0 +1,13 @@
+.git
+.gitignore
+venv
+venv/
+venv_port
+venv_port/
+__pycache__/
+*.py[cod]
+db.sqlite3
+media/
+staticfiles/
+.env
+README.md

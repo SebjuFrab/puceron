@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .action-card { border-radius: 14px; border: 1px solid #d8e6de; }
+  .badge-step {
+    border: 1px solid #198754;
+    color: #198754;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: #f3fbf7;
+  }
+</style>
+
+<div class="card shadow-sm action-card mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+      <div>
+        <h1 class="h4 mb-1">Saisie action preventive / curative</h1>
+        <div class="text-muted small">
+          <b>Serie:</b> {{ selected_series.name }} |
+          {{ selected_series.crop.name }} |
+          {{ selected_series.conduct_type.name }} |
+          {{ selected_series.get_organic_mode_display }} |
+          {{ selected_series.variety.name }}
+        </div>
+        {% if is_technician %}
+          <div class="text-muted small"><b>Saisie pour producteur:</b> {{ target_user.username }}</div>
+        {% endif %}
+      </div>
+      <span class="badge-step">Etape action</span>
+    </div>
+
+    <form method="post" class="row g-2">
+      {% csrf_token %}
+      {% if selected_lever %}
+        <input type="hidden" name="decision_lever" value="{{ selected_lever.id }}">
+      {% endif %}
+      {% if recommendation_record %}
+        <input type="hidden" name="recommendation_record" value="{{ recommendation_record.id }}">
+      {% endif %}
+      {{ form.plant_series }}
+      {% if selected_lever %}
+      <div class="col-12">
+        <div class="alert alert-success mb-2">
+          <div class="fw-bold">{{ selected_lever.title }}</div>
+          <div>{{ selected_lever.description }}</div>
+        </div>
+      </div>
+      {% endif %}
+      <div class="col-12 col-md-4">
+        <label class="form-label">{{ form.action_date.label }}</label>
+        <div class="input-group">
+          {{ form.action_date }}
+          <button class="btn btn-outline-secondary" type="button" id="openActionDatePicker">Calendrier</button>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label">{{ form.action_type.label }}</label>
+        {{ form.action_type }}
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label">{{ form.scope.label }}</label>
+        {{ form.scope }}
+      </div>
+
+      <div class="col-12 d-none" id="moleculeWrap">
+        <label class="form-label">{{ form.molecule.label }}</label>
+        {{ form.molecule }}
+      </div>
+      <div class="col-12 d-none" id="auxiliaryWrap">
+        <label class="form-label">{{ form.auxiliary_taxon.label }}</label>
+        {{ form.auxiliary_taxon }}
+      </div>
+      <div class="col-12">
+        <label class="form-label">{{ form.notes.label }}</label>
+        {{ form.notes }}
+      </div>
+
+      {% if form.errors %}
+      <div class="col-12 text-danger small">{{ form.errors }}</div>
+      {% endif %}
+
+      <div class="col-12 d-flex gap-2">
+        <a href="{% url 'record_create' %}?plant_series={{ selected_series.id }}" class="btn btn-outline-secondary">Retour</a>
+        <button type="submit" class="btn btn-success">Enregistrer l'action</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ action_types|json_script:"action-types-json" }}
+<script>
+const actionTypesData = document.getElementById('action-types-json');
+const actionTypes = actionTypesData ? JSON.parse(actionTypesData.textContent || '[]') : [];
+const actionTypeField = document.getElementById('id_action_type');
+const moleculeWrap = document.getElementById('moleculeWrap');
+const auxiliaryWrap = document.getElementById('auxiliaryWrap');
+const moleculeField = document.getElementById('id_molecule');
+const auxiliaryField = document.getElementById('id_auxiliary_taxon');
+const actionDateField = document.getElementById('id_action_date');
+
+function categoryForActionTypeId(actionTypeId) {
+  if (!Array.isArray(actionTypes)) return null;
+  const found = actionTypes.find(item => String(item.id) === String(actionTypeId));
+  return found ? found.category : null;
+}
+
+function toggleConditionalFields() {
+  if (!actionTypeField || !moleculeWrap || !auxiliaryWrap) return;
+  const category = categoryForActionTypeId(actionTypeField.value);
+  const showMolecule = category === 'treatment';
+  const showAux = category === 'release';
+
+  moleculeWrap.classList.toggle('d-none', !showMolecule);
+  auxiliaryWrap.classList.toggle('d-none', !showAux);
+
+  if (!showMolecule && moleculeField) moleculeField.value = '';
+  if (!showAux && auxiliaryField) auxiliaryField.value = '';
+}
+
+if (actionTypeField) {
+  actionTypeField.addEventListener('change', toggleConditionalFields);
+  toggleConditionalFields();
+}
+
+if (actionDateField) {
+  const openPicker = () => {
+    if (typeof actionDateField.showPicker === 'function') actionDateField.showPicker();
+    else { actionDateField.focus(); actionDateField.click(); }
+  };
+  document.getElementById('openActionDatePicker')?.addEventListener('click', openPicker);
+  actionDateField.addEventListener('focus', openPicker);
+}
+</script>
+{% endblock %}

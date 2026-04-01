@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .recommendations-wrap {
+    display: grid;
+    gap: 1rem;
+  }
+  .recommendation-card {
+    border: 1px solid #d7e9e0;
+    border-radius: 20px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fcf9 100%);
+    box-shadow: 0 8px 24px rgba(17, 79, 50, 0.08);
+  }
+  .recommendation-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid #c8e0d1;
+    background: #fbfffc;
+    color: #1c5e3f;
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+  .recommendation-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #114f32;
+    margin-bottom: 0.5rem;
+  }
+  .recommendation-meta {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.9rem;
+  }
+</style>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+  <div>
+    <h1 class="h3 mb-1">Mes recommandations en cours</h1>
+    <p class="text-muted mb-0">Recommandations encore ouvertes sur le dernier comptage de chaque serie active.</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'record_create' %}" class="btn btn-success">Nouvelle saisie</a>
+    <a href="{% url 'my_series' %}" class="btn btn-outline-secondary">Mes series</a>
+  </div>
+</div>
+
+{% if recommendation_cards %}
+  <div class="recommendations-wrap">
+    {% for item in recommendation_cards %}
+      <div class="card recommendation-card">
+        <div class="card-body p-4">
+          <div class="small text-uppercase text-success fw-semibold mb-2">Recommandation en cours</div>
+          <div class="recommendation-title">{{ item.recommendation.rule.title }}</div>
+          <div class="text-muted mb-2">
+            Serie <b>{{ item.series.name }}</b> | Annee {{ item.series.year }} | Observation du {{ item.record.scouting_date }}
+          </div>
+          <div class="small text-uppercase text-muted fw-semibold mb-2">Scores obtenus</div>
+          {% include 'scouting/includes/recommendation_scores.html' with indicators=item.recommendation.indicators wrapper_class='recommendation-meta' chip_class='recommendation-chip' %}
+          <div class="mb-2">{{ item.recommendation.rule.description }}</div>
+          {% include 'scouting/includes/recommendation_actions.html' with recommendation=item.recommendation record=item.record plant_series_id=item.series.id dismiss_reasons=dismiss_reasons next_path=request.get_full_path %}
+          {% if not item.recommendation.levers %}
+            <div class="alert alert-warning mt-3 mb-0">Aucun levier actif n'est parametre pour cette regle.</div>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="alert alert-success mb-0">Aucune recommandation en cours pour vos series actives.</div>
+{% endif %}
+{% endblock %}

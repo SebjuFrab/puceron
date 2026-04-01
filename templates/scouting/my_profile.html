@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+{% block head_extras %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  .profile-logo {
+    width: 112px;
+    height: 112px;
+    border-radius: 20px;
+    object-fit: cover;
+    border: 1px solid #d8e4dd;
+    background: #f4faf6;
+  }
+  .profile-logo-fallback {
+    width: 112px;
+    height: 112px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #d8e4dd;
+    background: linear-gradient(145deg, #198754, #115c39);
+    color: #fff;
+    font-size: 2rem;
+    font-weight: 800;
+  }
+  .tech-contact-card {
+    border: 1px solid #d8e4dd;
+    border-radius: 16px;
+    background: #f9fcfa;
+    padding: 16px;
+    height: 100%;
+  }
+  .tech-contact-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h1 class="h4">Mon profil</h1>
+        <p class="text-muted">Informations de ferme, technicien referent et position GPS.</p>
+        <form method="post" enctype="multipart/form-data" class="row g-3">
+          {% csrf_token %}
+          <div class="col-12">
+            <div class="d-flex gap-3 align-items-center flex-wrap">
+              {% if profile.photo %}
+                <img src="{{ profile.photo.url }}" alt="{{ profile.farm_name|default:request.user.username }}" class="profile-logo">
+              {% else %}
+                <div class="profile-logo-fallback">{{ profile.farm_name|default:request.user.username|slice:":1"|upper }}</div>
+              {% endif %}
+              <div class="flex-grow-1">
+                <label class="form-label" for="id_photo">Photo / logo</label>
+                {{ form.photo }}
+                <div class="form-text">Affichez le logo de la ferme ou une photo de profil.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label" for="id_farm_name">Nom de ferme</label>
+            {{ form.farm_name }}
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label" for="id_email">Email</label>
+            {{ form.email }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_phone">Telephone</label>
+            {{ form.phone }}
+          </div>
+
+          {% if profile.role == 'producer' %}
+          <div class="col-12">
+            <div class="tech-contact-card">
+              <div class="small text-uppercase text-success fw-semibold mb-1">Technicien referent</div>
+              <div class="h5 mb-1">
+                {% if profile.assigned_technician %}
+                  {{ profile.assigned_technician.get_full_name|default:profile.assigned_technician.username }}
+                {% else %}
+                  Non renseigne
+                {% endif %}
+              </div>
+              {% if profile.assigned_technician %}
+                <div class="mt-2">
+                  <div><strong>Telephone:</strong> {% if technician_profile and technician_profile.phone %}{{ technician_profile.phone }}{% else %}Non renseigne{% endif %}</div>
+                  <div><strong>Email:</strong> {% if profile.assigned_technician.email %}{{ profile.assigned_technician.email }}{% else %}Non renseigne{% endif %}</div>
+                </div>
+                <div class="tech-contact-actions">
+                  {% if technician_profile and technician_profile.phone %}
+                    <a class="btn btn-outline-success btn-sm" href="tel:{{ technician_profile.phone|cut:' ' }}">Appeler</a>
+                  {% endif %}
+                  {% if profile.assigned_technician.email %}
+                    <a class="btn btn-outline-primary btn-sm" href="mailto:{{ profile.assigned_technician.email }}">Envoyer un mail</a>
+                  {% endif %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          {% else %}
+          <div class="col-md-4">
+            <label class="form-label" for="id_department">Departement</label>
+            {{ form.department }}
+          </div>
+          {% endif %}
+
+          {{ form.latitude }}
+          {{ form.longitude }}
+
+          <div class="col-12">
+            <label class="form-label" for="id_street_address">Adresse</label>
+            {{ form.street_address }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_postal_code">Code postal</label>
+            {{ form.postal_code }}
+          </div>
+          <div class="col-md-8">
+            <label class="form-label" for="id_city">Commune</label>
+            {{ form.city }}
+          </div>
+          <div class="col-12">
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+              <button class="btn btn-outline-success" type="button" id="profileGeocodeBtn">Localiser sur la carte</button>
+              <span class="small text-muted" id="profileCoordsLabel">
+                {% if profile_has_coordinates %}
+                  GPS: {{ profile.latitude }}, {{ profile.longitude }}
+                {% else %}
+                  Aucune coordonnee GPS enregistree.
+                {% endif %}
+              </span>
+            </div>
+          </div>
+          <div class="col-12">
+            <div id="profileMap" style="height: 320px; border-radius: 12px; border: 1px solid #d8e4dd;"></div>
+            <div class="form-text">Cliquez sur la carte pour ajuster le point si besoin.</div>
+          </div>
+
+          {% if form.errors %}
+          <div class="col-12 text-danger small">{{ form.errors }}</div>
+          {% endif %}
+          <div class="col-12">
+            <button class="btn btn-success" type="submit">Enregistrer mon profil</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const profileStreetField = document.getElementById('id_street_address');
+const profilePostalField = document.getElementById('id_postal_code');
+const profileCityField = document.getElementById('id_city');
+const profileLatField = document.getElementById('id_latitude');
+const profileLngField = document.getElementById('id_longitude');
+const profileCoordsLabel = document.getElementById('profileCoordsLabel');
+const profileInitialLat = parseFloat(profileLatField.value || {{ profile_map_initial_lat }});
+const profileInitialLng = parseFloat(profileLngField.value || {{ profile_map_initial_lng }});
+const profileHasCoordinates = Boolean(profileLatField.value && profileLngField.value) || {{ profile_has_coordinates|yesno:"true,false" }};
+const profileMap = L.map('profileMap').setView([profileInitialLat, profileInitialLng], profileHasCoordinates ? 14 : 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap',
+  referrerPolicy: 'strict-origin-when-cross-origin',
+}).addTo(profileMap);
+let profileMarker = null;
+
+function setProfileMarker(lat, lng) {
+  if (!profileMarker) {
+    profileMarker = L.marker([lat, lng], { draggable: true }).addTo(profileMap);
+    profileMarker.on('dragend', function() {
+      const pos = profileMarker.getLatLng();
+      updateProfileCoordinates(pos.lat, pos.lng, false);
+    });
+  } else {
+    profileMarker.setLatLng([lat, lng]);
+  }
+  profileMap.setView([lat, lng], 15);
+}
+
+function updateProfileCoordinates(lat, lng, moveMarker) {
+  profileLatField.value = Number(lat).toFixed(6);
+  profileLngField.value = Number(lng).toFixed(6);
+  profileCoordsLabel.textContent = `GPS: ${profileLatField.value}, ${profileLngField.value}`;
+  if (moveMarker) {
+    setProfileMarker(lat, lng);
+  }
+}
+
+if (profileHasCoordinates) {
+  setProfileMarker(profileInitialLat, profileInitialLng);
+}
+
+profileMap.on('click', function(event) {
+  updateProfileCoordinates(event.latlng.lat, event.latlng.lng, true);
+});
+
+async function geocodeProfileAddress() {
+  const street = profileStreetField.value.trim();
+  const postal = profilePostalField.value.trim();
+  const city = profileCityField.value.trim();
+  if (!street || !postal || !city) {
+    profileCoordsLabel.textContent = 'Renseignez adresse, code postal et commune avant localisation.';
+    return;
+  }
+  profileCoordsLabel.textContent = 'Recherche de la position GPS...';
+  const query = encodeURIComponent(`${street}, ${postal} ${city}, France`);
+  const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=fr&q=${query}`);
+  const results = await response.json();
+  if (!results.length) {
+    profileCoordsLabel.textContent = 'Adresse introuvable. Ajustez le texte ou placez le point manuellement sur la carte.';
+    return;
+  }
+  updateProfileCoordinates(results[0].lat, results[0].lon, true);
+}
+
+document.getElementById('profileGeocodeBtn')?.addEventListener('click', function() {
+  geocodeProfileAddress().catch(function() {
+    profileCoordsLabel.textContent = 'La geolocalisation a echoue.';
+  });
+});
+</script>
+{% endblock %}

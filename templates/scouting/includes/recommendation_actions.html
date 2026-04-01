@@ -1,0 +1,59 @@
+<div class="d-flex gap-2 flex-wrap mt-2">
+  {% for lever in recommendation.levers %}
+    <a
+      class="btn btn-sm btn-success"
+      href="{% url 'action_create' %}?plant_series={{ plant_series_id }}&lever={{ lever.id }}&recommendation_record={{ record.id }}"
+    >
+      {{ lever.title }}
+    </a>
+  {% endfor %}
+  <button
+    class="btn btn-sm btn-outline-danger"
+    type="button"
+    data-bs-toggle="collapse"
+    data-bs-target="#dismissRecommendation{{ record.id }}"
+    aria-expanded="false"
+    aria-controls="dismissRecommendation{{ record.id }}"
+  >
+    Ne pas suivre
+  </button>
+</div>
+
+<div class="collapse mt-3" id="dismissRecommendation{{ record.id }}">
+  <form method="post" action="{% url 'recommendation_dismiss' record.id %}" class="border rounded-3 bg-light p-3">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next_path }}">
+    <div class="mb-2">
+      <label class="form-label small fw-semibold">Pourquoi ne pas suivre ?</label>
+      <select name="dismiss_reason" class="form-select form-select-sm js-dismiss-reason">
+        <option value="">Choix facultatif</option>
+        {% for reason in dismiss_reasons %}
+          <option value="{{ reason.id }}" data-requires-comment="{% if reason.requires_comment %}1{% else %}0{% endif %}">
+            {{ reason.label }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="mb-2">
+      <textarea
+        name="dismiss_note"
+        class="form-control form-control-sm js-dismiss-note d-none"
+        rows="2"
+        placeholder="Precisez si besoin"
+      ></textarea>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-outline-danger">Confirmer</button>
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        data-bs-toggle="collapse"
+        data-bs-target="#dismissRecommendation{{ record.id }}"
+        aria-expanded="false"
+        aria-controls="dismissRecommendation{{ record.id }}"
+      >
+        Annuler
+      </button>
+    </div>
+  </form>
+</div>

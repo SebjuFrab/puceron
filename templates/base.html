@@ -1,0 +1,154 @@
+﻿<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#198754">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>PUCERON</title>
+  <link rel="manifest" href="{% url 'manifest' %}">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .nav-link-cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: #fff7e6;
+      border: 1px solid #ffd27d;
+      color: #8a4f00 !important;
+      font-weight: 800;
+      padding: 0.45rem 1rem !important;
+      box-shadow: 0 8px 18px rgba(255, 170, 0, 0.18);
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+    .nav-link-cta:hover,
+    .nav-link-cta:focus {
+      background: #ffefc7;
+      color: #6f3f00 !important;
+      transform: translateY(-1px);
+      box-shadow: 0 10px 22px rgba(255, 170, 0, 0.24);
+    }
+    .mobile-record-cta {
+      display: none;
+    }
+    @media (max-width: 991.98px) {
+      body.has-mobile-record-cta main {
+        padding-bottom: 96px !important;
+      }
+      #navMain .navbar-nav .nav-link-cta {
+        width: 100%;
+        margin: 0.35rem 0 0.15rem;
+      }
+      .mobile-record-cta {
+        position: fixed;
+        left: 14px;
+        right: 14px;
+        bottom: max(14px, env(safe-area-inset-bottom));
+        z-index: 1040;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 56px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #ffb703 0%, #fb8500 100%);
+        color: #ffffff;
+        text-decoration: none;
+        font-weight: 900;
+        font-size: 1.05rem;
+        letter-spacing: 0.01em;
+        box-shadow: 0 18px 32px rgba(251, 133, 0, 0.32);
+      }
+      .mobile-record-cta:hover,
+      .mobile-record-cta:focus {
+        color: #ffffff;
+      }
+    }
+  </style>
+  {% block head_extras %}{% endblock %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-light{% if user.is_authenticated and viewer_profile and viewer_profile.role == 'producer' %} has-mobile-record-cta{% endif %}">
+<nav class="navbar navbar-expand-lg navbar-dark bg-success">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="{% url 'landing' %}">PUCERON</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div id="navMain" class="collapse navbar-collapse">
+      <ul class="navbar-nav me-auto">
+        {% if user.is_authenticated %}
+          <li class="nav-item"><a class="nav-link nav-link-cta" href="{% url 'record_create' %}">Saisir</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'info_index' %}">Infos</a></li>
+          {% if user.is_staff %}
+            <li class="nav-item"><a class="nav-link" href="/cms/">CMS</a></li>
+          {% endif %}
+          <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'my_profile' %}">Mon profil</a></li>
+          {% if can_manage_producers %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'producer_create' %}">Nouveau producteur</a></li>
+          {% endif %}
+          <li class="nav-item"><a class="nav-link" href="{% url 'my_series' %}">Mes series</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'my_recommendations' %}">Mes recommandations</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'my_records' %}">Mes donnees</a></li>
+          {% if user.is_superuser or viewer_profile.role == 'technician' %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'technician_records' %}">Vue technicien</a></li>
+          {% endif %}
+        {% endif %}
+      </ul>
+      <ul class="navbar-nav">
+        {% if user.is_authenticated %}
+          <li class="nav-item"><a class="nav-link" href="{% url 'logout' %}">Deconnexion</a></li>
+        {% else %}
+          <li class="nav-item"><a class="nav-link" href="{% url 'login' %}">Connexion</a></li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<main class="container py-4">
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-info">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+
+{% if user.is_authenticated and viewer_profile and viewer_profile.role == 'producer' %}
+  <a class="mobile-record-cta" href="{% url 'record_create' %}">Saisir un comptage</a>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register("{% url 'service_worker' %}").catch(function() {});
+  });
+}
+
+function syncDismissNoteVisibility(selectEl) {
+  if (!selectEl) return;
+  const form = selectEl.closest('form');
+  if (!form) return;
+  const noteField = form.querySelector('.js-dismiss-note');
+  if (!noteField) return;
+  const selectedOption = selectEl.options[selectEl.selectedIndex];
+  const requiresComment = selectedOption && selectedOption.dataset.requiresComment === '1';
+  noteField.classList.toggle('d-none', !requiresComment);
+}
+
+document.addEventListener('change', function(event) {
+  if (event.target.classList.contains('js-dismiss-reason')) {
+    syncDismissNoteVisibility(event.target);
+  }
+});
+
+document.querySelectorAll('.js-dismiss-reason').forEach(function(selectEl) {
+  syncDismissNoteVisibility(selectEl);
+});
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

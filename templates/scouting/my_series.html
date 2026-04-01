@@ -1,0 +1,147 @@
+﻿{% extends 'base.html' %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h6">Series existantes</h2>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr><th>Photo</th><th>Nom</th><th>Annee</th><th>Culture</th><th>Conduite</th><th>Mode</th><th>Variete</th><th>Plants</th><th>Feuilles</th><th>Derniere preconisation</th></tr></thead>
+            <tbody>
+              {% for s in series_list %}
+              <tr>
+                <td>
+                  {% if s.photo %}
+                    <img src="{{ s.photo.url }}" alt="{{ s.name }}" style="width:42px;height:42px;object-fit:cover;border-radius:8px;border:1px solid #d4d4d4;">
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td><a href="{% url 'my_series' %}?edit={{ s.id }}">{{ s.name }}</a></td>
+                <td>{{ s.year }}</td>
+                <td>{{ s.crop.name }}</td>
+                <td>{{ s.conduct_type.name }}</td>
+                <td>{{ s.get_organic_mode_display }}</td>
+                <td>{{ s.variety.name }}</td>
+                <td>{{ s.plants_count }}</td>
+                <td>{{ s.leaves_per_plant }}</td>
+                <td style="min-width:320px;">
+                  {% if s.latest_recommendation %}
+                    {% if s.latest_recommendation.rule %}
+                      <div class="fw-semibold">{{ s.latest_recommendation.rule.title }}</div>
+                      <div class="small text-muted mb-1">{{ s.latest_recommendation.rule.description }}</div>
+                      <div class="small text-uppercase text-muted fw-semibold mb-2">Scores obtenus</div>
+                      {% include 'scouting/includes/recommendation_scores.html' with indicators=s.latest_recommendation.indicators wrapper_class='d-flex gap-1 flex-wrap mb-2' chip_class='badge rounded-pill text-bg-light border' %}
+                      {% if s.latest_recommendation.is_open and s.latest_recommendation.levers %}
+                        <div class="d-flex gap-1 flex-wrap">
+                          {% for lever in s.latest_recommendation.levers %}
+                            <a class="btn btn-sm btn-outline-success" href="{% url 'action_create' %}?plant_series={{ s.id }}&lever={{ lever.id }}&recommendation_record={{ s.latest_record.id }}">{{ lever.title }}</a>
+                          {% endfor %}
+                        </div>
+                      {% elif s.latest_recommendation.response %}
+                        <div class="small {% if s.latest_recommendation.response.status == 'dismissed' %}text-secondary{% else %}text-success{% endif %}">
+                          {{ s.latest_recommendation.response.get_status_display }}
+                          {% if s.latest_recommendation.response.dismiss_reason %}
+                            : {{ s.latest_recommendation.response.dismiss_reason.label }}
+                          {% endif %}
+                        </div>
+                      {% endif %}
+                    {% else %}
+                      <div class="small text-uppercase text-muted fw-semibold mb-2">Scores obtenus</div>
+                      {% include 'scouting/includes/recommendation_scores.html' with indicators=s.latest_recommendation.indicators wrapper_class='d-flex gap-1 flex-wrap mb-2' chip_class='badge rounded-pill text-bg-light border' %}
+                      <div class="small text-warning">{{ s.latest_recommendation.message }}</div>
+                    {% endif %}
+                  {% else %}
+                    <div class="small text-muted">Aucun comptage pour cette serie.</div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="10">Aucune serie.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h1 class="h5">{% if editing_instance %}Modifier ma serie{% else %}Ajouter une serie de plant{% endif %}</h1>
+        <form method="post" enctype="multipart/form-data" class="row g-2">
+          {% csrf_token %}
+          {% if editing_instance %}<input type="hidden" name="series_id" value="{{ editing_instance.id }}">{% endif %}
+          <div class="col-12"><label class="form-label">Nom de la serie</label>{{ form.name }}</div>
+          <div class="col-12"><label class="form-label">Photo de la serie</label>{{ form.photo }}</div>
+          <div class="col-12"><label class="form-label">Culture</label>{{ form.crop }}</div>
+          <div class="col-12"><label class="form-label">Conduite</label>{{ form.conduct_type }}</div>
+          <div class="col-12"><label class="form-label">Mode de conduite</label>{{ form.organic_mode }}</div>
+          <div class="col-12"><label class="form-label">Annee</label>{{ form.year }}</div>
+          <div class="col-12"><label class="form-label">Recherche variete</label><input id="varietySearch" class="form-control" type="text" placeholder="Rechercher dans la liste..."></div>
+          <div class="col-12"><label class="form-label">Variete</label>{{ form.variety }}</div>
+          <div class="col-12"><label class="form-label">Nouvelle variete (si absente)</label>{{ form.new_variety_name }}</div>
+          <div class="col-6"><label class="form-label">Nb plants</label>{{ form.plants_count }}</div>
+          <div class="col-6"><label class="form-label">Nb feuilles/plant</label>{{ form.leaves_per_plant }}</div>
+          <div class="col-12 form-check mt-2">{{ form.is_active }} <label class="form-check-label">Serie active</label></div>
+          <div class="col-12 text-danger small">{{ form.errors }}</div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-success" type="submit">{% if editing_instance %}Modifier ma serie{% else %}Ajouter la serie{% endif %}</button>
+            <a class="btn btn-outline-secondary" href="{% url 'my_series' %}">Nouveau</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ varieties|json_script:"varieties-data" }}
+<datalist id="varietySuggestions"></datalist>
+<script>
+const varieties = JSON.parse(document.getElementById('varieties-data').textContent);
+const cropField = document.getElementById('id_crop');
+const varietyField = document.getElementById('id_variety');
+const varietySearch = document.getElementById('varietySearch');
+const newVarietyInput = document.getElementById('id_new_variety_name');
+const varietySuggestions = document.getElementById('varietySuggestions');
+
+function filterVarieties() {
+  const cropId = cropField.value;
+  const current = varietyField.value;
+  const query = (varietySearch?.value || '').toLowerCase().trim();
+  const options = ['<option value="">---------</option>'];
+  const filtered = varieties.filter(v => {
+    const okCrop = String(v.crop_id) === String(cropId);
+    const okQuery = !query || v.name.toLowerCase().includes(query);
+    return okCrop && okQuery;
+  });
+  filtered.forEach(v => options.push(`<option value="${v.id}">${v.name}</option>`));
+  varietyField.innerHTML = options.join('');
+  if ([...varietyField.options].some(opt => opt.value === current)) {
+    varietyField.value = current;
+  }
+  if (varietySuggestions) {
+    varietySuggestions.innerHTML = filtered.map(v => `<option value="${v.name}"></option>`).join('');
+  }
+}
+if (cropField && varietyField) {
+  cropField.addEventListener('change', filterVarieties);
+  if (varietySearch) varietySearch.addEventListener('input', filterVarieties);
+  filterVarieties();
+}
+if (newVarietyInput && varietyField) {
+  newVarietyInput.addEventListener('input', () => {
+    const typed = newVarietyInput.value.trim().toLowerCase();
+    if (!typed) return;
+    const matched = [...varietyField.options].find(
+      opt => opt.textContent.trim().toLowerCase() === typed && opt.value
+    );
+    if (matched) {
+      varietyField.value = matched.value;
+    }
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load wagtailcore_tags %}
+{% block content %}
+<style>
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+  .info-card {
+    border: 1px solid #d7e9e0;
+    border-radius: 20px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fcf9 100%);
+    box-shadow: 0 8px 24px rgba(17, 79, 50, 0.08);
+  }
+  .info-chip {
+    display: inline-flex;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: #eef8f2;
+    color: #155338;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border: 1px solid #cfe3d5;
+  }
+</style>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+  <div>
+    <h1 class="h3 mb-1">Informations</h1>
+    <p class="text-muted mb-0">Pages d'information sur le protocole, les auxiliaires et les techniques de lutte.</p>
+  </div>
+</div>
+
+{% if pages %}
+  <div class="info-grid">
+    {% for page in pages %}
+        <div class="card info-card">
+          <div class="card-body p-4">
+          <div class="info-chip mb-3">{{ page.get_page_key_display_label }}</div>
+          <h2 class="h4">{{ page.title }}</h2>
+          <p class="text-muted">{{ page.intro|default:page.body|striptags|truncatechars:180 }}</p>
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span class="small text-muted">{{ page.resources.count }} ressource{{ page.resources.count|pluralize:",s" }}</span>
+            <a href="{% url 'info_page' page.page_key|default:page.slug %}" class="btn btn-success">Ouvrir</a>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="alert alert-warning mb-0">Aucune page d'information publiee pour le moment.</div>
+{% endif %}
+{% endblock %}
