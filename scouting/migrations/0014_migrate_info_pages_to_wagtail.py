@@ -96,6 +96,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('scouting', '0013_infocontentpage_infoindexpage_and_more'),
+        ('wagtailsearch', '0009_remove_ngram_autocomplete'),
     ]
 
     operations = [
