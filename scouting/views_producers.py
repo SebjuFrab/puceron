@@ -1,0 +1,258 @@
+﻿import csv
+from io import StringIO
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+
+from .forms import (
+    ProducerAccountCreationForm,
+    ProducerImportForm,
+    ProducerProfileUpdateForm,
+)
+from .utils import display_user_name
+from .views_support import (
+    CSV_IMPORT_REQUIRED_FIELDS,
+    _accessible_producer_profiles,
+    _can_manage_producers,
+    _get_profile,
+    _load_csv_rows,
+    _profile_address_context,
+    _upsert_producer_from_csv_row,
+)
+
+@login_required
+def producer_create_view(request):
+    if not _can_manage_producers(request.user):
+        messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
+        return redirect('dashboard')
+
+    creator_profile = _get_profile(request.user)
+    if (not request.user.is_superuser) and not creator_profile.department:
+        messages.error(request, 'Renseignez votre departement avant de creer un producteur.')
+        return redirect('my_profile')
+
+    if request.method == 'POST':
+        form = ProducerAccountCreationForm(request.POST, creator=request.user)
+        if form.is_valid():
+            created_user = form.save()
+            messages.success(
+                request,
+                f'Compte producteur cree: {display_user_name(created_user)} (identifiant: {created_user.username})',
+            )
+            return redirect('producer_create')
+    else:
+        form = ProducerAccountCreationForm(creator=request.user)
+
+    return render(
+        request,
+        'scouting/producer_create.html',
+        {
+            'form': form,
+            'is_super_admin_creator': request.user.is_superuser,
+        },
+    )
+
+
+@login_required
+def producer_import_view(request):
+    if not _can_manage_producers(request.user):
+        messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
+        return redirect('dashboard')
+
+    creator_profile = _get_profile(request.user)
+    if (not request.user.is_superuser) and not creator_profile.department:
+        messages.error(request, 'Renseignez votre departement avant d importer des producteurs.')
+        return redirect('my_profile')
+
+    results = []
+    summary = None
+    if request.method == 'POST':
+        form = ProducerImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                rows = _load_csv_rows(form.cleaned_data['csv_file'])
+            except ValueError as exc:
+                form.add_error('csv_file', str(exc))
+            else:
+                update_existing = form.cleaned_data['update_existing']
+                created_count = 0
+                updated_count = 0
+                error_count = 0
+
+                for row in rows:
+                    missing = [
+                        field
+                        for field in CSV_IMPORT_REQUIRED_FIELDS
+                        if not (row.get(field) or '').strip()
+                    ]
+                    if missing:
+                        error_count += 1
+                        results.append(
+                            {
+                                'line': row['_line'],
+                                'status': 'error',
+                                'message': 'Champs obligatoires manquants: ' + ', '.join(missing),
+                            }
+                        )
+                        continue
+
+                    try:
+                        result = _upsert_producer_from_csv_row(row, request.user, update_existing)
+                    except ValueError as exc:
+                        error_count += 1
+                        results.append(
+                            {
+                                'line': row['_line'],
+                                'status': 'error',
+                                'message': str(exc),
+                            }
+                        )
+                        continue
+
+                    if result['created']:
+                        created_count += 1
+                    else:
+                        updated_count += 1
+                    results.append(
+                        {
+                            'line': row['_line'],
+                            'status': result['status'],
+                            'producer_name': display_user_name(result['user']),
+                            'username': result['user'].username,
+                            'email': result['user'].email,
+                            'technician_name': display_user_name(result['technician']),
+                            'first_login': 'Faire "Mot de passe oublie"' if result['created'] else '-',
+                            'message': result['note'] or '',
+                        }
+                    )
+
+                summary = {
+                    'total': len(rows),
+                    'created': created_count,
+                    'updated': updated_count,
+                    'errors': error_count,
+                }
+                if error_count:
+                    messages.warning(
+                        request,
+                        f'Import termine: {created_count} crees, {updated_count} mis a jour, {error_count} en erreur.',
+                    )
+                else:
+                    messages.success(
+                        request,
+                        f'Import termine: {created_count} crees, {updated_count} mis a jour.',
+                    )
+    else:
+        form = ProducerImportForm()
+
+    expected_columns = [
+        'Raison social',
+        'Nom',
+        'Prenom',
+        'Departement',
+        'mail',
+        'Adresse',
+        'code postal',
+        'commune',
+        'IDtek referents',
+        'mobile',
+    ]
+    return render(
+        request,
+        'scouting/producer_import.html',
+        {
+            'form': form,
+            'results': results,
+            'summary': summary,
+            'expected_columns': expected_columns,
+            'is_super_admin_creator': request.user.is_superuser,
+            'current_technician_name': display_user_name(request.user) if not request.user.is_superuser else '',
+        },
+    )
+
+
+@login_required
+def producer_import_template_view(request):
+    if not _can_manage_producers(request.user):
+        messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
+        return redirect('dashboard')
+
+    output = StringIO()
+    writer = csv.writer(output, delimiter=';')
+    header = [
+        'Raison social',
+        'Nom',
+        'Prenom',
+        'Departement',
+        'mail',
+        'Adresse',
+        'code postal',
+        'commune',
+        'IDtek referents',
+        'mobile',
+    ]
+    writer.writerow(header)
+    writer.writerow(
+        [
+            'GAEC Exemple',
+            'Martin',
+            'Claire',
+            '56',
+            'claire.martin@example.org',
+            '12 route des serres',
+            '56000',
+            'Vannes',
+            'tek56',
+            '0612345678',
+        ]
+    )
+
+    response = HttpResponse(output.getvalue(), content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="template_import_producteurs.csv"'
+    return response
+
+
+@login_required
+def producer_update_view(request, producer_id):
+    if not _can_manage_producers(request.user):
+        messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
+        return redirect('dashboard')
+
+    producer_profile_qs = _accessible_producer_profiles(request.user).select_related('user')
+    producer_profile = get_object_or_404(producer_profile_qs, user_id=producer_id)
+    producer_user = producer_profile.user
+
+    if request.method == 'POST':
+        form = ProducerProfileUpdateForm(
+            request.POST,
+            instance=producer_profile,
+            editor=request.user,
+            producer_user=producer_user,
+        )
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Profil producteur mis a jour.')
+            next_view = request.POST.get('next') or request.GET.get('next')
+            if next_view == 'technician_records':
+                return redirect(f"{reverse('technician_records')}?producer={producer_user.id}")
+            return redirect('producer_update', producer_id=producer_user.id)
+    else:
+        form = ProducerProfileUpdateForm(
+            instance=producer_profile,
+            editor=request.user,
+            producer_user=producer_user,
+        )
+
+    context = {
+        'form': form,
+        'producer_profile': producer_profile,
+        'producer_user': producer_user,
+        'is_super_admin_editor': request.user.is_superuser,
+    }
+    context.update(_profile_address_context(producer_profile))
+    return render(request, 'scouting/producer_update.html', context)
+
+

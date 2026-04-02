@@ -10,6 +10,7 @@
             <p class="text-muted mb-0">Import CSV en masse des comptes producteurs et de leurs coordonnees.</p>
           </div>
           <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-success" href="{% url 'producer_import_template' %}">Telecharger le template</a>
             <a class="btn btn-outline-success" href="{% url 'producer_create' %}">Creation unitaire</a>
             <a class="btn btn-outline-secondary" href="{% url 'technician_records' %}">Retour</a>
           </div>
@@ -26,14 +27,14 @@
           <div class="col-12 col-lg-6">
             <div class="border rounded-4 p-3 h-100">
               <h2 class="h6 mb-3">Colonnes attendues</h2>
-              <div class="small text-muted mb-2">Respectez l ordre et les intitulés suivants dans le fichier CSV.</div>
+              <div class="small text-muted mb-2">Respectez l ordre et les intitules suivants dans le fichier CSV.</div>
               <div class="d-flex gap-2 flex-wrap">
                 {% for column in expected_columns %}
                   <span class="badge rounded-pill text-bg-light border">{{ column }}</span>
                 {% endfor %}
               </div>
               <div class="small text-muted mt-3">
-                Les producteurs existants sont recherches par <strong>email</strong>. Les nouveaux comptes recoivent un mot de passe temporaire affiche apres import.
+                Les producteurs existants sont recherches par <strong>email</strong>. Les nouveaux comptes devront utiliser <strong>Mot de passe oublie</strong> pour definir leur mot de passe lors de la premiere connexion.
               </div>
             </div>
           </div>
@@ -81,7 +82,7 @@
                   <th>Identifiant</th>
                   <th>Email</th>
                   <th>Technicien</th>
-                  <th>Mot de passe temporaire</th>
+                  <th>Premiere connexion</th>
                   <th>Detail</th>
                 </tr>
               </thead>
@@ -102,7 +103,7 @@
                     <td>{{ row.username|default:'-' }}</td>
                     <td>{{ row.email|default:'-' }}</td>
                     <td>{{ row.technician_name|default:'-' }}</td>
-                    <td><code>{{ row.temporary_password|default:'-' }}</code></td>
+                    <td>{{ row.first_login|default:'-' }}</td>
                     <td>{{ row.message|default:'-' }}</td>
                   </tr>
                 {% endfor %}

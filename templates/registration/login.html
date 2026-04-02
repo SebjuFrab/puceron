@@ -15,6 +15,9 @@
             <label class="form-label" for="id_password">Mot de passe</label>
             <input type="password" name="password" required id="id_password" class="form-control">
           </div>
+          <div class="mb-3 text-end">
+            <a href="{% url 'password_reset' %}" class="small">Mot de passe oublie ?</a>
+          </div>
           <button class="btn btn-success w-100" type="submit">Se connecter</button>
         </form>
       </div>

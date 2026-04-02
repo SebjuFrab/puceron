@@ -1,0 +1,212 @@
+﻿import json
+from io import BytesIO
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db.models import Prefetch
+from django.http import HttpResponse
+from django.shortcuts import redirect, render
+from django.urls import reverse
+
+try:
+    from openpyxl import Workbook
+except Exception:  # pragma: no cover
+    Workbook = None
+
+from .decision_engine import evaluate_record_recommendation
+from .models import AuxiliaryTaxon, PlantAction, PlantSeries, ScoutingRecord
+from .utils import display_user_name
+from .views_support import (
+    _accessible_producer_profiles,
+    _filter_records,
+    _is_technician,
+    _latest_series_recommendation,
+    _technician_visibility_q,
+)
+
+@login_required
+def technician_records_view(request):
+    if not _is_technician(request.user):
+        messages.error(request, 'Acces reserve aux techniciens.')
+        return redirect('dashboard')
+
+    producer_profiles = list(_accessible_producer_profiles(request.user))
+    selected_producer = None
+    selected_producer_id = request.GET.get('producer')
+
+    if selected_producer_id:
+        selected_producer = next(
+            (profile for profile in producer_profiles if str(profile.user_id) == str(selected_producer_id)),
+            None,
+        )
+        if selected_producer is None:
+            messages.error(request, 'Le producteur selectionne est introuvable ou hors perimetre.')
+
+    producer_map_data = []
+    producers_without_coordinates = []
+    selected_producer_data = None
+
+    for profile in producer_profiles:
+        active_series = [series for series in profile.user.plant_series.all() if series.is_active]
+        first_photo_series = next((series for series in active_series if series.photo), None)
+        producer_name = profile.farm_name or display_user_name(profile.user)
+        producer_data = {
+            'id': profile.user_id,
+            'name': producer_name,
+            'display_name': display_user_name(profile.user),
+            'username': profile.user.username,
+            'address': profile.full_address,
+            'photo_url': first_photo_series.photo.url if first_photo_series and first_photo_series.photo else '',
+            'series_count': len(active_series),
+            'target_url': f"{reverse('technician_records')}?producer={profile.user_id}",
+            'is_selected': bool(selected_producer and selected_producer.user_id == profile.user_id),
+        }
+        if profile.latitude is not None and profile.longitude is not None:
+            producer_data['lat'] = float(profile.latitude)
+            producer_data['lng'] = float(profile.longitude)
+            producer_map_data.append(producer_data)
+        else:
+            producers_without_coordinates.append(producer_data)
+        if selected_producer and selected_producer.user_id == profile.user_id:
+            selected_producer_data = producer_data
+
+    records = ScoutingRecord.objects.select_related(
+        'user',
+        'plant_series',
+        'crop_ref',
+        'conduct_type_ref',
+        'variety_ref',
+    ).prefetch_related(
+        'leaf_observations',
+        'recommendation_responses__dismiss_reason',
+        'recommendation_responses__lever',
+        'recommendation_responses__action',
+    )
+    actions = PlantAction.objects.select_related(
+        'user',
+        'action_type',
+        'plant_series',
+        'molecule',
+        'auxiliary_taxon',
+    )
+    if not request.user.is_superuser:
+        visibility_query = _technician_visibility_q(request.user)
+        records = records.filter(visibility_query)
+        actions = actions.filter(visibility_query)
+
+    if selected_producer:
+        records = list(records.filter(user=selected_producer.user))
+        for record in records:
+            record.recommendation = evaluate_record_recommendation(record)
+        actions = actions.filter(user=selected_producer.user)
+        selected_series = list(
+            PlantSeries.objects.filter(user=selected_producer.user, is_active=True)
+            .select_related('crop', 'conduct_type', 'variety')
+            .prefetch_related(
+                Prefetch(
+                    'records',
+                    queryset=ScoutingRecord.objects.select_related('crop_ref', 'plant_series').prefetch_related(
+                        'leaf_observations',
+                        'recommendation_responses__dismiss_reason',
+                        'recommendation_responses__lever',
+                        'recommendation_responses__action',
+                    ),
+                )
+            )
+            .order_by('name')
+        )
+        for series in selected_series:
+            _latest_series_recommendation(series)
+    else:
+        records = records.none()
+        actions = actions.none()
+        selected_series = []
+
+    actions = actions.order_by('-action_date', '-created_at')
+    return render(
+        request,
+        'scouting/technician_records.html',
+        {
+            'records': records,
+            'actions': actions,
+            'producer_profiles': producer_profiles,
+            'producer_map_data_json': json.dumps(producer_map_data),
+            'mapped_producers_count': len(producer_map_data),
+            'producers_without_coordinates': producers_without_coordinates,
+            'selected_producer': selected_producer,
+            'selected_producer_data': selected_producer_data,
+            'selected_series': selected_series,
+        },
+    )
+
+
+@login_required
+def export_records_view(request):
+    if Workbook is None:
+        return HttpResponse('openpyxl manquant: installer openpyxl pour l export Excel.', status=500)
+
+    scope = request.GET.get('scope', 'me')
+    if scope == 'all' and _is_technician(request.user):
+        qs = ScoutingRecord.objects.select_related('user').prefetch_related('leaf_observations')
+        if not request.user.is_superuser:
+            qs = qs.filter(_technician_visibility_q(request.user))
+    else:
+        qs = (
+            ScoutingRecord.objects.filter(user=request.user)
+            .select_related('user')
+            .prefetch_related('leaf_observations')
+        )
+
+    qs = _filter_records(request, qs)
+    taxa = list(AuxiliaryTaxon.objects.order_by('display_order', 'name'))
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Comptages'
+    header = [
+        'Utilisateur',
+        'Departement',
+        'Serie',
+        'Culture',
+        'Conduite',
+        'Variete',
+        'Date saisie',
+        'Annee',
+        'Semaine',
+        '% feuilles infestees',
+        'Auxiliaires total',
+        'Auxiliaires/plant',
+        'Niveau risque',
+        'Commentaire',
+    ]
+    header.extend([f'{taxon.name} (moy/plant)' for taxon in taxa])
+    ws.append(header)
+    for rec in qs:
+        means = rec.species_means_per_plant()
+        row = [
+            display_user_name(rec.user),
+            rec.department,
+            rec.plant_series.name if rec.plant_series else '',
+            rec.get_crop_display(),
+            rec.conduct_type_ref.name if rec.conduct_type_ref else '',
+            rec.variety_ref.name if rec.variety_ref else '',
+            rec.scouting_date.isoformat(),
+            rec.year,
+            rec.week,
+            float(rec.aphid_infested_percent),
+            rec.auxiliary_total,
+            rec.auxiliaries_per_plant,
+            rec.risk_level,
+            rec.comment,
+        ]
+        row.extend([means.get(taxon.id, 0) for taxon in taxa])
+        ws.append(row)
+
+    content = BytesIO()
+    wb.save(content)
+    content.seek(0)
+    response = HttpResponse(
+        content.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = 'attachment; filename="comptages_pucerons.xlsx"'
+    return response
