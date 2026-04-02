@@ -90,6 +90,9 @@
           {% endif %}
           <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
           <li class="nav-item"><a class="nav-link" href="{% url 'my_profile' %}">Mon profil</a></li>
+          {% if user.is_superuser %}
+            <li class="nav-item"><a class="nav-link" href="/admin/">Admin</a></li>
+          {% endif %}
           {% if can_manage_producers %}
             <li class="nav-item"><a class="nav-link" href="{% url 'producer_create' %}">Nouveau producteur</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'producer_import' %}">Import producteurs</a></li>
