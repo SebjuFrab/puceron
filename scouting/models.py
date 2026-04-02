@@ -183,6 +183,9 @@ class UserProfile(models.Model):
         return ', '.join([part for part in parts if part])
 
     def sync_profile_fields(self):
+        if self.user_id and self.user.is_superuser:
+            self.assigned_technician = None
+
         full_address = self.full_address
         if full_address:
             self.farm_address = full_address

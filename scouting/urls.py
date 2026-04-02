@@ -26,6 +26,16 @@ urlpatterns = [
     ),
     path('technicien/controle/quitter/', views.producer_control_stop_view, name='producer_control_stop'),
     path(
+        'super-admin/controle-technicien/<int:technician_id>/',
+        views.technician_control_start_view,
+        name='technician_control_start',
+    ),
+    path(
+        'super-admin/controle-technicien/quitter/',
+        views.technician_control_stop_view,
+        name='technician_control_stop',
+    ),
+    path(
         'recommandations/<int:record_id>/ne-pas-suivre/',
         views.recommendation_dismiss_view,
         name='recommendation_dismiss',

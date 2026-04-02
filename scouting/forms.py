@@ -56,6 +56,8 @@ class ScoutingRecordForm(forms.ModelForm):
 
 class UserProfileForm(forms.ModelForm):
     email = forms.EmailField(required=False, label='Email')
+    first_name = forms.CharField(required=False, max_length=150, label='Prenom')
+    last_name = forms.CharField(required=False, max_length=150, label='Nom')
 
     class Meta:
         model = UserProfile
@@ -94,6 +96,10 @@ class UserProfileForm(forms.ModelForm):
         self.fields['phone'].widget.attrs['type'] = 'tel'
         self.fields['email'].widget.attrs['class'] = 'form-control'
         self.fields['email'].initial = self.user.email if self.user else ''
+        self.fields['first_name'].widget.attrs['class'] = 'form-control'
+        self.fields['last_name'].widget.attrs['class'] = 'form-control'
+        self.fields['first_name'].initial = self.user.first_name if self.user else ''
+        self.fields['last_name'].initial = self.user.last_name if self.user else ''
         self.fields['department'].widget.attrs['class'] = 'form-select'
         if self.instance and self.instance.farm_address and not self.instance.street_address:
             self.fields['street_address'].initial = self.instance.farm_address
@@ -102,12 +108,16 @@ class UserProfileForm(forms.ModelForm):
 
     def save(self, commit=True):
         profile = super().save(commit=False)
+        if self.user is not None and self.user.is_superuser:
+            profile.assigned_technician = None
         profile.sync_profile_fields()
         if self.user is not None:
             self.user.email = self.cleaned_data.get('email', '')
+            self.user.first_name = self.cleaned_data.get('first_name', '')
+            self.user.last_name = self.cleaned_data.get('last_name', '')
         if commit:
             if self.user is not None:
-                self.user.save(update_fields=['email'])
+                self.user.save(update_fields=['email', 'first_name', 'last_name'])
             profile.save()
         return profile
 

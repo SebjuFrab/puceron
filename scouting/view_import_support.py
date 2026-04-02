@@ -1,8 +1,13 @@
-﻿import csv
+import csv
+import json
 import secrets
 import string
+import time
 import unicodedata
 from io import StringIO
+from urllib.error import URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -12,6 +17,10 @@ from .utils import display_user_name
 from .view_access import _get_profile
 
 User = get_user_model()
+
+GEOCODE_ENDPOINT = 'https://nominatim.openstreetmap.org/search'
+GEOCODE_USER_AGENT = 'PUCERON/1.0 (contact: no-reply@puceron.agrobio-bretagne.org)'
+GEOCODE_THROTTLE_SECONDS = 1.0
 
 CSV_IMPORT_COLUMN_ALIASES = {
     'raison social': 'farm_name',
@@ -80,9 +89,7 @@ def _load_csv_rows(uploaded_file):
 
     missing = [field for field in CSV_IMPORT_REQUIRED_FIELDS if field not in normalized_headers.values()]
     if missing:
-        raise ValueError(
-            'Colonnes manquantes dans le CSV: ' + ', '.join(missing) + '.'
-        )
+        raise ValueError('Colonnes manquantes dans le CSV: ' + ', '.join(missing) + '.')
 
     rows = []
     for index, row in enumerate(reader, start=2):
@@ -145,7 +152,82 @@ def _resolve_import_technician(importer, technician_ref):
     return technician
 
 
-def _upsert_producer_from_csv_row(row, importer, update_existing):
+def _geocode_address(street_address, postal_code, city, cache=None, rate_limiter=None):
+    street = (street_address or '').strip()
+    postal = (postal_code or '').strip()
+    locality = (city or '').strip()
+    if not street or not postal or not locality:
+        return {
+            'status': 'missing_input',
+            'message': 'Adresse incomplete: GPS non calcule.',
+            'latitude': None,
+            'longitude': None,
+        }
+
+    query = f'{street}, {postal} {locality}, France'
+    cache_key = query.lower()
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
+
+    if rate_limiter is not None:
+        last_request_at = rate_limiter.get('last_request_at')
+        if last_request_at is not None:
+            elapsed = time.monotonic() - last_request_at
+            if elapsed < GEOCODE_THROTTLE_SECONDS:
+                time.sleep(GEOCODE_THROTTLE_SECONDS - elapsed)
+
+    params = urlencode(
+        {
+            'format': 'jsonv2',
+            'limit': 1,
+            'countrycodes': 'fr',
+            'addressdetails': 0,
+            'q': query,
+        }
+    )
+    request = Request(
+        f'{GEOCODE_ENDPOINT}?{params}',
+        headers={
+            'User-Agent': GEOCODE_USER_AGENT,
+            'Accept': 'application/json',
+        },
+    )
+
+    try:
+        with urlopen(request, timeout=12) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+        if rate_limiter is not None:
+            rate_limiter['last_request_at'] = time.monotonic()
+    except (URLError, TimeoutError, json.JSONDecodeError, ValueError):
+        result = {
+            'status': 'error',
+            'message': 'Geocodage indisponible: GPS non calcule.',
+            'latitude': None,
+            'longitude': None,
+        }
+    else:
+        if payload:
+            first = payload[0]
+            result = {
+                'status': 'matched',
+                'message': 'GPS calcule a partir de l adresse.',
+                'latitude': first.get('lat'),
+                'longitude': first.get('lon'),
+            }
+        else:
+            result = {
+                'status': 'not_found',
+                'message': 'Adresse sans correspondance: GPS non calcule.',
+                'latitude': None,
+                'longitude': None,
+            }
+
+    if cache is not None:
+        cache[cache_key] = result
+    return result
+
+
+def _upsert_producer_from_csv_row(row, importer, update_existing, geocode_cache=None, geocode_state=None):
     technician = _resolve_import_technician(importer, row.get('technician_ref', ''))
     technician_profile = _get_profile(technician)
     if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
@@ -207,11 +289,25 @@ def _upsert_producer_from_csv_row(row, importer, update_existing):
             f'Departement CSV {requested_department} remplace par {technician_profile.department} (technicien referent).'
         )
 
+    geocode_result = _geocode_address(
+        profile.street_address,
+        profile.postal_code,
+        profile.city,
+        cache=geocode_cache,
+        rate_limiter=geocode_state,
+    )
+    if geocode_result['status'] == 'matched':
+        profile.latitude = geocode_result['latitude']
+        profile.longitude = geocode_result['longitude']
+        profile.save(update_fields=['latitude', 'longitude'])
+    notes.append(geocode_result['message'])
+
     return {
         'status': action,
         'created': created,
         'user': user,
         'profile': profile,
         'technician': technician,
-        'note': ' '.join(notes),
+        'geocode_status': geocode_result['status'],
+        'note': ' '.join(note for note in notes if note),
     }

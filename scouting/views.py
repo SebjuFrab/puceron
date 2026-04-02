@@ -27,6 +27,8 @@ from .views_technician import (
     export_records_view,
     producer_control_start_view,
     producer_control_stop_view,
+    technician_control_start_view,
+    technician_control_stop_view,
     technician_records_view,
 )
 
@@ -46,6 +48,8 @@ __all__ = [
     'producer_create_view',
     'producer_control_start_view',
     'producer_control_stop_view',
+    'technician_control_start_view',
+    'technician_control_stop_view',
     'producer_import_template_view',
     'producer_import_view',
     'producer_update_view',

@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from .models import PlantAction, PlantSeries, ScoutingRecord
 from .utils import display_user_name
-from .view_access import _effective_profile, _effective_user, _parse_positive_int, _series_queryset_for_user
+from .view_access import _effective_profile, _effective_user, _manager_user, _parse_positive_int, _series_queryset_for_user
 
 DASHBOARD_SERIES_COLORS = [
     '#0d6efd',
@@ -205,7 +205,8 @@ def _producer_dashboard_context(request):
 
 def _technician_dashboard_context(request):
     profile = _effective_profile(request)
-    series_list = list(_series_queryset_for_user(request.user))
+    manager_user = _manager_user(request)
+    series_list = list(_series_queryset_for_user(manager_user))
 
     if not series_list:
         return {
@@ -330,7 +331,7 @@ def _technician_dashboard_context(request):
         .prefetch_related('leaf_observations')
         .order_by('week', 'scouting_date', 'id')
     )
-    if not request.user.is_superuser:
+    if not manager_user.is_superuser:
         visible_user_ids = {series.user_id for series in variety_filtered_series}
         records = [record for record in records if record.user_id in visible_user_ids]
     weeks = sorted({record.week for record in records if record.week and record.plant_series_id in displayed_series_ids})
@@ -361,7 +362,7 @@ def _technician_dashboard_context(request):
         .select_related('action_type', 'molecule', 'auxiliary_taxon', 'plant_series', 'user', 'user__profile')
         .order_by('action_date', 'id')
     )
-    if not request.user.is_superuser:
+    if not manager_user.is_superuser:
         visible_user_ids = {series.user_id for series in displayed_series}
         actions = [action for action in actions if action.user_id in visible_user_ids]
     color_by_series_id = {series.id: series.chart_color for series in displayed_series}

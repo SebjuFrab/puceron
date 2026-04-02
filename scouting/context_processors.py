@@ -4,6 +4,9 @@ from wagtail.models import Site
 from .models import SiteContentSettings, UserProfile
 from .view_access import (
     _effective_profile,
+    _get_profile,
+    _acting_technician_profile,
+    _is_acting_as_technician,
     _is_acting_as_producer,
     _show_producer_interface,
     _show_technician_interface,
@@ -31,21 +34,27 @@ def viewer_flags(request):
             'viewer_profile': None,
             'real_viewer_profile': None,
             'active_producer_profile': None,
+            'active_technician_profile': None,
             'acting_as_producer': False,
+            'acting_as_technician': False,
             'show_producer_nav': False,
             'show_technician_nav': False,
             'can_manage_producers': False,
             'site_content_settings': site_content_settings,
         }
 
-    real_profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    real_profile = _get_profile(request.user)
     effective_profile = _effective_profile(request)
+    active_technician_profile = _acting_technician_profile(request)
+    acting_as_technician = _is_acting_as_technician(request)
     acting_as_producer = _is_acting_as_producer(request)
-    can_manage_producers = request.user.is_superuser or real_profile.role == UserProfile.ROLE_TECHNICIAN
+    can_manage_producers = request.user.is_superuser or effective_profile.role == UserProfile.ROLE_TECHNICIAN
     return {
         'viewer_profile': effective_profile,
         'real_viewer_profile': real_profile,
         'active_producer_profile': effective_profile if acting_as_producer else None,
+        'active_technician_profile': active_technician_profile,
+        'acting_as_technician': acting_as_technician,
         'acting_as_producer': acting_as_producer,
         'show_producer_nav': _show_producer_interface(request),
         'show_technician_nav': _show_technician_interface(request),

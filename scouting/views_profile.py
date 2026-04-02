@@ -10,6 +10,7 @@ from .view_access import (
     _effective_user,
     _filter_records,
     _get_profile,
+    _manager_user,
     _is_technician,
     _is_acting_as_producer,
     _profile_address_context,
@@ -43,6 +44,7 @@ def my_profile_view(request):
 @login_required
 def my_records_view(request):
     effective_user = _effective_user(request)
+    manager_user = _manager_user(request)
     technician_scope = _is_technician(request.user) and not _is_acting_as_producer(request)
 
     records = (
@@ -59,8 +61,8 @@ def my_records_view(request):
     )
 
     if technician_scope:
-        if not request.user.is_superuser:
-            visibility_q = _technician_visibility_q(request.user)
+        if not manager_user.is_superuser:
+            visibility_q = _technician_visibility_q(manager_user)
             records = records.filter(visibility_q)
             actions = actions.filter(visibility_q)
         export_scope_all = True

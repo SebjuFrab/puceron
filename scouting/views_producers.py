@@ -18,6 +18,8 @@ from .views_support import (
     _accessible_producer_profiles,
     _can_manage_producers,
     _get_profile,
+    _is_acting_as_producer,
+    _manager_user,
     _load_csv_rows,
     _profile_address_context,
     _upsert_producer_from_csv_row,
@@ -25,17 +27,22 @@ from .views_support import (
 
 @login_required
 def producer_create_view(request):
-    if not _can_manage_producers(request.user):
+    if _is_acting_as_producer(request):
+        messages.error(request, 'Quittez le mode producteur avant de gerer des comptes producteurs.')
+        return redirect('dashboard')
+
+    manager_user = _manager_user(request)
+    if not _can_manage_producers(manager_user):
         messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
         return redirect('dashboard')
 
-    creator_profile = _get_profile(request.user)
-    if (not request.user.is_superuser) and not creator_profile.department:
+    creator_profile = _get_profile(manager_user)
+    if (not manager_user.is_superuser) and not creator_profile.department:
         messages.error(request, 'Renseignez votre departement avant de creer un producteur.')
         return redirect('my_profile')
 
     if request.method == 'POST':
-        form = ProducerAccountCreationForm(request.POST, creator=request.user)
+        form = ProducerAccountCreationForm(request.POST, creator=manager_user)
         if form.is_valid():
             created_user = form.save()
             messages.success(
@@ -44,26 +51,31 @@ def producer_create_view(request):
             )
             return redirect('producer_create')
     else:
-        form = ProducerAccountCreationForm(creator=request.user)
+        form = ProducerAccountCreationForm(creator=manager_user)
 
     return render(
         request,
         'scouting/producer_create.html',
         {
             'form': form,
-            'is_super_admin_creator': request.user.is_superuser,
+            'is_super_admin_creator': manager_user.is_superuser,
         },
     )
 
 
 @login_required
 def producer_import_view(request):
-    if not _can_manage_producers(request.user):
+    if _is_acting_as_producer(request):
+        messages.error(request, 'Quittez le mode producteur avant d importer des producteurs.')
+        return redirect('dashboard')
+
+    manager_user = _manager_user(request)
+    if not _can_manage_producers(manager_user):
         messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
         return redirect('dashboard')
 
-    creator_profile = _get_profile(request.user)
-    if (not request.user.is_superuser) and not creator_profile.department:
+    creator_profile = _get_profile(manager_user)
+    if (not manager_user.is_superuser) and not creator_profile.department:
         messages.error(request, 'Renseignez votre departement avant d importer des producteurs.')
         return redirect('my_profile')
 
@@ -81,6 +93,11 @@ def producer_import_view(request):
                 created_count = 0
                 updated_count = 0
                 error_count = 0
+                gps_found_count = 0
+                gps_missing_count = 0
+                gps_error_count = 0
+                geocode_cache = {}
+                geocode_state = {'last_request_at': None}
 
                 for row in rows:
                     missing = [
@@ -100,7 +117,13 @@ def producer_import_view(request):
                         continue
 
                     try:
-                        result = _upsert_producer_from_csv_row(row, request.user, update_existing)
+                        result = _upsert_producer_from_csv_row(
+                            row,
+                            manager_user,
+                            update_existing,
+                            geocode_cache=geocode_cache,
+                            geocode_state=geocode_state,
+                        )
                     except ValueError as exc:
                         error_count += 1
                         results.append(
@@ -116,6 +139,12 @@ def producer_import_view(request):
                         created_count += 1
                     else:
                         updated_count += 1
+                    if result['geocode_status'] == 'matched':
+                        gps_found_count += 1
+                    elif result['geocode_status'] == 'not_found':
+                        gps_missing_count += 1
+                    elif result['geocode_status'] in {'error', 'missing_input'}:
+                        gps_error_count += 1
                     results.append(
                         {
                             'line': row['_line'],
@@ -125,6 +154,7 @@ def producer_import_view(request):
                             'email': result['user'].email,
                             'technician_name': display_user_name(result['technician']),
                             'first_login': 'Faire "Mot de passe oublie"' if result['created'] else '-',
+                            'gps_status': result['geocode_status'],
                             'message': result['note'] or '',
                         }
                     )
@@ -134,6 +164,9 @@ def producer_import_view(request):
                     'created': created_count,
                     'updated': updated_count,
                     'errors': error_count,
+                    'gps_found': gps_found_count,
+                    'gps_missing': gps_missing_count,
+                    'gps_errors': gps_error_count,
                 }
                 if error_count:
                     messages.warning(
@@ -168,15 +201,15 @@ def producer_import_view(request):
             'results': results,
             'summary': summary,
             'expected_columns': expected_columns,
-            'is_super_admin_creator': request.user.is_superuser,
-            'current_technician_name': display_user_name(request.user) if not request.user.is_superuser else '',
+            'is_super_admin_creator': manager_user.is_superuser,
+            'current_technician_name': display_user_name(manager_user) if not manager_user.is_superuser else '',
         },
     )
 
 
 @login_required
 def producer_import_template_view(request):
-    if not _can_manage_producers(request.user):
+    if not _can_manage_producers(_manager_user(request)):
         messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
         return redirect('dashboard')
 
@@ -217,11 +250,16 @@ def producer_import_template_view(request):
 
 @login_required
 def producer_update_view(request, producer_id):
-    if not _can_manage_producers(request.user):
+    if _is_acting_as_producer(request):
+        messages.error(request, 'Quittez le mode producteur avant de modifier un producteur.')
+        return redirect('dashboard')
+
+    manager_user = _manager_user(request)
+    if not _can_manage_producers(manager_user):
         messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
         return redirect('dashboard')
 
-    producer_profile_qs = _accessible_producer_profiles(request.user).select_related('user')
+    producer_profile_qs = _accessible_producer_profiles(manager_user).select_related('user')
     producer_profile = get_object_or_404(producer_profile_qs, user_id=producer_id)
     producer_user = producer_profile.user
 
@@ -229,7 +267,7 @@ def producer_update_view(request, producer_id):
         form = ProducerProfileUpdateForm(
             request.POST,
             instance=producer_profile,
-            editor=request.user,
+            editor=manager_user,
             producer_user=producer_user,
         )
         if form.is_valid():
@@ -242,7 +280,7 @@ def producer_update_view(request, producer_id):
     else:
         form = ProducerProfileUpdateForm(
             instance=producer_profile,
-            editor=request.user,
+            editor=manager_user,
             producer_user=producer_user,
         )
 
@@ -250,7 +288,7 @@ def producer_update_view(request, producer_id):
         'form': form,
         'producer_profile': producer_profile,
         'producer_user': producer_user,
-        'is_super_admin_editor': request.user.is_superuser,
+        'is_super_admin_editor': manager_user.is_superuser,
     }
     context.update(_profile_address_context(producer_profile))
     return render(request, 'scouting/producer_update.html', context)

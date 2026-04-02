@@ -36,6 +36,9 @@
               <div class="small text-muted mt-3">
                 Les producteurs existants sont recherches par <strong>email</strong>. Les nouveaux comptes devront utiliser <strong>Mot de passe oublie</strong> pour definir leur mot de passe lors de la premiere connexion.
               </div>
+              <div class="small text-muted mt-2">
+                Lors de l'import, l'outil tente aussi de calculer automatiquement le <strong>GPS</strong> a partir de l'adresse, du code postal et de la commune. Le resultat est affiche ligne par ligne.
+              </div>
             </div>
           </div>
           <div class="col-12 col-lg-6">
@@ -71,6 +74,9 @@
             <span class="badge rounded-pill text-bg-success">Crees : {{ summary.created }}</span>
             <span class="badge rounded-pill text-bg-primary">Mis a jour : {{ summary.updated }}</span>
             <span class="badge rounded-pill text-bg-danger">Erreurs : {{ summary.errors }}</span>
+            <span class="badge rounded-pill text-bg-success">GPS calcules : {{ summary.gps_found }}</span>
+            <span class="badge rounded-pill text-bg-warning">GPS sans correspondance : {{ summary.gps_missing }}</span>
+            <span class="badge rounded-pill text-bg-secondary">GPS indisponibles : {{ summary.gps_errors }}</span>
           </div>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
@@ -83,6 +89,7 @@
                   <th>Email</th>
                   <th>Technicien</th>
                   <th>Premiere connexion</th>
+                  <th>GPS</th>
                   <th>Detail</th>
                 </tr>
               </thead>
@@ -104,6 +111,19 @@
                     <td>{{ row.email|default:'-' }}</td>
                     <td>{{ row.technician_name|default:'-' }}</td>
                     <td>{{ row.first_login|default:'-' }}</td>
+                    <td>
+                      {% if row.gps_status == 'matched' %}
+                        <span class="badge text-bg-success">Calcule</span>
+                      {% elif row.gps_status == 'not_found' %}
+                        <span class="badge text-bg-warning">Sans correspondance</span>
+                      {% elif row.gps_status == 'missing_input' %}
+                        <span class="badge text-bg-secondary">Adresse incomplete</span>
+                      {% elif row.gps_status == 'error' %}
+                        <span class="badge text-bg-secondary">Indisponible</span>
+                      {% else %}
+                        <span class="badge text-bg-light border">-</span>
+                      {% endif %}
+                    </td>
                     <td>{{ row.message|default:'-' }}</td>
                   </tr>
                 {% endfor %}

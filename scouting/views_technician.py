@@ -18,11 +18,15 @@ from .models import AuxiliaryTaxon, PlantAction, PlantSeries, ScoutingRecord
 from .utils import display_user_name
 from .views_support import (
     ACTING_PRODUCER_SESSION_KEY,
+    ACTING_TECHNICIAN_SESSION_KEY,
+    _accessible_technician_profiles,
     _accessible_producer_profiles,
+    _acting_technician_profile,
     _acting_producer_profile,
     _effective_user,
     _filter_records,
     _is_technician,
+    _manager_user,
     _latest_series_recommendation,
     _technician_visibility_q,
 )
@@ -34,7 +38,10 @@ def technician_records_view(request):
         messages.error(request, 'Acces reserve aux techniciens.')
         return redirect('dashboard')
 
-    producer_profiles = list(_accessible_producer_profiles(request.user))
+    manager_user = _manager_user(request)
+    producer_profiles = list(_accessible_producer_profiles(manager_user))
+    technician_profiles = list(_accessible_technician_profiles(request.user)) if request.user.is_superuser else []
+    active_technician_profile = _acting_technician_profile(request)
     active_control_profile = _acting_producer_profile(request)
     selected_producer = None
     selected_producer_id = request.GET.get('producer')
@@ -95,8 +102,8 @@ def technician_records_view(request):
         'molecule',
         'auxiliary_taxon',
     )
-    if not request.user.is_superuser:
-        visibility_query = _technician_visibility_q(request.user)
+    if not manager_user.is_superuser:
+        visibility_query = _technician_visibility_q(manager_user)
         records = records.filter(visibility_query)
         actions = actions.filter(visibility_query)
 
@@ -136,6 +143,8 @@ def technician_records_view(request):
             'records': records,
             'actions': actions,
             'producer_profiles': producer_profiles,
+            'technician_profiles': technician_profiles,
+            'active_technician_profile': active_technician_profile,
             'producer_map_data_json': json.dumps(producer_map_data),
             'mapped_producers_count': len(producer_map_data),
             'producers_without_coordinates': producers_without_coordinates,
@@ -151,13 +160,16 @@ def technician_records_view(request):
 def producer_control_start_view(request, producer_id):
     if request.method != 'POST':
         return redirect('technician_records')
-    if not _is_technician(request.user):
+    manager_user = _manager_user(request)
+    if not _is_technician(manager_user):
         messages.error(request, 'Acces reserve aux techniciens.')
         return redirect('dashboard')
 
-    producer_profile = get_object_or_404(_accessible_producer_profiles(request.user), user_id=producer_id)
+    producer_profile = get_object_or_404(_accessible_producer_profiles(manager_user), user_id=producer_id)
     request.session[ACTING_PRODUCER_SESSION_KEY] = producer_profile.user_id
     request.session.modified = True
+    if hasattr(request, '_acting_technician_profile_cache'):
+        delattr(request, '_acting_technician_profile_cache')
     if hasattr(request, '_acting_producer_profile_cache'):
         delattr(request, '_acting_producer_profile_cache')
     messages.success(request, f'Interface producteur active pour {producer_profile.farm_name or display_user_name(producer_profile.user)}.')
@@ -177,16 +189,56 @@ def producer_control_stop_view(request):
 
 
 @login_required
+def technician_control_start_view(request, technician_id):
+    if request.method != 'POST':
+        return redirect('technician_records')
+    if not request.user.is_superuser:
+        messages.error(request, 'Acces reserve au super-admin.')
+        return redirect('dashboard')
+
+    technician_profile = get_object_or_404(_accessible_technician_profiles(request.user), user_id=technician_id)
+    request.session[ACTING_TECHNICIAN_SESSION_KEY] = technician_profile.user_id
+    request.session.pop(ACTING_PRODUCER_SESSION_KEY, None)
+    request.session.modified = True
+    if hasattr(request, '_acting_technician_profile_cache'):
+        delattr(request, '_acting_technician_profile_cache')
+    if hasattr(request, '_acting_producer_profile_cache'):
+        delattr(request, '_acting_producer_profile_cache')
+    messages.success(request, f'Interface technicien active pour {display_user_name(technician_profile.user)}.')
+    return redirect('technician_records')
+
+
+@login_required
+def technician_control_stop_view(request):
+    if request.method != 'POST':
+        return redirect('technician_records')
+    if not request.user.is_superuser:
+        messages.error(request, 'Acces reserve au super-admin.')
+        return redirect('dashboard')
+
+    request.session.pop(ACTING_TECHNICIAN_SESSION_KEY, None)
+    request.session.pop(ACTING_PRODUCER_SESSION_KEY, None)
+    request.session.modified = True
+    if hasattr(request, '_acting_technician_profile_cache'):
+        delattr(request, '_acting_technician_profile_cache')
+    if hasattr(request, '_acting_producer_profile_cache'):
+        delattr(request, '_acting_producer_profile_cache')
+    messages.success(request, 'Retour au compte super-admin.')
+    return redirect('technician_records')
+
+
+@login_required
 def export_records_view(request):
     if Workbook is None:
         return HttpResponse('openpyxl manquant: installer openpyxl pour l export Excel.', status=500)
 
     effective_user = _effective_user(request)
+    manager_user = _manager_user(request)
     scope = request.GET.get('scope', 'me')
-    if scope == 'all' and _is_technician(request.user):
+    if scope == 'all' and _is_technician(manager_user):
         qs = ScoutingRecord.objects.select_related('user').prefetch_related('leaf_observations')
-        if not request.user.is_superuser:
-            qs = qs.filter(_technician_visibility_q(request.user))
+        if not manager_user.is_superuser:
+            qs = qs.filter(_technician_visibility_q(manager_user))
     else:
         qs = (
             ScoutingRecord.objects.filter(user=effective_user)

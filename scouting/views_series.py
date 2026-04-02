@@ -20,7 +20,7 @@ from .view_recommendation_support import (
 def my_series_view(request):
     profile = _effective_profile(request)
     effective_user = _effective_user(request)
-    if (not request.user.is_superuser) and _is_technician(request.user) and not _show_producer_interface(request):
+    if (request.user.is_superuser or _is_technician(request.user)) and not _show_producer_interface(request):
         messages.error(request, 'La gestion de series est reservee aux producteurs.')
         return redirect('dashboard')
 
@@ -33,16 +33,11 @@ def my_series_view(request):
             'recommendation_responses__action',
         ),
     )
-    if request.user.is_superuser and not _show_producer_interface(request):
-        series_qs = PlantSeries.objects.select_related('crop', 'conduct_type', 'variety', 'user').prefetch_related(
-            records_prefetch
-        )
-    else:
-        series_qs = (
-            PlantSeries.objects.filter(user=effective_user)
-            .select_related('crop', 'conduct_type', 'variety')
-            .prefetch_related(records_prefetch)
-        )
+    series_qs = (
+        PlantSeries.objects.filter(user=effective_user)
+        .select_related('crop', 'conduct_type', 'variety')
+        .prefetch_related(records_prefetch)
+    )
     editing_id = request.GET.get('edit')
     editing_instance = None
     if editing_id:
@@ -99,7 +94,7 @@ def my_series_view(request):
 
 @login_required
 def my_recommendations_view(request):
-    if (not request.user.is_superuser) and _is_technician(request.user) and not _show_producer_interface(request):
+    if (request.user.is_superuser or _is_technician(request.user)) and not _show_producer_interface(request):
         messages.error(request, 'Les recommandations producteur sont accessibles depuis un compte producteur.')
         return redirect('technician_records')
 

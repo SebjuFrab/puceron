@@ -85,7 +85,7 @@
         {% if user.is_authenticated %}
           <li class="nav-item"><a class="nav-link nav-link-cta" href="{% url 'record_create' %}">Saisir</a></li>
           <li class="nav-item"><a class="nav-link" href="{% url 'info_index' %}">Infos</a></li>
-          {% if user.is_staff and not acting_as_producer %}
+          {% if user.is_superuser and not acting_as_producer and not acting_as_technician %}
             <li class="nav-item"><a class="nav-link" href="/cms/">CMS</a></li>
           {% endif %}
           <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
@@ -130,11 +130,31 @@
             {{ active_producer_profile.user.get_full_name|default:active_producer_profile.user.username }}
           {% endif %}
         </div>
-        <div class="small text-muted">Les ecrans affiches sont ceux du producteur rattache a votre compte.</div>
+        <div class="small text-muted">
+          Les ecrans affiches sont ceux du producteur rattache a votre compte.
+          {% if active_technician_profile %}
+            Vous etes actuellement connecte via le compte technicien {{ active_technician_profile.user.get_full_name|default:active_technician_profile.user.username }}.
+          {% endif %}
+        </div>
       </div>
       <form method="post" action="{% url 'producer_control_stop' %}">
         {% csrf_token %}
         <button class="btn btn-outline-secondary" type="submit">Retour vue technicien</button>
+      </form>
+    </div>
+  {% elif acting_as_technician and active_technician_profile %}
+    <div class="acting-banner d-flex justify-content-between align-items-start flex-wrap gap-3 px-3 py-3 mb-4">
+      <div>
+        <div class="small text-uppercase text-warning-emphasis fw-semibold mb-1">Mode technicien actif</div>
+        <div class="fw-bold">
+          Vous agissez pour
+          {{ active_technician_profile.user.get_full_name|default:active_technician_profile.user.username }}
+        </div>
+        <div class="small text-muted">Les ecrans affiches reprennent le perimetre et les droits fonctionnels du technicien controle.</div>
+      </div>
+      <form method="post" action="{% url 'technician_control_stop' %}">
+        {% csrf_token %}
+        <button class="btn btn-outline-secondary" type="submit">Retour compte super-admin</button>
       </form>
     </div>
   {% endif %}

@@ -22,6 +22,7 @@ from .view_access import (
     _effective_profile,
     _effective_user,
     _get_profile,
+    _manager_user,
     _is_acting_as_producer,
     _is_technician,
     _parse_count,
@@ -39,16 +40,17 @@ from .view_recommendation_support import (
 @login_required
 def record_create_view(request):
     taxa = list(AuxiliaryTaxon.objects.filter(is_active=True).order_by('display_order', 'name'))
-    real_profile = _get_profile(request.user)
+    manager_user = _manager_user(request)
+    manager_profile = _get_profile(manager_user)
     effective_profile = _effective_profile(request)
     effective_user = _effective_user(request)
     acting_as_producer = _is_acting_as_producer(request)
     is_tech_user = (
-        (not request.user.is_superuser)
-        and (real_profile.role == UserProfile.ROLE_TECHNICIAN)
+        (not acting_as_producer)
+        and (manager_profile.role == UserProfile.ROLE_TECHNICIAN)
         and not acting_as_producer
     )
-    series_qs = _series_queryset_for_user(effective_user if acting_as_producer else request.user)
+    series_qs = _series_queryset_for_user(effective_user if acting_as_producer else manager_user)
     recommendation_record = None
     recommendation_result = None
     recommendation_record_id = request.GET.get('recommendation_record') if request.method == 'GET' else None
@@ -65,7 +67,7 @@ def record_create_view(request):
         post_data = request.POST.copy()
         form = ScoutingRecordForm(post_data, series_queryset=series_qs)
         if form.is_valid():
-            if is_tech_user and not real_profile.department:
+            if is_tech_user and not manager_profile.department:
                 form.add_error(None, 'Renseignez votre departement dans Mon profil avant de saisir un comptage.')
                 return render(
                     request,
@@ -91,11 +93,11 @@ def record_create_view(request):
                 )
             owner_profile = _get_profile(selected_series.user)
             record.user = selected_series.user if acting_as_producer else _target_user_for_series(
-                request.user,
+                manager_user,
                 selected_series,
                 is_tech_user,
             )
-            record.department = owner_profile.department or effective_profile.department or real_profile.department
+            record.department = owner_profile.department or effective_profile.department or manager_profile.department
             record.crop = selected_series.crop.name
             record.crop_ref = selected_series.crop
             record.conduct_type_ref = selected_series.conduct_type
@@ -219,16 +221,17 @@ def record_create_view(request):
 
 @login_required
 def action_create_view(request):
-    real_profile = _get_profile(request.user)
+    manager_user = _manager_user(request)
+    manager_profile = _get_profile(manager_user)
     effective_profile = _effective_profile(request)
     effective_user = _effective_user(request)
     acting_as_producer = _is_acting_as_producer(request)
     is_tech_user = (
-        (not request.user.is_superuser)
-        and (real_profile.role == UserProfile.ROLE_TECHNICIAN)
+        (not acting_as_producer)
+        and (manager_profile.role == UserProfile.ROLE_TECHNICIAN)
         and not acting_as_producer
     )
-    series_qs = _series_queryset_for_user(effective_user if acting_as_producer else request.user)
+    series_qs = _series_queryset_for_user(effective_user if acting_as_producer else manager_user)
     selected_series_id = request.POST.get('plant_series') if request.method == 'POST' else request.GET.get('plant_series')
     selected_series = series_qs.filter(id=selected_series_id).first() if selected_series_id else None
     lever_id = request.POST.get('decision_lever') if request.method == 'POST' else request.GET.get('lever')
@@ -275,13 +278,13 @@ def action_create_view(request):
             action = form.save(commit=False)
             owner_profile = _get_profile(selected_series.user)
             action.user = selected_series.user if acting_as_producer else _target_user_for_series(
-                request.user,
+                manager_user,
                 selected_series,
                 is_tech_user,
             )
             action.entered_by = request.user
             action.plant_series = selected_series
-            action.department = owner_profile.department or effective_profile.department or real_profile.department
+            action.department = owner_profile.department or effective_profile.department or manager_profile.department
             action.crop_ref = selected_series.crop
             action.conduct_type_ref = selected_series.conduct_type
             action.variety_ref = selected_series.variety
@@ -329,14 +332,15 @@ def action_create_view(request):
 @login_required
 def record_update_view(request, record_id):
     queryset = ScoutingRecord.objects.select_related('plant_series', 'user')
-    real_profile = _get_profile(request.user)
+    manager_user = _manager_user(request)
+    manager_profile = _get_profile(manager_user)
     effective_user = _effective_user(request)
     acting_as_producer = _is_acting_as_producer(request)
-    editor_is_technician = (not request.user.is_superuser) and (real_profile.role == UserProfile.ROLE_TECHNICIAN)
-    if request.user.is_superuser and not acting_as_producer:
+    editor_is_technician = (not acting_as_producer) and (manager_profile.role == UserProfile.ROLE_TECHNICIAN)
+    if manager_user.is_superuser and not acting_as_producer:
         record = get_object_or_404(queryset, id=record_id)
     elif editor_is_technician and not acting_as_producer:
-        record = get_object_or_404(queryset.filter(_technician_visibility_q(request.user)), id=record_id)
+        record = get_object_or_404(queryset.filter(_technician_visibility_q(manager_user)), id=record_id)
     else:
         record = get_object_or_404(queryset, id=record_id, user=effective_user)
     if not record.plant_series:
@@ -346,7 +350,7 @@ def record_update_view(request, record_id):
         return redirect('my_records')
 
     taxa = list(AuxiliaryTaxon.objects.filter(is_active=True).order_by('display_order', 'name'))
-    series_qs = _series_queryset_for_user(effective_user if acting_as_producer else request.user)
+    series_qs = _series_queryset_for_user(effective_user if acting_as_producer else manager_user)
     selected_series = record.plant_series
     if request.method == 'POST':
         post_data = request.POST.copy()
@@ -405,7 +409,7 @@ def record_update_view(request, record_id):
                 messages.success(request, 'Saisie modifiee.')
                 next_view = request.POST.get('next') or request.GET.get('next')
                 next_producer_id = request.POST.get('producer') or request.GET.get('producer')
-                if next_view == 'technician_records' and _is_technician(request.user) and not acting_as_producer:
+                if next_view == 'technician_records' and _is_technician(manager_user) and not acting_as_producer:
                     redirect_url = reverse('technician_records')
                     if next_producer_id:
                         redirect_url = f'{redirect_url}?producer={next_producer_id}'
