@@ -1,4 +1,4 @@
-﻿from django.contrib import messages
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404, redirect, render
@@ -7,7 +7,7 @@ from django.urls import reverse
 from .decision_engine import evaluate_record_recommendation
 from .forms import PlantSeriesForm, RecommendationDismissForm
 from .models import PlantSeries, RecommendationResponse, ScoutingRecord, Variety
-from .view_access import _get_profile, _is_technician
+from .view_access import _effective_profile, _effective_user, _is_technician, _show_producer_interface
 from .view_recommendation_support import (
     _dismiss_reasons_queryset,
     _latest_series_recommendation,
@@ -15,10 +15,12 @@ from .view_recommendation_support import (
     _sanitize_next_url,
 )
 
+
 @login_required
 def my_series_view(request):
-    profile = _get_profile(request.user)
-    if (not request.user.is_superuser) and _is_technician(request.user):
+    profile = _effective_profile(request)
+    effective_user = _effective_user(request)
+    if (not request.user.is_superuser) and _is_technician(request.user) and not _show_producer_interface(request):
         messages.error(request, 'La gestion de series est reservee aux producteurs.')
         return redirect('dashboard')
 
@@ -31,13 +33,13 @@ def my_series_view(request):
             'recommendation_responses__action',
         ),
     )
-    if request.user.is_superuser:
+    if request.user.is_superuser and not _show_producer_interface(request):
         series_qs = PlantSeries.objects.select_related('crop', 'conduct_type', 'variety', 'user').prefetch_related(
             records_prefetch
         )
     else:
         series_qs = (
-            PlantSeries.objects.filter(user=request.user)
+            PlantSeries.objects.filter(user=effective_user)
             .select_related('crop', 'conduct_type', 'variety')
             .prefetch_related(records_prefetch)
         )
@@ -59,7 +61,7 @@ def my_series_view(request):
         form = PlantSeriesForm(request.POST, request.FILES, instance=editing_instance)
         if form.is_valid():
             series = form.save(commit=False)
-            series.user = request.user
+            series.user = effective_user
             new_variety_name = (form.cleaned_data.get('new_variety_name') or '').strip()
             if new_variety_name:
                 variety = Variety.objects.filter(crop=series.crop, name__iexact=new_variety_name).first()
@@ -97,6 +99,11 @@ def my_series_view(request):
 
 @login_required
 def my_recommendations_view(request):
+    if (not request.user.is_superuser) and _is_technician(request.user) and not _show_producer_interface(request):
+        messages.error(request, 'Les recommandations producteur sont accessibles depuis un compte producteur.')
+        return redirect('technician_records')
+
+    effective_user = _effective_user(request)
     records_prefetch = Prefetch(
         'records',
         queryset=ScoutingRecord.objects.select_related('crop_ref', 'plant_series').prefetch_related(
@@ -107,7 +114,7 @@ def my_recommendations_view(request):
         ),
     )
     series_list = (
-        PlantSeries.objects.filter(user=request.user, is_active=True)
+        PlantSeries.objects.filter(user=effective_user, is_active=True)
         .select_related('crop', 'conduct_type', 'variety')
         .prefetch_related(records_prefetch)
         .order_by('name')
@@ -139,7 +146,7 @@ def recommendation_dismiss_view(request, record_id):
     if request.method != 'POST':
         return redirect('my_recommendations')
 
-    record = get_object_or_404(_recommendation_record_queryset_for_user(request.user), id=record_id)
+    record = get_object_or_404(_recommendation_record_queryset_for_user(_effective_user(request)), id=record_id)
     recommendation = evaluate_record_recommendation(record)
     next_url = _sanitize_next_url(request.POST.get('next'), reverse('my_recommendations'))
 
@@ -166,5 +173,3 @@ def recommendation_dismiss_view(request, record_id):
     )
     messages.success(request, 'Recommandation retiree des recommandations en cours.')
     return redirect(next_url)
-
-

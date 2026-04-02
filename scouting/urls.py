@@ -20,6 +20,12 @@ urlpatterns = [
     path('saisie/', views.record_create_view, name='record_create'),
     path('saisie/action/', views.action_create_view, name='action_create'),
     path(
+        'technicien/controle/<int:producer_id>/',
+        views.producer_control_start_view,
+        name='producer_control_start',
+    ),
+    path('technicien/controle/quitter/', views.producer_control_stop_view, name='producer_control_stop'),
+    path(
         'recommandations/<int:record_id>/ne-pas-suivre/',
         views.recommendation_dismiss_view,
         name='recommendation_dismiss',

@@ -23,7 +23,12 @@ from .views_records import (
     record_create_view,
     record_update_view,
 )
-from .views_technician import export_records_view, technician_records_view
+from .views_technician import (
+    export_records_view,
+    producer_control_start_view,
+    producer_control_stop_view,
+    technician_records_view,
+)
 
 __all__ = [
     'action_create_view',
@@ -39,6 +44,8 @@ __all__ = [
     'my_series_view',
     'offline_view',
     'producer_create_view',
+    'producer_control_start_view',
+    'producer_control_stop_view',
     'producer_import_template_view',
     'producer_import_view',
     'producer_update_view',

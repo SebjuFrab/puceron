@@ -29,77 +29,6 @@
     margin: 6px 0 0;
     font-size: 0.98rem;
   }
-  .series-grid {
-    display: grid;
-    gap: 12px;
-    grid-template-columns: 1fr;
-  }
-  .series-button {
-    width: 100%;
-    text-align: left;
-    border: 2px solid #cae6d6;
-    border-radius: 18px;
-    background: #ffffff;
-    padding: 14px;
-    transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
-    color: #153f2d;
-  }
-  .series-button.is-active {
-    border-color: #198754;
-    background: #f4fbf7;
-    box-shadow: 0 10px 18px rgba(25, 135, 84, 0.14);
-  }
-  .series-button:active {
-    transform: translateY(1px);
-  }
-  .series-name {
-    font-size: 1.15rem;
-    font-weight: 800;
-    margin-bottom: 6px;
-    color: #114f32;
-  }
-  .series-meta,
-  .stats-row,
-  .comparison-meta,
-  .filters-group,
-  .action-tags {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .series-pill,
-  .stat-pill,
-  .compare-pill,
-  .filter-chip-label {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    padding: 5px 11px;
-    font-size: 0.83rem;
-    font-weight: 700;
-  }
-  .series-pill,
-  .compare-pill {
-    border: 1px solid #c9e1d4;
-    background: #fbfffc;
-    color: #1f563d;
-  }
-  .stat-pill {
-    border: 1px solid #bfe0cb;
-    background: #eef9f2;
-    color: #17603d;
-  }
-  .compare-pill.is-group {
-    background: #fff7e6;
-    border-color: #ffd27d;
-    color: #915a00;
-  }
-  .compare-pill.is-series {
-    background: #edf7ff;
-    border-color: #9fd0ff;
-    color: #0d5ea8;
-  }
   .panel-head {
     display: flex;
     justify-content: space-between;
@@ -118,11 +47,13 @@
     color: #5a7668;
     font-size: 0.9rem;
   }
-  .filter-section-title {
-    font-size: 0.9rem;
-    font-weight: 800;
-    color: #175237;
-    margin-bottom: 8px;
+  .filters-group,
+  .series-selector-list,
+  .action-tags,
+  .comparison-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
   }
   .filter-chip {
     position: relative;
@@ -131,6 +62,17 @@
     position: absolute;
     opacity: 0;
     pointer-events: none;
+  }
+  .filter-chip-label,
+  .compare-pill,
+  .series-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-size: 0.83rem;
+    font-weight: 700;
   }
   .filter-chip-label {
     border: 1px solid #cadfd3;
@@ -143,15 +85,39 @@
     border-color: #198754;
     color: #ffffff;
   }
-  .filter-switch {
-    border: 1px solid #d3e5db;
-    border-radius: 16px;
+  .series-pill,
+  .compare-pill {
+    border: 1px solid #c9e1d4;
+    background: #fbfffc;
+    color: #1f563d;
+  }
+  .series-selector {
+    border: 1px solid #d6e8de;
+    border-radius: 18px;
+    background: #ffffff;
     padding: 12px 14px;
-    background: #fbfdfc;
+  }
+  .series-selector-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .series-selector-name {
+    font-weight: 800;
+    color: #154d34;
+  }
+  .series-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    display: inline-block;
+    margin-right: 8px;
   }
   .chart-wrap {
     position: relative;
-    min-height: 270px;
+    min-height: 300px;
   }
   .empty-chart {
     border: 1px dashed #c5ddd0;
@@ -238,7 +204,7 @@
 </style>
 {% endblock %}
 {% block content %}
-{% if not selected_series %}
+{% if not series_list %}
   <div class="alert alert-warning mb-0">Aucune serie active pour afficher le dashboard. Creez d'abord une serie dans <a href="{% url 'my_series' %}">Mes series</a>.</div>
 {% else %}
 <form method="get" class="compare-shell">
@@ -247,116 +213,67 @@
       <div class="card-body p-4">
         <div class="panel-head">
           <div>
-            <h1 class="hero-title">Comparer ma serie</h1>
-            <p class="hero-subtitle">Suivez votre serie semaine par semaine et comparez-la au groupe sur la meme culture.</p>
+            <h1 class="hero-title">Comparer mes series</h1>
+            <p class="hero-subtitle">Un graphique par indicateur, avec toutes vos series d'une meme culture et d'une meme annee.</p>
           </div>
-          <button class="btn btn-outline-success btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#compareFilters" aria-expanded="false" aria-controls="compareFilters">Filtres</button>
         </div>
 
-        <div class="series-grid">
-          {% for series in series_list %}
-            <button class="series-button {% if selected_series.id == series.id %}is-active{% endif %}" type="submit" name="series" value="{{ series.id }}">
-              <div class="series-name">{{ series.name }}</div>
-              <div class="series-meta">
-                <span class="series-pill">{{ series.crop.name }}</span>
+        <div class="mb-3">
+          <div class="panel-subtitle mb-2">Culture</div>
+          <div class="filters-group">
+            {% for crop in crop_options %}
+              <label class="filter-chip">
+                <input type="radio" name="crop" value="{{ crop.id }}" {% if selected_crop and crop.id == selected_crop.id %}checked{% endif %}>
+                <span class="filter-chip-label">{{ crop.name }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="row g-3 align-items-end">
+          <div class="col-12 col-md-6">
+            <label class="form-label">Annee</label>
+            <select class="form-select" name="year">
+              {% for year in available_years %}
+                <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6 d-grid">
+            <button class="btn btn-success" type="submit">Appliquer</button>
+          </div>
+        </div>
+
+        <hr class="my-4">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">Series affichees</h2>
+            <p class="panel-subtitle">Decochez une serie pour la retirer du graphique.</p>
+          </div>
+        </div>
+        <input type="hidden" name="series_filter_submitted" value="1">
+        <div class="series-selector-list">
+          {% for series in year_series %}
+            <label class="series-selector w-100">
+              <div class="series-selector-header">
+                <span class="series-selector-name">{{ series.name }}</span>
+                {% if series.latest_record %}
+                  <span class="series-pill">S{{ series.latest_record.week }}</span>
+                {% endif %}
+              </div>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <input class="form-check-input mt-0" type="checkbox" name="visible_series" value="{{ series.id }}" {% if show_all_series_default or series.id in selected_series_ids %}checked{% endif %}>
                 <span class="series-pill">{{ series.variety.name }}</span>
-                <span class="series-pill">Annee {{ series.year }}</span>
                 <span class="series-pill">{{ series.get_organic_mode_display }}</span>
               </div>
-            </button>
+            </label>
+          {% empty %}
+            <div class="empty-chart w-100">Aucune serie pour cette culture et cette annee.</div>
           {% endfor %}
         </div>
-
-        <div class="collapse mt-3" id="compareFilters">
-          <div class="panel-card">
-            <div class="card-body p-3">
-              <input type="hidden" name="series" value="{{ selected_series.id }}">
-
-              <div class="mb-3">
-                <div class="filter-section-title">Indicateur groupe</div>
-                <div class="filters-group">
-                  <label class="filter-chip">
-                    <input type="radio" name="aggregation" value="median" {% if aggregation == 'median' %}checked{% endif %}>
-                    <span class="filter-chip-label">Mediane</span>
-                  </label>
-                  <label class="filter-chip">
-                    <input type="radio" name="aggregation" value="average" {% if aggregation == 'average' %}checked{% endif %}>
-                    <span class="filter-chip-label">Moyenne</span>
-                  </label>
-                </div>
-              </div>
-
-              <div class="row g-3">
-                <div class="col-12">
-                  <label class="form-label">Annee de comparaison</label>
-                  <select class="form-select" name="comparison_year">
-                    {% for year in available_years %}
-                      <option value="{{ year }}" {% if comparison_year == year %}selected{% endif %}>{{ year }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div class="col-12">
-                  <div class="filter-section-title">Mode de conduite du groupe</div>
-                  <div class="filters-group">
-                    <label class="filter-chip">
-                      <input type="radio" name="organic_mode" value="bio" {% if organic_mode == 'bio' %}checked{% endif %}>
-                      <span class="filter-chip-label">Bio</span>
-                    </label>
-                    <label class="filter-chip">
-                      <input type="radio" name="organic_mode" value="non_bio" {% if organic_mode == 'non_bio' %}checked{% endif %}>
-                      <span class="filter-chip-label">Non bio</span>
-                    </label>
-                    <label class="filter-chip">
-                      <input type="radio" name="organic_mode" value="both" {% if organic_mode == 'both' %}checked{% endif %}>
-                      <span class="filter-chip-label">Les deux</span>
-                    </label>
-                  </div>
-                </div>
-                {% if available_departments %}
-                <div class="col-12">
-                  <div class="filter-section-title">Departements</div>
-                  <div class="filters-group">
-                    {% for department in available_departments %}
-                      <label class="filter-chip">
-                        <input type="checkbox" name="departments" value="{{ department.code }}" {% if department.code in selected_departments %}checked{% endif %}>
-                        <span class="filter-chip-label">{{ department.code }}</span>
-                      </label>
-                    {% endfor %}
-                  </div>
-                </div>
-                {% endif %}
-                {% if available_varieties %}
-                <div class="col-12">
-                  <div class="filter-section-title">Varietes</div>
-                  <div class="filters-group">
-                    {% for variety in available_varieties %}
-                      <label class="filter-chip">
-                        <input type="checkbox" name="varieties" value="{{ variety.id }}" {% if variety.id in selected_variety_ids %}checked{% endif %}>
-                        <span class="filter-chip-label">{{ variety.name }}</span>
-                      </label>
-                    {% endfor %}
-                  </div>
-                </div>
-                {% endif %}
-                {% if can_filter_technician_only %}
-                <div class="col-12">
-                  <label class="filter-switch d-flex justify-content-between align-items-center">
-                    <span>
-                      <strong>Seulement les producteurs de mon technicien</strong>
-                      <span class="d-block text-muted small">Pratique pour se comparer au groupe anime par le meme referent.</span>
-                    </span>
-                    <input class="form-check-input mt-0" type="checkbox" name="technician_only" value="1" {% if technician_only %}checked{% endif %}>
-                  </label>
-                </div>
-                {% endif %}
-              </div>
-
-              <div class="d-flex gap-2 flex-wrap mt-3">
-                <button class="btn btn-success" type="submit">Appliquer</button>
-                <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}?series={{ selected_series.id }}">Reinitialiser</a>
-              </div>
-            </div>
-          </div>
+        <div class="d-flex gap-2 flex-wrap mt-3">
+          <button class="btn btn-success" type="submit">Mettre a jour le graphique</button>
+          <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}?crop={{ selected_crop.id }}&year={{ selected_year }}">Tout reafficher</a>
         </div>
       </div>
     </section>
@@ -365,38 +282,38 @@
       <div class="card-body p-4">
         <div class="panel-head">
           <div>
-            <h2 class="panel-title">{{ selected_series.name }}</h2>
-            <p class="panel-subtitle">{{ selected_series.crop.name }} | {{ selected_series.variety.name }} | {{ selected_series.get_organic_mode_display }} | Annee {{ selected_series.year }}</p>
+            <h2 class="panel-title">{{ selected_crop.name }} - annee {{ selected_year }}</h2>
+            <p class="panel-subtitle">Vue multi-series du producteur sur la culture selectionnee.</p>
           </div>
         </div>
 
         <div class="kpi-grid">
           <div class="kpi-card">
-            <div class="kpi-label">Dernier taux d'infestation</div>
-            <div class="kpi-value">{% if selected_series_latest_record %}{{ selected_series_latest_record.aphid_infested_percent }} %{% else %}-{% endif %}</div>
-            <div class="kpi-note">{% if selected_series_latest_record %}Semaine {{ selected_series_latest_record.week }}{% else %}Aucun comptage{% endif %}</div>
+            <div class="kpi-label">Series sur cette culture / annee</div>
+            <div class="kpi-value">{{ series_count }}</div>
+            <div class="kpi-note">toutes series confondues</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">Derniers auxiliaires / plant</div>
-            <div class="kpi-value">{% if selected_series_latest_record %}{{ selected_series_latest_record.auxiliaries_per_plant|floatformat:2 }}{% else %}-{% endif %}</div>
-            <div class="kpi-note">{% if selected_series_latest_record %}Observation du {{ selected_series_latest_record.scouting_date }}{% else %}Aucun comptage{% endif %}</div>
+            <div class="kpi-label">Series affichees</div>
+            <div class="kpi-value">{{ displayed_series_count }}</div>
+            <div class="kpi-note">{{ hidden_series_count }} masquee(s)</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">{{ comparison_label }}</div>
-            <div class="kpi-value">{{ comparison_record_count }}</div>
-            <div class="kpi-note">comptages dans le groupe</div>
+            <div class="kpi-label">Comptages cumules</div>
+            <div class="kpi-value">{{ record_count }}</div>
+            <div class="kpi-note">sur l'annee selectionnee</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">Series dans le groupe</div>
-            <div class="kpi-value">{{ comparison_series_count }}</div>
-            <div class="kpi-note">avec vos filtres</div>
+            <div class="kpi-label">Derniere semaine observee</div>
+            <div class="kpi-value">{% if latest_week %}S{{ latest_week }}{% else %}-{% endif %}</div>
+            <div class="kpi-note">sur les series affichees</div>
           </div>
         </div>
 
         <div class="comparison-meta mt-3">
-          <span class="compare-pill is-series">Ma serie</span>
-          <span class="compare-pill is-group">{{ comparison_label }}</span>
-          <span class="compare-pill">{{ comparison_subtitle }}</span>
+          <span class="compare-pill">Culture {{ selected_crop.name }}</span>
+          <span class="compare-pill">Annee {{ selected_year }}</span>
+          <span class="compare-pill">{{ displayed_series_count }} serie(s) affichee(s)</span>
         </div>
       </div>
     </section>
@@ -408,10 +325,10 @@
         <div class="panel-head">
           <div>
             <h2 class="panel-title">Taux d'infestation</h2>
-            <p class="panel-subtitle">Votre serie en bleu, le groupe en ocre. Les actions apparaissent avec leur icone sur la chronologie.</p>
+            <p class="panel-subtitle">Une courbe par serie, sur la meme culture et la meme annee.</p>
           </div>
         </div>
-        {% if chart_labels %}
+        {% if displayed_series and chart_labels %}
           <div class="chart-wrap"><canvas id="aphidChart"></canvas></div>
         {% else %}
           <div class="empty-chart">Aucune observation disponible pour tracer ce graphe.</div>
@@ -424,10 +341,10 @@
         <div class="panel-head">
           <div>
             <h2 class="panel-title">Auxiliaires / plant</h2>
-            <p class="panel-subtitle">Lecture sur la meme echelle temporelle, pour voir si les auxiliaires suivent la pression puceron.</p>
+            <p class="panel-subtitle">Les memes series sont affichees avec le meme code couleur.</p>
           </div>
         </div>
-        {% if chart_labels %}
+        {% if displayed_series and chart_labels %}
           <div class="chart-wrap"><canvas id="auxChart"></canvas></div>
         {% else %}
           <div class="empty-chart">Aucune observation disponible pour tracer ce graphe.</div>
@@ -439,8 +356,8 @@
       <div class="card-body p-4">
         <div class="panel-head">
           <div>
-            <h2 class="panel-title">Actions sur la serie</h2>
-            <p class="panel-subtitle">Toutes les actions saisies sont listees avec leur semaine pour relire l'historique.</p>
+            <h2 class="panel-title">Actions sur les series affichees</h2>
+            <p class="panel-subtitle">Toutes les actions de l'annee selectionnee pour les series visibles.</p>
           </div>
         </div>
         {% if action_cards %}
@@ -448,14 +365,14 @@
             <div class="action-item">
               <span class="action-symbol" style="background: {{ action.color }};">{{ action.icon_symbol }}</span>
               <div>
-                <div class="action-title">S{{ action.week }} - {{ action.type_name }}</div>
-                <div class="action-line">{{ action.date }} | {{ action.scope }}</div>
+                <div class="action-title">S{{ action.week }} - {{ action.series_name }}</div>
+                <div class="action-line">{{ action.date }} | {{ action.type_name }} | {{ action.scope }}</div>
                 <div class="action-line">{{ action.details }}</div>
               </div>
             </div>
           {% endfor %}
         {% else %}
-          <div class="empty-chart">Aucune action n'a ete saisie sur cette serie.</div>
+          <div class="empty-chart">Aucune action n'a ete saisie sur les series affichees.</div>
         {% endif %}
       </div>
     </section>
@@ -465,73 +382,40 @@
 {% endblock %}
 
 {% block scripts %}
-{% if selected_series %}
+{% if displayed_series and chart_labels %}
 {{ chart_labels|json_script:"compare-labels-data" }}
-{{ series_aphid_points|json_script:"compare-series-aphid-data" }}
-{{ group_aphid_points|json_script:"compare-group-aphid-data" }}
-{{ series_aux_points|json_script:"compare-series-aux-data" }}
-{{ group_aux_points|json_script:"compare-group-aux-data" }}
-{{ infestation_action_datasets|json_script:"compare-aphid-actions-data" }}
-{{ auxiliary_action_datasets|json_script:"compare-aux-actions-data" }}
+{{ aphid_datasets|json_script:"compare-aphid-datasets" }}
+{{ aux_datasets|json_script:"compare-aux-datasets" }}
 <script>
 function readJsonScript(id) {
   const node = document.getElementById(id);
   return node ? JSON.parse(node.textContent) : null;
 }
 
-function buildActionDatasets(rawDatasets) {
+function buildSeriesDatasets(rawDatasets) {
   return (rawDatasets || []).map(dataset => ({
     type: 'line',
     label: dataset.label,
     data: dataset.data,
-    customData: dataset.customData,
-    pointStyle: dataset.pointStyle,
-    pointRadius: 7,
-    pointHoverRadius: 9,
-    pointBorderWidth: 0,
-    borderWidth: 0,
-    showLine: false,
-    tension: 0,
-    spanGaps: false,
-    backgroundColor: dataset.backgroundColor,
     borderColor: dataset.borderColor,
+    backgroundColor: dataset.backgroundColor,
+    tension: 0.22,
+    borderWidth: 3,
+    pointRadius: 4,
+    pointHoverRadius: 6,
+    spanGaps: true,
   }));
 }
 
-function makeSeriesChart(canvasId, labels, ownPoints, groupPoints, actionDatasets, groupLabel, yTitle) {
+function makeSeriesChart(canvasId, labels, datasets, yTitle) {
   const canvas = document.getElementById(canvasId);
-  if (!canvas || !labels || !labels.length) return;
+  if (!canvas || !labels || !labels.length || !datasets || !datasets.length) return;
 
   new Chart(canvas, {
     type: 'line',
     data: {
       labels: labels,
-      datasets: [
-        {
-          label: 'Ma serie',
-          data: ownPoints,
-          borderColor: '#0d6efd',
-          backgroundColor: 'rgba(13, 110, 253, 0.12)',
-          tension: 0.25,
-          borderWidth: 3,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          spanGaps: true,
-        },
-        {
-          label: groupLabel,
-          data: groupPoints,
-          borderColor: '#f59f00',
-          backgroundColor: 'rgba(245, 159, 0, 0.10)',
-          tension: 0.25,
-          borderDash: [6, 5],
-          borderWidth: 3,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          spanGaps: true,
-        },
-        ...buildActionDatasets(actionDatasets),
-      ],
+      datasets: buildSeriesDatasets(datasets),
     },
     options: {
       responsive: true,
@@ -542,20 +426,6 @@ function makeSeriesChart(canvasId, labels, ownPoints, groupPoints, actionDataset
           labels: {
             boxWidth: 14,
             usePointStyle: true,
-          },
-        },
-        tooltip: {
-          callbacks: {
-            label(context) {
-              const meta = context.dataset.customData && context.dataset.customData[context.dataIndex];
-              if (meta && Array.isArray(meta.lines)) {
-                return meta.lines;
-              }
-              if (context.raw === null || context.raw === undefined) {
-                return null;
-              }
-              return `${context.dataset.label}: ${context.raw}`;
-            },
           },
         },
       },
@@ -579,24 +449,8 @@ function makeSeriesChart(canvasId, labels, ownPoints, groupPoints, actionDataset
 }
 
 const labels = readJsonScript('compare-labels-data');
-makeSeriesChart(
-  'aphidChart',
-  labels,
-  readJsonScript('compare-series-aphid-data'),
-  readJsonScript('compare-group-aphid-data'),
-  readJsonScript('compare-aphid-actions-data'),
-  '{{ comparison_label|escapejs }}',
-  '% feuilles infestees'
-);
-makeSeriesChart(
-  'auxChart',
-  labels,
-  readJsonScript('compare-series-aux-data'),
-  readJsonScript('compare-group-aux-data'),
-  readJsonScript('compare-aux-actions-data'),
-  '{{ comparison_label|escapejs }}',
-  'Auxiliaires / plant'
-);
+makeSeriesChart('aphidChart', labels, readJsonScript('compare-aphid-datasets'), '% feuilles infestees');
+makeSeriesChart('auxChart', labels, readJsonScript('compare-aux-datasets'), 'Auxiliaires / plant');
 </script>
 {% endif %}
 {% endblock %}

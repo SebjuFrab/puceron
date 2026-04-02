@@ -1,11 +1,11 @@
-﻿import json
+import json
 from io import BytesIO
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Prefetch
 from django.http import HttpResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 try:
@@ -17,12 +17,16 @@ from .decision_engine import evaluate_record_recommendation
 from .models import AuxiliaryTaxon, PlantAction, PlantSeries, ScoutingRecord
 from .utils import display_user_name
 from .views_support import (
+    ACTING_PRODUCER_SESSION_KEY,
     _accessible_producer_profiles,
+    _acting_producer_profile,
+    _effective_user,
     _filter_records,
     _is_technician,
     _latest_series_recommendation,
     _technician_visibility_q,
 )
+
 
 @login_required
 def technician_records_view(request):
@@ -31,6 +35,7 @@ def technician_records_view(request):
         return redirect('dashboard')
 
     producer_profiles = list(_accessible_producer_profiles(request.user))
+    active_control_profile = _acting_producer_profile(request)
     selected_producer = None
     selected_producer_id = request.GET.get('producer')
 
@@ -60,6 +65,7 @@ def technician_records_view(request):
             'series_count': len(active_series),
             'target_url': f"{reverse('technician_records')}?producer={profile.user_id}",
             'is_selected': bool(selected_producer and selected_producer.user_id == profile.user_id),
+            'is_controlled': bool(active_control_profile and active_control_profile.user_id == profile.user_id),
         }
         if profile.latitude is not None and profile.longitude is not None:
             producer_data['lat'] = float(profile.latitude)
@@ -136,8 +142,38 @@ def technician_records_view(request):
             'selected_producer': selected_producer,
             'selected_producer_data': selected_producer_data,
             'selected_series': selected_series,
+            'active_control_profile': active_control_profile,
         },
     )
+
+
+@login_required
+def producer_control_start_view(request, producer_id):
+    if request.method != 'POST':
+        return redirect('technician_records')
+    if not _is_technician(request.user):
+        messages.error(request, 'Acces reserve aux techniciens.')
+        return redirect('dashboard')
+
+    producer_profile = get_object_or_404(_accessible_producer_profiles(request.user), user_id=producer_id)
+    request.session[ACTING_PRODUCER_SESSION_KEY] = producer_profile.user_id
+    request.session.modified = True
+    if hasattr(request, '_acting_producer_profile_cache'):
+        delattr(request, '_acting_producer_profile_cache')
+    messages.success(request, f'Interface producteur active pour {producer_profile.farm_name or display_user_name(producer_profile.user)}.')
+    return redirect('dashboard')
+
+
+@login_required
+def producer_control_stop_view(request):
+    if request.method != 'POST':
+        return redirect('technician_records')
+    request.session.pop(ACTING_PRODUCER_SESSION_KEY, None)
+    request.session.modified = True
+    if hasattr(request, '_acting_producer_profile_cache'):
+        delattr(request, '_acting_producer_profile_cache')
+    messages.success(request, 'Retour a la vue technicien.')
+    return redirect('technician_records')
 
 
 @login_required
@@ -145,6 +181,7 @@ def export_records_view(request):
     if Workbook is None:
         return HttpResponse('openpyxl manquant: installer openpyxl pour l export Excel.', status=500)
 
+    effective_user = _effective_user(request)
     scope = request.GET.get('scope', 'me')
     if scope == 'all' and _is_technician(request.user):
         qs = ScoutingRecord.objects.select_related('user').prefetch_related('leaf_observations')
@@ -152,7 +189,7 @@ def export_records_view(request):
             qs = qs.filter(_technician_visibility_q(request.user))
     else:
         qs = (
-            ScoutingRecord.objects.filter(user=request.user)
+            ScoutingRecord.objects.filter(user=effective_user)
             .select_related('user')
             .prefetch_related('leaf_observations')
         )

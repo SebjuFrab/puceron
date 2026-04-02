@@ -50,9 +50,9 @@
           <div class="col-12">
             <div class="d-flex gap-3 align-items-center flex-wrap">
               {% if profile.photo %}
-                <img src="{{ profile.photo.url }}" alt="{{ profile.farm_name|default:request.user.get_full_name|default:request.user.username }}" class="profile-logo">
+                <img src="{{ profile.photo.url }}" alt="{{ profile.farm_name|default:profile_user.get_full_name|default:profile_user.username }}" class="profile-logo">
               {% else %}
-                <div class="profile-logo-fallback">{{ profile.farm_name|default:request.user.get_full_name|default:request.user.username|slice:":1"|upper }}</div>
+                <div class="profile-logo-fallback">{{ profile.farm_name|default:profile_user.get_full_name|default:profile_user.username|slice:":1"|upper }}</div>
               {% endif %}
               <div class="flex-grow-1">
                 <label class="form-label" for="id_photo">Photo / logo</label>

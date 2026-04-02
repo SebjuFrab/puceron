@@ -1,16 +1,16 @@
-﻿from django.contrib.auth.decorators import login_required
-from django.db.models import Avg, Q
+from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 
-from .models import ScoutingRecord
 from .views_support import (
-    _filter_records,
-    _get_profile,
+    _effective_profile,
     _info_pages_queryset,
-    _is_technician,
     _producer_dashboard_context,
+    _show_producer_interface,
+    _technician_dashboard_context,
 )
+
 
 def landing_view(request):
     info_pages = _info_pages_queryset()
@@ -29,8 +29,10 @@ def info_page_view(request, page_key):
     return render(request, 'scouting/info_page.html', {'page': page})
 
 
+
 def offline_view(request):
     return render(request, 'scouting/offline.html')
+
 
 
 def manifest_view(request):
@@ -44,6 +46,7 @@ def manifest_view(request):
         'description': 'Suivi pucerons et auxiliaires en cultures sous abri.',
     }
     return JsonResponse(data, content_type='application/manifest+json')
+
 
 
 def service_worker_view(request):
@@ -90,38 +93,10 @@ self.addEventListener('fetch', event => {
 
 @login_required
 def dashboard_view(request):
-    profile = _get_profile(request.user)
-    if not _is_technician(request.user):
+    if _show_producer_interface(request):
         return render(request, 'scouting/dashboard_compare.html', _producer_dashboard_context(request))
 
-    records = ScoutingRecord.objects.all()
-    records = _filter_records(request, records)
-
-    avg_values = records.aggregate(
-        avg_aphid=Avg('aphid_infested_percent'),
-        avg_aux=Avg('auxiliary_total'),
-    )
-    weekly = (
-        records.values('year', 'week')
-        .annotate(avg_aphid=Avg('aphid_infested_percent'), avg_aux=Avg('auxiliary_total'))
-        .order_by('year', 'week')
-    )
-
-    labels = [f"S{item['week']}-{item['year']}" for item in weekly]
-    aphid_points = [float(item['avg_aphid']) for item in weekly]
-    aux_points = [float(item['avg_aux']) / 10.0 for item in weekly]
-
-    return render(
-        request,
-        'scouting/dashboard.html',
-        {
-            'profile': profile,
-            'avg_aphid': round(float(avg_values['avg_aphid'] or 0), 2),
-            'avg_aux_per_plant': round(float(avg_values['avg_aux'] or 0) / 10.0, 2),
-            'labels': labels,
-            'aphid_points': aphid_points,
-            'aux_points': aux_points,
-        },
-    )
-
-
+    profile = _effective_profile(request)
+    context = _technician_dashboard_context(request)
+    context['profile'] = profile
+    return render(request, 'scouting/dashboard.html', context)

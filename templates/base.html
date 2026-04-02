@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8">
@@ -31,6 +31,11 @@
     }
     .mobile-record-cta {
       display: none;
+    }
+    .acting-banner {
+      border: 1px solid #ffd27d;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #fff8ea 0%, #fffdf7 100%);
     }
     @media (max-width: 991.98px) {
       body.has-mobile-record-cta main {
@@ -68,7 +73,7 @@
   {% block head_extras %}{% endblock %}
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-light{% if user.is_authenticated and viewer_profile and viewer_profile.role == 'producer' %} has-mobile-record-cta{% endif %}">
+<body class="bg-light{% if user.is_authenticated and show_producer_nav %} has-mobile-record-cta{% endif %}">
 <nav class="navbar navbar-expand-lg navbar-dark bg-success">
   <div class="container">
     <a class="navbar-brand fw-bold" href="{% url 'landing' %}">PUCERON</a>
@@ -80,7 +85,7 @@
         {% if user.is_authenticated %}
           <li class="nav-item"><a class="nav-link nav-link-cta" href="{% url 'record_create' %}">Saisir</a></li>
           <li class="nav-item"><a class="nav-link" href="{% url 'info_index' %}">Infos</a></li>
-          {% if user.is_staff %}
+          {% if user.is_staff and not acting_as_producer %}
             <li class="nav-item"><a class="nav-link" href="/cms/">CMS</a></li>
           {% endif %}
           <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
@@ -89,10 +94,14 @@
             <li class="nav-item"><a class="nav-link" href="{% url 'producer_create' %}">Nouveau producteur</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'producer_import' %}">Import producteurs</a></li>
           {% endif %}
-          <li class="nav-item"><a class="nav-link" href="{% url 'my_series' %}">Mes series</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'my_recommendations' %}">Mes recommandations</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'my_records' %}">Mes donnees</a></li>
-          {% if user.is_superuser or viewer_profile.role == 'technician' %}
+          {% if show_producer_nav %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'my_series' %}">Mes series</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'my_recommendations' %}">Mes recommandations</a></li>
+          {% endif %}
+          {% if show_producer_nav or show_technician_nav %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'my_records' %}">Donnees</a></li>
+          {% endif %}
+          {% if show_technician_nav %}
             <li class="nav-item"><a class="nav-link" href="{% url 'technician_records' %}">Vue technicien</a></li>
           {% endif %}
         {% endif %}
@@ -109,6 +118,27 @@
 </nav>
 
 <main class="container py-4">
+  {% if acting_as_producer and active_producer_profile %}
+    <div class="acting-banner d-flex justify-content-between align-items-start flex-wrap gap-3 px-3 py-3 mb-4">
+      <div>
+        <div class="small text-uppercase text-warning-emphasis fw-semibold mb-1">Mode producteur actif</div>
+        <div class="fw-bold">
+          Vous agissez pour
+          {% if active_producer_profile.farm_name %}
+            {{ active_producer_profile.farm_name }}
+          {% else %}
+            {{ active_producer_profile.user.get_full_name|default:active_producer_profile.user.username }}
+          {% endif %}
+        </div>
+        <div class="small text-muted">Les ecrans affiches sont ceux du producteur rattache a votre compte.</div>
+      </div>
+      <form method="post" action="{% url 'producer_control_stop' %}">
+        {% csrf_token %}
+        <button class="btn btn-outline-secondary" type="submit">Retour vue technicien</button>
+      </form>
+    </div>
+  {% endif %}
+
   {% if messages %}
     {% for message in messages %}
       <div class="alert alert-info">{{ message }}</div>
@@ -117,7 +147,7 @@
   {% block content %}{% endblock %}
 </main>
 
-{% if user.is_authenticated and viewer_profile and viewer_profile.role == 'producer' %}
+{% if user.is_authenticated and show_producer_nav %}
   <a class="mobile-record-cta" href="{% url 'record_create' %}">Saisir un comptage</a>
 {% endif %}
 
