@@ -442,7 +442,7 @@ function buildSeriesDatasets(rawDatasets) {
   }));
 }
 
-function makeSeriesChart(canvasId, labels, datasets, yTitle) {
+function makeSeriesChart(canvasId, labels, datasets, yTitle, yAxisOptions = {}) {
   const canvas = document.getElementById(canvasId);
   if (!canvas || !labels || !labels.length || !datasets || !datasets.length) return;
 
@@ -473,6 +473,8 @@ function makeSeriesChart(canvasId, labels, datasets, yTitle) {
         },
         y: {
           beginAtZero: true,
+          min: yAxisOptions.min ?? 0,
+          max: yAxisOptions.max ?? undefined,
           title: {
             display: true,
             text: yTitle,
@@ -484,7 +486,7 @@ function makeSeriesChart(canvasId, labels, datasets, yTitle) {
 }
 
 const labels = readJsonScript('tech-dashboard-labels');
-makeSeriesChart('aphidChart', labels, readJsonScript('tech-dashboard-aphid'), '% feuilles infestees');
+makeSeriesChart('aphidChart', labels, readJsonScript('tech-dashboard-aphid'), '% feuilles infestees', { min: 0, max: 100 });
 makeSeriesChart('auxChart', labels, readJsonScript('tech-dashboard-aux'), 'Auxiliaires / plant');
 </script>
 {% endif %}
