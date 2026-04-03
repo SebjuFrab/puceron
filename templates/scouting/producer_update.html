@@ -10,10 +10,10 @@
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
           <div>
             <h1 class="h4 mb-1">Modifier un producteur</h1>
-            <p class="text-muted mb-0">Mettez a jour les informations du compte, de la ferme et la position GPS.</p>
+            <p class="text-muted mb-0">Mettez à jour les informations du compte, de la ferme et la position GPS.</p>
           </div>
           {% if not is_super_admin_editor %}
-          <span class="badge text-bg-success">Rattachement a votre compte technicien</span>
+          <span class="badge text-bg-success">Rattachement à votre compte technicien</span>
           {% endif %}
         </div>
 
@@ -28,7 +28,7 @@
             {{ form.username }}
           </div>
           <div class="col-md-4">
-            <label class="form-label" for="id_first_name">Prenom</label>
+            <label class="form-label" for="id_first_name">Prénom</label>
             {{ form.first_name }}
           </div>
           <div class="col-md-4">
@@ -42,13 +42,13 @@
           </div>
           {% if form.technician.is_hidden %}
           <div class="col-md-6">
-            <label class="form-label">Technicien referent</label>
+            <label class="form-label">Technicien référent</label>
             <input type="text" class="form-control" value="{{ form.technician_display_name }}" readonly>
           </div>
             {{ form.technician }}
           {% else %}
           <div class="col-md-6">
-            <label class="form-label" for="id_technician">Technicien referent</label>
+            <label class="form-label" for="id_technician">Technicien référent</label>
             {{ form.technician }}
           </div>
           {% endif %}
@@ -78,14 +78,14 @@
                 {% if profile_has_coordinates %}
                   GPS: {{ producer_profile.latitude }}, {{ producer_profile.longitude }}
                 {% else %}
-                  Aucune coordonnee GPS enregistree.
+                  Aucune coordonnée GPS enregistrée.
                 {% endif %}
               </span>
             </div>
           </div>
           <div class="col-12">
             <div id="producerMap" style="height: 320px; border-radius: 12px; border: 1px solid #d8e4dd;"></div>
-            <div class="form-text">La position GPS est calculee depuis l'adresse. Vous pouvez corriger le point a la main.</div>
+            <div class="form-text">La position GPS est calculée depuis l'adresse. Vous pouvez corriger le point à la main.</div>
           </div>
 
           <div class="col-md-6">
@@ -186,7 +186,7 @@ async function geocodeProducerAddress() {
 
 document.getElementById('producerGeocodeBtn')?.addEventListener('click', function() {
   geocodeProducerAddress().catch(function() {
-    producerCoordsLabel.textContent = 'La geolocalisation a echoue.';
+    producerCoordsLabel.textContent = 'La géolocalisation a échoué.';
   });
 });
 </script>

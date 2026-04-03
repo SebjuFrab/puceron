@@ -286,7 +286,7 @@ def _upsert_producer_from_csv_row(row, importer, update_existing, geocode_cache=
     notes = []
     if requested_department and requested_department != technician_profile.department:
         notes.append(
-            f'Departement CSV {requested_department} remplace par {technician_profile.department} (technicien referent).'
+            f'Département CSV {requested_department} remplacé par {technician_profile.department} (technicien référent).'
         )
 
     geocode_result = _geocode_address(

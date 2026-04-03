@@ -1,9 +1,9 @@
-﻿import datetime
+import datetime
 import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -11,6 +11,7 @@ from .decision_engine import evaluate_record_recommendation
 from .forms import PlantActionForm, ScoutingRecordForm
 from .models import (
     ActionType,
+    AphidSpecies,
     AuxiliaryTaxon,
     DecisionLever,
     LeafAuxiliaryObservation,
@@ -37,9 +38,198 @@ from .view_recommendation_support import (
     _recommendation_record_queryset_for_user,
 )
 
+
+def _leaf_positions_for_series(selected_series):
+    leaves_count = selected_series.leaves_per_plant or 3
+    labels = {1: 'Basse', 2: 'Milieu', 3: 'Haute'}
+    return [(f'leaf_{idx}', labels.get(idx, f'Feuille {idx}')) for idx in range(1, leaves_count + 1)]
+
+
+def _active_aphid_species():
+    return list(
+        AphidSpecies.objects.filter(is_active=True)
+        .prefetch_related('molecules', 'auxiliary_taxa')
+        .order_by('display_order', 'vernacular_name', 'latin_name')
+    )
+
+
+def _default_aphid_species(aphid_species_list):
+    for species in aphid_species_list:
+        if species.code == 'non-determine':
+            return species
+    return aphid_species_list[0] if aphid_species_list else None
+
+
+def _serialize_aphid_species(aphid_species_list):
+    payload = []
+    for species in aphid_species_list:
+        molecules = ', '.join(species.molecules.all().values_list('name', flat=True))
+        auxiliaries = ', '.join(species.auxiliary_taxa.all().values_list('name', flat=True))
+        payload.append(
+            {
+                'id': species.id,
+                'label': str(species),
+                'vernacularName': species.vernacular_name,
+                'latinName': species.latin_name,
+                'photoUrl': species.photo.url if species.photo else '',
+                'moleculesLabel': molecules or 'Aucune molecule renseignee.',
+                'auxiliariesLabel': auxiliaries or 'Aucun auxiliaire renseigne.',
+                'description': species.description or '',
+            }
+        )
+    return payload
+
+
+def _build_leaf_state_from_post(post_data, plants_count, leaves_count, taxa):
+    try:
+        current_plant = int(post_data.get('current_plant') or 1)
+    except (TypeError, ValueError):
+        current_plant = 1
+    current_plant = min(max(current_plant, 1), max(plants_count, 1))
+    data = {
+        'aphids': {},
+        'auxData': {},
+        'plantSpecies': {},
+        'plantSpeciesTouched': {},
+        'primaryAphidSpecies': str(post_data.get('primary_aphid_species') or ''),
+        'currentPlant': current_plant,
+        'inFinalStep': post_data.get('form_step') == 'final',
+    }
+    for plant in range(1, plants_count + 1):
+        plant_key = str(plant)
+        posted_species = post_data.get(f'plant_{plant}_aphid_species')
+        if posted_species:
+            data['plantSpecies'][plant_key] = str(posted_species)
+        data['plantSpeciesTouched'][plant_key] = post_data.get(f'plant_{plant}_aphid_species_touched') == '1'
+        for leaf_idx in range(1, leaves_count + 1):
+            leaf_position = f'leaf_{leaf_idx}'
+            prefix = f'p{plant}_{leaf_position}'
+            aphid_name = f'{prefix}_aphid'
+            data['aphids'][aphid_name] = post_data.get(aphid_name) == 'on'
+            leaf_key = f'{plant}-{leaf_position}'
+            data['auxData'][leaf_key] = {}
+            for taxon in taxa:
+                count = _parse_count(post_data.get(f'aux_{plant}_{leaf_position}_{taxon.id}'))
+                if count <= 0:
+                    continue
+                taxon_id = str(taxon.id)
+                data['auxData'][leaf_key][taxon_id] = {
+                    'taxonId': taxon_id,
+                    'name': taxon.name,
+                    'count': count,
+                }
+    return data
+
+
+def _extract_record_species_data(post_data, plants_count, leaves_count, species_lookup, default_aphid_species):
+    plant_species_map = {}
+    observed_species_ids = set()
+    default_species_id = default_aphid_species.id if default_aphid_species else None
+
+    for plant in range(1, plants_count + 1):
+        raw_species_id = post_data.get(f'plant_{plant}_aphid_species') or default_species_id
+        try:
+            species_id = int(raw_species_id) if raw_species_id else None
+        except (TypeError, ValueError):
+            species_id = default_species_id
+        species_obj = species_lookup.get(species_id)
+        plant_species_map[plant] = species_obj
+        plant_has_aphids = any(
+            post_data.get(f'p{plant}_leaf_{leaf_idx}_aphid') == 'on'
+            for leaf_idx in range(1, leaves_count + 1)
+        )
+        if plant_has_aphids and species_obj:
+            observed_species_ids.add(species_obj.id)
+
+    raw_primary_species_id = post_data.get('primary_aphid_species')
+    try:
+        primary_species_id = int(raw_primary_species_id) if raw_primary_species_id else None
+    except (TypeError, ValueError):
+        primary_species_id = None
+
+    primary_species = species_lookup.get(primary_species_id)
+    if len(observed_species_ids) == 1:
+        primary_species = species_lookup.get(next(iter(observed_species_ids)))
+    elif primary_species_id and primary_species_id not in observed_species_ids:
+        primary_species = None
+    elif not observed_species_ids:
+        primary_species = None
+
+    return plant_species_map, observed_species_ids, primary_species
+
+
+def _write_leaf_observations(record, post_data, plants_count, leaves_count, taxa, plant_species_map):
+    record.leaf_observations.all().delete()
+    for plant in range(1, plants_count + 1):
+        plant_species = plant_species_map.get(plant)
+        for leaf_idx in range(1, leaves_count + 1):
+            leaf_position = f'leaf_{leaf_idx}'
+            prefix = f'p{plant}_{leaf_position}'
+            aphid_present = post_data.get(f'{prefix}_aphid') == 'on'
+            leaf = LeafObservation.objects.create(
+                record=record,
+                plant_number=plant,
+                leaf_position=leaf_position,
+                leaf_index=leaf_idx,
+                aphid_present=aphid_present,
+                aphid_species=plant_species if aphid_present else None,
+            )
+            leaf_aux_rows = []
+            for taxon in taxa:
+                key = f'aux_{plant}_{leaf_position}_{taxon.id}'
+                count = _parse_count(post_data.get(key))
+                if count > 0:
+                    leaf_aux_rows.append(
+                        LeafAuxiliaryObservation(
+                            leaf_observation=leaf,
+                            taxon=taxon,
+                            count=count,
+                        )
+                    )
+            if leaf_aux_rows:
+                LeafAuxiliaryObservation.objects.bulk_create(leaf_aux_rows)
+
+
+def _record_form_context(
+    *,
+    form,
+    plants,
+    leaf_positions,
+    taxa,
+    selected_series,
+    is_technician,
+    target_user,
+    record_obj,
+    initial_leaf_data,
+    form_mode,
+    aphid_species_list,
+    default_aphid_species,
+):
+    return {
+        'form': form,
+        'plants': plants,
+        'leaf_positions': leaf_positions,
+        'auxiliary_taxa': taxa,
+        'selected_series': selected_series,
+        'is_technician': is_technician,
+        'target_user': target_user,
+        'record_obj': record_obj,
+        'initial_leaf_data_json': json.dumps(initial_leaf_data),
+        'form_mode': form_mode,
+        'hide_mobile_record_cta': True,
+        'aphid_species_options': _serialize_aphid_species(aphid_species_list),
+        'default_aphid_species_id': default_aphid_species.id if default_aphid_species else '',
+        'default_aphid_species_label': str(default_aphid_species) if default_aphid_species else 'Non determine',
+    }
+
+
 @login_required
 def record_create_view(request):
     taxa = list(AuxiliaryTaxon.objects.filter(is_active=True).order_by('display_order', 'name'))
+    aphid_species_list = _active_aphid_species()
+    default_aphid_species = _default_aphid_species(aphid_species_list)
+    aphid_species_lookup = {species.id: species for species in aphid_species_list}
+
     manager_user = _manager_user(request)
     manager_profile = _get_profile(manager_user)
     effective_profile = _effective_profile(request)
@@ -68,7 +258,7 @@ def record_create_view(request):
         form = ScoutingRecordForm(post_data, series_queryset=series_qs)
         if form.is_valid():
             if is_tech_user and not manager_profile.department:
-                form.add_error(None, 'Renseignez votre departement dans Mon profil avant de saisir un comptage.')
+                form.add_error(None, 'Renseignez votre département dans Mon profil avant de saisir un comptage.')
                 return render(
                     request,
                     'scouting/record_select_series.html',
@@ -81,7 +271,7 @@ def record_create_view(request):
             record = form.save(commit=False)
             selected_series = form.cleaned_data['plant_series']
             if not selected_series:
-                form.add_error('plant_series', 'Selectionnez une serie de plants.')
+                form.add_error('plant_series', 'Sélectionnez une série de plants.')
                 return render(
                     request,
                     'scouting/record_select_series.html',
@@ -108,46 +298,34 @@ def record_create_view(request):
             record.auxiliary_mode = 'detailed'
             record.aphid_infested_percent = 0
             record.auxiliary_total = 0
-            try:
-                record.save()
-            except IntegrityError:
+
+            plants_count = selected_series.plants_count or 10
+            leaves_count = selected_series.leaves_per_plant or 3
+            plant_species_map, observed_species_ids, primary_species = _extract_record_species_data(
+                request.POST,
+                plants_count,
+                leaves_count,
+                aphid_species_lookup,
+                default_aphid_species,
+            )
+            if len(observed_species_ids) > 1 and primary_species is None:
                 form.add_error(
                     None,
-                    'Un comptage existe deja pour cette serie et cette semaine.',
+                    'Plusieurs espèces de pucerons ont été renseignées. Choisissez l’espèce principale à la fin du comptage.',
                 )
-            else:
-                plants_count = selected_series.plants_count or 10
-                leaves_count = selected_series.leaves_per_plant or 3
-                for plant in range(1, plants_count + 1):
-                    for leaf_idx in range(1, leaves_count + 1):
-                        leaf_position = f'leaf_{leaf_idx}'
-                        prefix = f'p{plant}_{leaf_position}'
-                        aphid_present = request.POST.get(f'{prefix}_aphid') == 'on'
-                        leaf = LeafObservation.objects.create(
-                            record=record,
-                            plant_number=plant,
-                            leaf_position=leaf_position,
-                            leaf_index=leaf_idx,
-                            aphid_present=aphid_present,
-                        )
-                        leaf_aux_rows = []
-                        for taxon in taxa:
-                            key = f'aux_{plant}_{leaf_position}_{taxon.id}'
-                            count = _parse_count(request.POST.get(key))
-                            if count > 0:
-                                leaf_aux_rows.append(
-                                    LeafAuxiliaryObservation(
-                                        leaf_observation=leaf,
-                                        taxon=taxon,
-                                        count=count,
-                                    )
-                                )
-                        if leaf_aux_rows:
-                            LeafAuxiliaryObservation.objects.bulk_create(leaf_aux_rows)
-
-                record.recompute_from_leaf_observations()
-                messages.success(request, 'Comptage enregistre.')
-                return redirect(f"{reverse('record_create')}?recommendation_record={record.id}")
+            if not form.errors:
+                try:
+                    with transaction.atomic():
+                        record.save()
+                        _write_leaf_observations(record, request.POST, plants_count, leaves_count, taxa, plant_species_map)
+                        record.recompute_from_leaf_observations()
+                        record.primary_aphid_species = primary_species
+                        record.save(update_fields=['primary_aphid_species'])
+                except IntegrityError:
+                    form.add_error(None, 'Un comptage existe déjà pour cette série et cette semaine.')
+                else:
+                    messages.success(request, 'Comptage enregistré.')
+                    return redirect(f"{reverse('record_create')}?recommendation_record={record.id}")
     else:
         today = datetime.date.today()
         requested_series_id = request.GET.get('plant_series')
@@ -181,13 +359,14 @@ def record_create_view(request):
 
     plants = []
     leaf_positions = []
+    initial_leaf_data = {}
     if selected_series:
         plants_count = selected_series.plants_count or 10
         leaves_count = selected_series.leaves_per_plant or 3
         plants = list(range(1, plants_count + 1))
-        labels = {1: 'Basse', 2: 'Milieu', 3: 'Haute'}
-        for idx in range(1, leaves_count + 1):
-            leaf_positions.append((f'leaf_{idx}', labels.get(idx, f'Feuille {idx}')))
+        leaf_positions = _leaf_positions_for_series(selected_series)
+        if request.method == 'POST':
+            initial_leaf_data = _build_leaf_state_from_post(request.POST, plants_count, leaves_count, taxa)
     else:
         return render(
             request,
@@ -204,19 +383,20 @@ def record_create_view(request):
     return render(
         request,
         'scouting/record_form.html',
-        {
-            'form': form,
-            'plants': plants,
-            'leaf_positions': leaf_positions,
-            'auxiliary_taxa': taxa,
-            'selected_series': selected_series,
-            'is_technician': is_tech_user,
-            'target_user': selected_series.user,
-            'record_obj': None,
-            'initial_leaf_data_json': json.dumps({}),
-            'form_mode': 'create',
-            'hide_mobile_record_cta': True,
-        },
+        _record_form_context(
+            form=form,
+            plants=plants,
+            leaf_positions=leaf_positions,
+            taxa=taxa,
+            selected_series=selected_series,
+            is_technician=is_tech_user,
+            target_user=selected_series.user,
+            record_obj=None,
+            initial_leaf_data=initial_leaf_data,
+            form_mode='create',
+            aphid_species_list=aphid_species_list,
+            default_aphid_species=default_aphid_species,
+        ),
     )
 
 
@@ -260,7 +440,7 @@ def action_create_view(request):
             .first()
         )
         if selected_lever is None and request.method == 'GET':
-            messages.warning(request, 'Le levier selectionne est introuvable pour cette culture.')
+            messages.warning(request, 'Le levier sélectionné est introuvable pour cette culture.')
     if recommendation_record_id:
         recommendation_record = _recommendation_record_queryset_for_user(effective_user).filter(
             id=recommendation_record_id,
@@ -293,7 +473,7 @@ def action_create_view(request):
             action.save()
             if recommendation_record and selected_lever:
                 _mark_recommendation_followed(recommendation_record, selected_lever, action, request.user)
-            messages.success(request, 'Action enregistree.')
+            messages.success(request, 'Action enregistrée.')
             return redirect('record_create')
     else:
         initial = {'plant_series': selected_series.id, 'action_date': datetime.date.today().isoformat()}
@@ -329,7 +509,6 @@ def action_create_view(request):
     )
 
 
-
 @login_required
 def record_update_view(request, record_id):
     queryset = ScoutingRecord.objects.select_related('plant_series', 'user')
@@ -345,14 +524,20 @@ def record_update_view(request, record_id):
     else:
         record = get_object_or_404(queryset, id=record_id, user=effective_user)
     if not record.plant_series:
-        messages.error(request, 'Cette saisie ne peut pas etre modifiee (serie manquante).')
+        messages.error(request, 'Cette saisie ne peut pas être modifiée (série manquante).')
         if editor_is_technician and not acting_as_producer:
             return redirect('technician_records')
         return redirect('my_records')
 
     taxa = list(AuxiliaryTaxon.objects.filter(is_active=True).order_by('display_order', 'name'))
+    aphid_species_list = _active_aphid_species()
+    default_aphid_species = _default_aphid_species(aphid_species_list)
+    aphid_species_lookup = {species.id: species for species in aphid_species_list}
     series_qs = _series_queryset_for_user(effective_user if acting_as_producer else manager_user)
     selected_series = record.plant_series
+    plants_count = selected_series.plants_count or 10
+    leaves_count = selected_series.leaves_per_plant or 3
+
     if request.method == 'POST':
         post_data = request.POST.copy()
         post_data['plant_series'] = str(selected_series.id)
@@ -372,77 +557,67 @@ def record_update_view(request, record_id):
             updated.auxiliary_mode = 'detailed'
             updated.aphid_infested_percent = 0
             updated.auxiliary_total = 0
-            try:
-                updated.save()
-            except IntegrityError:
-                form.add_error(None, 'Une autre saisie existe deja pour cette serie et cette semaine.')
-            else:
-                updated.leaf_observations.all().delete()
-                plants_count = selected_series.plants_count or 10
-                leaves_count = selected_series.leaves_per_plant or 3
-                for plant in range(1, plants_count + 1):
-                    for leaf_idx in range(1, leaves_count + 1):
-                        leaf_position = f'leaf_{leaf_idx}'
-                        prefix = f'p{plant}_{leaf_position}'
-                        aphid_present = request.POST.get(f'{prefix}_aphid') == 'on'
-                        leaf = LeafObservation.objects.create(
-                            record=updated,
-                            plant_number=plant,
-                            leaf_position=leaf_position,
-                            leaf_index=leaf_idx,
-                            aphid_present=aphid_present,
-                        )
-                        leaf_aux_rows = []
-                        for taxon in taxa:
-                            key = f'aux_{plant}_{leaf_position}_{taxon.id}'
-                            count = _parse_count(request.POST.get(key))
-                            if count > 0:
-                                leaf_aux_rows.append(
-                                    LeafAuxiliaryObservation(
-                                        leaf_observation=leaf,
-                                        taxon=taxon,
-                                        count=count,
-                                    )
-                                )
-                        if leaf_aux_rows:
-                            LeafAuxiliaryObservation.objects.bulk_create(leaf_aux_rows)
-                updated.recompute_from_leaf_observations()
-                messages.success(request, 'Saisie modifiee.')
-                next_view = request.POST.get('next') or request.GET.get('next')
-                next_producer_id = request.POST.get('producer') or request.GET.get('producer')
-                if next_view == 'technician_records' and _is_technician(manager_user) and not acting_as_producer:
-                    redirect_url = reverse('technician_records')
-                    if next_producer_id:
-                        redirect_url = f'{redirect_url}?producer={next_producer_id}'
-                    return redirect(redirect_url)
-                return redirect('my_records')
+
+            plant_species_map, observed_species_ids, primary_species = _extract_record_species_data(
+                request.POST,
+                plants_count,
+                leaves_count,
+                aphid_species_lookup,
+                default_aphid_species,
+            )
+            if len(observed_species_ids) > 1 and primary_species is None:
+                form.add_error(
+                    None,
+                    'Plusieurs espèces de pucerons ont été renseignées. Choisissez l’espèce principale à la fin du comptage.',
+                )
+            if not form.errors:
+                try:
+                    with transaction.atomic():
+                        updated.save()
+                        _write_leaf_observations(updated, request.POST, plants_count, leaves_count, taxa, plant_species_map)
+                        updated.recompute_from_leaf_observations()
+                        updated.primary_aphid_species = primary_species
+                        updated.save(update_fields=['primary_aphid_species'])
+                except IntegrityError:
+                    form.add_error(None, 'Une autre saisie existe déjà pour cette série et cette semaine.')
+                else:
+                    messages.success(request, 'Saisie modifiée.')
+                    next_view = request.POST.get('next') or request.GET.get('next')
+                    next_producer_id = request.POST.get('producer') or request.GET.get('producer')
+                    if next_view == 'technician_records' and _is_technician(manager_user) and not acting_as_producer:
+                        redirect_url = reverse('technician_records')
+                        if next_producer_id:
+                            redirect_url = f'{redirect_url}?producer={next_producer_id}'
+                        return redirect(redirect_url)
+                    return redirect('my_records')
     else:
         form = ScoutingRecordForm(instance=record, series_queryset=series_qs)
 
-    plants_count = selected_series.plants_count or 10
-    leaves_count = selected_series.leaves_per_plant or 3
     plants = list(range(1, plants_count + 1))
-    labels = {1: 'Basse', 2: 'Milieu', 3: 'Haute'}
-    leaf_positions = [(f'leaf_{idx}', labels.get(idx, f'Feuille {idx}')) for idx in range(1, leaves_count + 1)]
+    leaf_positions = _leaf_positions_for_series(selected_series)
+    initial_leaf_data = (
+        _build_leaf_state_from_post(request.POST, plants_count, leaves_count, taxa)
+        if request.method == 'POST'
+        else _build_initial_leaf_state(record)
+    )
 
     return render(
         request,
         'scouting/record_form.html',
-        {
-            'form': form,
-            'plants': plants,
-            'leaf_positions': leaf_positions,
-            'auxiliary_taxa': taxa,
-            'selected_series': selected_series,
-            'is_technician': (editor_is_technician and not acting_as_producer) or (
+        _record_form_context(
+            form=form,
+            plants=plants,
+            leaf_positions=leaf_positions,
+            taxa=taxa,
+            selected_series=selected_series,
+            is_technician=(editor_is_technician and not acting_as_producer) or (
                 (request.user.id != selected_series.user_id) and not acting_as_producer
             ),
-            'target_user': selected_series.user,
-            'record_obj': record,
-            'initial_leaf_data_json': json.dumps(_build_initial_leaf_state(record)),
-            'form_mode': 'edit',
-            'hide_mobile_record_cta': True,
-        },
+            target_user=selected_series.user,
+            record_obj=record,
+            initial_leaf_data=initial_leaf_data,
+            form_mode='edit',
+            aphid_species_list=aphid_species_list,
+            default_aphid_species=default_aphid_species,
+        ),
     )
-
-

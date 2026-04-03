@@ -6,6 +6,7 @@ from rest_framework.authtoken.models import Token, TokenProxy
 
 from .models import (
     ActionType,
+    AphidSpecies,
     AuxiliaryCount,
     AuxiliaryTaxon,
     ConductType,
@@ -41,12 +42,13 @@ ADMIN_MODEL_ORDER = {
         'ConductType': 60,
         'Variety': 70,
         'AuxiliaryTaxon': 80,
-        'Molecule': 90,
-        'RecommendationDismissReason': 100,
-        'ActionType': 110,
-        'DecisionRule': 120,
-        'DecisionLever': 130,
-        'LeafObservation': 140,
+        'AphidSpecies': 90,
+        'Molecule': 100,
+        'RecommendationDismissReason': 110,
+        'ActionType': 120,
+        'DecisionRule': 130,
+        'DecisionLever': 140,
+        'LeafObservation': 150,
     },
     'auth': {
         'User': 10,
@@ -60,7 +62,7 @@ SCOUTING_ADMIN_GROUPS = [
     (
         'settings',
         'Parametrage',
-        ['Crop', 'ConductType', 'Variety', 'AuxiliaryTaxon', 'Molecule', 'RecommendationDismissReason'],
+        ['Crop', 'ConductType', 'Variety', 'AuxiliaryTaxon', 'AphidSpecies', 'Molecule', 'RecommendationDismissReason'],
     ),
     (
         'decisions',
@@ -328,10 +330,40 @@ class AuxiliaryTaxonAdmin(admin.ModelAdmin):
     photo_preview.short_description = 'Photo'
 
 
+@admin.register(AphidSpecies)
+class AphidSpeciesAdmin(admin.ModelAdmin):
+    list_display = ('photo_preview', 'vernacular_name', 'latin_name', 'display_order', 'is_active')
+    list_display_links = ('vernacular_name',)
+    list_filter = ('is_active',)
+    search_fields = ('vernacular_name', 'latin_name', 'code')
+    ordering = ('display_order', 'vernacular_name', 'latin_name')
+    readonly_fields = ('photo_preview',)
+    filter_horizontal = ('molecules', 'auxiliary_taxa')
+    fields = (
+        'vernacular_name',
+        'latin_name',
+        'code',
+        'photo',
+        'photo_preview',
+        'molecules',
+        'auxiliary_taxa',
+        'description',
+        'display_order',
+        'is_active',
+    )
+
+    def photo_preview(self, obj):
+        if not obj.photo:
+            return '-'
+        return format_html('<img src="{}" style="height:48px;border-radius:6px;" />', obj.photo.url)
+
+    photo_preview.short_description = 'Photo'
+
+
 @admin.register(LeafObservation)
 class LeafObservationAdmin(admin.ModelAdmin):
-    list_display = ('record', 'plant_number', 'leaf_position', 'aphid_present', 'total_auxiliaries')
-    list_filter = ('leaf_position', 'aphid_present')
+    list_display = ('record', 'plant_number', 'leaf_position', 'aphid_present', 'aphid_species', 'total_auxiliaries')
+    list_filter = ('leaf_position', 'aphid_present', 'aphid_species')
     inlines = [LeafAuxiliaryObservationInline]
 
 
@@ -345,10 +377,11 @@ class ScoutingRecordAdmin(admin.ModelAdmin):
         'scouting_date',
         'year',
         'week',
+        'primary_aphid_species',
         'aphid_infested_percent',
         'auxiliary_total',
     )
-    list_filter = ('department', 'crop', 'year', 'week')
+    list_filter = ('department', 'crop', 'year', 'week', 'primary_aphid_species')
     search_fields = ('user__username',)
     inlines = [LeafObservationInline, AuxiliaryCountInline]
 

@@ -41,7 +41,9 @@ urlpatterns = [
         name='recommendation_dismiss',
     ),
     path('saisie/<int:record_id>/modifier/', views.record_update_view, name='record_update'),
+    path('saisie/<int:record_id>/supprimer/', views.record_delete_view, name='record_delete'),
     path('mes-donnees/', views.my_records_view, name='my_records'),
+    path('actions/<int:action_id>/supprimer/', views.action_delete_view, name='action_delete'),
     path('technicien/donnees/', views.technician_records_view, name='technician_records'),
     path('export.xlsx', views.export_records_view, name='export_records'),
 ]

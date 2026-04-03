@@ -9,12 +9,12 @@
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
           <div>
-            <h1 class="h4 mb-1">Creer un compte producteur</h1>
-            <p class="text-muted mb-0">Le producteur sera rattache a un technicien referent et localise sur la carte.</p>
+            <h1 class="h4 mb-1">Créer un compte producteur</h1>
+            <p class="text-muted mb-0">Le producteur sera rattaché à un technicien référent et localisé sur la carte.</p>
           </div>
           <div class="d-flex gap-2 flex-wrap">
             {% if not is_super_admin_creator %}
-            <span class="badge text-bg-success">Rattachement automatique a votre compte technicien</span>
+            <span class="badge text-bg-success">Rattachement automatique ? votre compte technicien</span>
             {% endif %}
             <a class="btn btn-outline-success btn-sm" href="{% url 'producer_import' %}">Import CSV</a>
           </div>
@@ -27,7 +27,7 @@
             {{ form.username }}
           </div>
           <div class="col-md-4">
-            <label class="form-label" for="id_first_name">Prenom</label>
+            <label class="form-label" for="id_first_name">Prénom</label>
             {{ form.first_name }}
           </div>
           <div class="col-md-4">
@@ -49,13 +49,13 @@
           </div>
           {% if form.technician.is_hidden %}
           <div class="col-md-6">
-            <label class="form-label">Technicien referent</label>
+            <label class="form-label">Technicien référent</label>
             <input type="text" class="form-control" value="{{ form.technician_display_name }}" readonly>
           </div>
             {{ form.technician }}
           {% else %}
           <div class="col-md-6">
-            <label class="form-label" for="id_technician">Technicien referent</label>
+            <label class="form-label" for="id_technician">Technicien référent</label>
             {{ form.technician }}
           </div>
           {% endif %}
@@ -81,12 +81,12 @@
           <div class="col-12">
             <div class="d-flex gap-2 flex-wrap align-items-center">
               <button class="btn btn-outline-success" type="button" id="producerGeocodeBtn">Localiser sur la carte</button>
-              <span class="small text-muted" id="producerCoordsLabel">Aucune coordonnee GPS enregistree.</span>
+              <span class="small text-muted" id="producerCoordsLabel">Aucune coordonnée GPS enregistrée.</span>
             </div>
           </div>
           <div class="col-12">
             <div id="producerMap" style="height: 320px; border-radius: 12px; border: 1px solid #d8e4dd;"></div>
-            <div class="form-text">La position GPS est calculee depuis l'adresse. Vous pouvez corriger le point a la main.</div>
+            <div class="form-text">La position GPS est calculée depuis l'adresse. Vous pouvez corriger le point à la main.</div>
           </div>
 
           <div class="col-md-6">
@@ -103,7 +103,7 @@
           {% endif %}
 
           <div class="col-12 d-flex gap-2">
-            <button class="btn btn-success" type="submit">Creer le compte producteur</button>
+            <button class="btn btn-success" type="submit">Créer le compte producteur</button>
             <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Retour</a>
           </div>
         </form>
@@ -184,7 +184,7 @@ async function geocodeProducerAddress() {
 
 document.getElementById('producerGeocodeBtn')?.addEventListener('click', function() {
   geocodeProducerAddress().catch(function() {
-    producerCoordsLabel.textContent = 'La geolocalisation a echoue.';
+    producerCoordsLabel.textContent = 'La géolocalisation a échoué.';
   });
 });
 </script>

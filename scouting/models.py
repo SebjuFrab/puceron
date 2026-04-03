@@ -523,6 +523,14 @@ class ScoutingRecord(models.Model):
     year = models.PositiveSmallIntegerField(verbose_name='Annee')
     week = models.PositiveSmallIntegerField(verbose_name='Semaine')
     aphid_infested_percent = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='% feuilles infestees')
+    primary_aphid_species = models.ForeignKey(
+        'AphidSpecies',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='primary_records',
+        verbose_name='Espece principale de puceron',
+    )
     auxiliary_mode = models.CharField(max_length=10, choices=AUXILIARY_MODE_CHOICES, default='total', verbose_name='Mode auxiliaires')
     auxiliary_total = models.PositiveIntegerField(default=0, verbose_name='Total auxiliaires')
     comment = models.TextField(blank=True, verbose_name='Commentaire')
@@ -562,7 +570,8 @@ class ScoutingRecord(models.Model):
             self.aphid_infested_percent = 0
             self.auxiliary_total = 0
             self.auxiliary_mode = 'detailed'
-            self.save(update_fields=['aphid_infested_percent', 'auxiliary_total', 'auxiliary_mode'])
+            self.primary_aphid_species = None
+            self.save(update_fields=['aphid_infested_percent', 'auxiliary_total', 'auxiliary_mode', 'primary_aphid_species'])
             return
 
         infested_count = sum(1 for leaf in leaves if leaf.aphid_present)
@@ -577,7 +586,28 @@ class ScoutingRecord(models.Model):
         self.aphid_infested_percent = round((infested_count / len(leaves)) * 100, 2)
         self.auxiliary_total = total_aux
         self.auxiliary_mode = 'detailed'
-        self.save(update_fields=['aphid_infested_percent', 'auxiliary_total', 'auxiliary_mode'])
+        observed_species_ids = self.observed_aphid_species_ids()
+        if len(observed_species_ids) == 1:
+            self.primary_aphid_species_id = observed_species_ids[0]
+        elif observed_species_ids and self.primary_aphid_species_id not in observed_species_ids:
+            self.primary_aphid_species = None
+        elif not observed_species_ids:
+            self.primary_aphid_species = None
+        self.save(
+            update_fields=[
+                'aphid_infested_percent',
+                'auxiliary_total',
+                'auxiliary_mode',
+                'primary_aphid_species',
+            ]
+        )
+
+    def observed_aphid_species_ids(self):
+        return list(
+            self.leaf_observations.filter(aphid_present=True, aphid_species__isnull=False)
+            .values_list('aphid_species_id', flat=True)
+            .distinct()
+        )
 
     def species_means_per_plant(self):
         taxa = list(AuxiliaryTaxon.objects.order_by('display_order', 'name'))
@@ -613,6 +643,38 @@ class AuxiliaryTaxon(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class AphidSpecies(models.Model):
+    code = models.SlugField(max_length=50, unique=True, verbose_name='Code')
+    vernacular_name = models.CharField(max_length=140, verbose_name='Nom vernaculaire')
+    latin_name = models.CharField(max_length=140, blank=True, verbose_name='Nom latin')
+    photo = models.ImageField(upload_to='aphid_species/', blank=True, verbose_name='Photo')
+    molecules = models.ManyToManyField(
+        'Molecule',
+        related_name='aphid_species',
+        blank=True,
+        verbose_name='Molecules de lutte',
+    )
+    auxiliary_taxa = models.ManyToManyField(
+        AuxiliaryTaxon,
+        related_name='target_aphid_species',
+        blank=True,
+        verbose_name='Auxiliaires de lutte',
+    )
+    description = models.TextField(blank=True, verbose_name='Description')
+    display_order = models.PositiveSmallIntegerField(default=1, verbose_name="Ordre d'affichage")
+    is_active = models.BooleanField(default=True, verbose_name='Actif')
+
+    class Meta:
+        ordering = ['display_order', 'vernacular_name', 'latin_name']
+        verbose_name = 'Espece de puceron'
+        verbose_name_plural = 'Especes de pucerons'
+
+    def __str__(self):
+        if self.latin_name and self.latin_name != self.vernacular_name:
+            return f'{self.vernacular_name} ({self.latin_name})'
+        return self.vernacular_name
 
 
 class ActionType(models.Model):
@@ -1097,6 +1159,14 @@ class LeafObservation(models.Model):
     leaf_position = models.CharField(max_length=30, verbose_name='Position de la feuille')
     leaf_index = models.PositiveSmallIntegerField(default=1, verbose_name='Index de feuille')
     aphid_present = models.BooleanField(default=False, verbose_name='Puceron present')
+    aphid_species = models.ForeignKey(
+        AphidSpecies,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='leaf_observations',
+        verbose_name='Espece de puceron',
+    )
     syrphes = models.PositiveSmallIntegerField(default=0, verbose_name='Syrphes')
     anthocorides = models.PositiveSmallIntegerField(default=0, verbose_name='Punaises Anthocorides')
     nabides = models.PositiveSmallIntegerField(default=0, verbose_name='Punaises Nabides')

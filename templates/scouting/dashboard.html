@@ -205,7 +205,7 @@
 {% endblock %}
 {% block content %}
 {% if not series_list %}
-  <div class="alert alert-warning mb-0">Aucune serie visible pour afficher le dashboard technicien.</div>
+  <div class="alert alert-warning mb-0">Aucune série visible pour afficher l’analyse technicien.</div>
 {% else %}
 <form method="get" class="dashboard-shell">
   <div class="charts-stack">
@@ -213,8 +213,8 @@
       <div class="card-body p-4">
         <div class="panel-head">
           <div>
-            <h1 class="hero-title">Dashboard technicien</h1>
-            <p class="hero-subtitle">Toutes les series d'une meme culture et d'une meme annee, avec filtres bio, variete, producteur et serie.</p>
+            <h1 class="hero-title">Analyse technicien</h1>
+            <p class="hero-subtitle">Toutes les séries d'une même culture et d'une même année, avec filtres bio, variété, producteur et série.</p>
           </div>
         </div>
 
@@ -232,7 +232,7 @@
 
         <div class="row g-3 align-items-end">
           <div class="col-12 col-md-6">
-            <label class="form-label">Annee</label>
+            <label class="form-label">Année</label>
             <select class="form-select" name="year">
               {% for year in available_years %}
                 <option value="{{ year }}" {% if selected_year == year %}selected{% endif %}>{{ year }}</option>
@@ -270,7 +270,7 @@
 
         {% if available_varieties %}
           <div class="mb-3">
-            <div class="panel-subtitle mb-2">Varietes</div>
+            <div class="panel-subtitle mb-2">Variétés</div>
             <div class="filters-group">
               {% for variety in available_varieties %}
                 <label class="filter-chip">
@@ -284,8 +284,8 @@
 
         <div class="panel-head">
           <div>
-            <h2 class="panel-title">Series affichees</h2>
-            <p class="panel-subtitle">Decochez une serie pour la retirer du graphique.</p>
+            <h2 class="panel-title">Séries affichées</h2>
+            <p class="panel-subtitle">Décochez une série pour la retirer du graphique.</p>
           </div>
         </div>
         <div class="series-selector-list">
@@ -302,13 +302,13 @@
               </div>
             </label>
           {% empty %}
-            <div class="empty-chart w-100">Aucune serie pour cette combinaison de filtres.</div>
+            <div class="empty-chart w-100">Aucune série pour cette combinaison de filtres.</div>
           {% endfor %}
         </div>
 
         <div class="d-flex gap-2 flex-wrap mt-3">
           <button class="btn btn-success" type="submit">Appliquer les filtres</button>
-          <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}?crop={{ selected_crop.id }}&year={{ selected_year }}&organic_mode={{ organic_mode }}">Reinitialiser les series</a>
+          <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}?crop={{ selected_crop.id }}&year={{ selected_year }}&organic_mode={{ organic_mode }}">Réinitialiser les séries</a>
         </div>
       </div>
     </section>
@@ -317,37 +317,37 @@
       <div class="card-body p-4">
         <div class="panel-head">
           <div>
-            <h2 class="panel-title">{{ selected_crop.name }} - annee {{ selected_year }}</h2>
-            <p class="panel-subtitle">Lecture multi-series sur le perimetre du technicien.</p>
+            <h2 class="panel-title">{{ selected_crop.name }} - année {{ selected_year }}</h2>
+            <p class="panel-subtitle">Lecture multi-séries sur le périmètre du technicien.</p>
           </div>
         </div>
 
         <div class="kpi-grid">
           <div class="kpi-card">
-            <div class="kpi-label">Series apres filtres</div>
+            <div class="kpi-label">Séries après filtres</div>
             <div class="kpi-value">{{ series_count }}</div>
             <div class="kpi-note">avant masquage manuel</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">Series affichees</div>
+            <div class="kpi-label">Séries affichées</div>
             <div class="kpi-value">{{ displayed_series_count }}</div>
-            <div class="kpi-note">{{ hidden_series_count }} masquee(s)</div>
+            <div class="kpi-note">{{ hidden_series_count }} masquée(s)</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">Comptages affiches</div>
+            <div class="kpi-label">Comptages affichés</div>
             <div class="kpi-value">{{ record_count }}</div>
-            <div class="kpi-note">sur les series visibles</div>
+            <div class="kpi-note">sur les séries visibles</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">Derniere semaine</div>
+            <div class="kpi-label">Dernière semaine</div>
             <div class="kpi-value">{% if latest_week %}S{{ latest_week }}{% else %}-{% endif %}</div>
-            <div class="kpi-note">parmi les series visibles</div>
+            <div class="kpi-note">parmi les séries visibles</div>
           </div>
         </div>
 
         <div class="comparison-meta mt-3">
           <span class="compare-pill">Culture {{ selected_crop.name }}</span>
-          <span class="compare-pill">Annee {{ selected_year }}</span>
+          <span class="compare-pill">Année {{ selected_year }}</span>
           <span class="compare-pill">Mode {{ organic_mode_label }}</span>
         </div>
       </div>
@@ -360,7 +360,7 @@
         <div class="panel-head">
           <div>
             <h2 class="panel-title">Taux d'infestation</h2>
-            <p class="panel-subtitle">Une courbe par serie visible.</p>
+            <p class="panel-subtitle">Une courbe par série visible.</p>
           </div>
         </div>
         {% if displayed_series and chart_labels %}
@@ -376,7 +376,7 @@
         <div class="panel-head">
           <div>
             <h2 class="panel-title">Auxiliaires / plant</h2>
-            <p class="panel-subtitle">Les series visibles sont conservees avec le meme code couleur.</p>
+            <p class="panel-subtitle">Les séries visibles sont conservées avec le même code couleur.</p>
           </div>
         </div>
         {% if displayed_series and chart_labels %}
@@ -391,8 +391,8 @@
       <div class="card-body p-4">
         <div class="panel-head">
           <div>
-            <h2 class="panel-title">Actions sur les series visibles</h2>
-            <p class="panel-subtitle">Historique consolide des actions sur le perimetre filtre.</p>
+            <h2 class="panel-title">Actions sur les séries visibles</h2>
+            <p class="panel-subtitle">Historique consolidé des actions sur le périmètre filtré.</p>
           </div>
         </div>
         {% if action_cards %}
@@ -407,7 +407,7 @@
             </div>
           {% endfor %}
         {% else %}
-          <div class="empty-chart">Aucune action n'a ete saisie sur les series visibles.</div>
+          <div class="empty-chart">Aucune action n'a été saisie sur les séries visibles.</div>
         {% endif %}
       </div>
     </section>

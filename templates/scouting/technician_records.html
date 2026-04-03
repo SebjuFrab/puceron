@@ -194,7 +194,7 @@
     <h1 class="h4 mb-1">Vue technicien</h1>
     <p class="text-muted mb-0">
       {% if active_technician_profile %}
-        Perimetre du technicien {{ active_technician_profile.user.get_full_name|default:active_technician_profile.user.username }}.
+        Périmètre du technicien {{ active_technician_profile.user.get_full_name|default:active_technician_profile.user.username }}.
       {% else %}
         Passez la souris sur un producteur, puis cliquez pour ouvrir ses comptages et ses actions.
       {% endif %}
@@ -205,7 +205,7 @@
     <a href="{% url 'producer_import' %}" class="btn btn-outline-success">Import CSV</a>
     {% if selected_producer %}
       <a href="{% url 'export_records' %}?scope=all&producer={{ selected_producer.user_id }}" class="btn btn-outline-success">Exporter Excel</a>
-      <a href="{% url 'technician_records' %}" class="btn btn-outline-secondary">Retour a la carte</a>
+      <a href="{% url 'technician_records' %}" class="btn btn-outline-secondary">Retour à la carte</a>
     {% endif %}
   </div>
 </div>
@@ -215,14 +215,14 @@
     <div class="card-body p-3 p-lg-4">
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
         <div>
-          <div class="small text-uppercase text-success fw-semibold mb-1">Controle technicien</div>
+          <div class="small text-uppercase text-success fw-semibold mb-1">Contrôle technicien</div>
           <h2 class="h5 mb-1">Agir comme un technicien</h2>
-          <p class="text-muted mb-0">Selectionnez un technicien pour recuperer son perimetre producteurs, ses dashboards et ses ecrans de travail.</p>
+          <p class="text-muted mb-0">Sélectionnez un technicien pour récupérer son périmètre producteurs, ses dashboards et ses écrans de travail.</p>
         </div>
         {% if active_technician_profile %}
           <form method="post" action="{% url 'technician_control_stop' %}">
             {% csrf_token %}
-            <button type="submit" class="btn btn-outline-secondary">Quitter le controle technicien</button>
+            <button type="submit" class="btn btn-outline-secondary">Quitter le contrôle technicien</button>
           </form>
         {% endif %}
       </div>
@@ -246,13 +246,13 @@
   <div class="card-body p-3 p-lg-4">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
       <div>
-        <div class="small text-uppercase text-success fw-semibold mb-1">Producteurs rattaches</div>
+        <div class="small text-uppercase text-success fw-semibold mb-1">Producteurs rattachés</div>
         <h2 class="h3 mb-1">Carte des exploitations</h2>
         <p class="text-muted mb-0">Cliquez sur un marqueur pour passer directement sur la vue du producteur.</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <span class="tech-chip">{{ producer_profiles|length }} producteurs visibles</span>
-        <span class="tech-chip">{{ mapped_producers_count }} points cartes charges</span>
+        <span class="tech-chip">{{ mapped_producers_count }} points cartes chargés</span>
         {% if producers_without_coordinates %}
           <span class="tech-chip">{{ producers_without_coordinates|length }} sans GPS</span>
         {% endif %}
@@ -261,7 +261,7 @@
     <div id="producerMap" class="tech-map"></div>
     {% if producers_without_coordinates %}
       <div class="alert alert-warning mt-3 mb-0">
-        <strong>Coordonnees GPS manquantes:</strong>
+        <strong>Coordonnées GPS manquantes :</strong>
         {% for producer in producers_without_coordinates %}
           <a href="{{ producer.target_url }}" class="alert-link">{{ producer.name }}</a>{% if not forloop.last %}, {% endif %}
         {% endfor %}
@@ -281,11 +281,11 @@
             <div class="producer-summary-fallback">{{ selected_producer.user.get_full_name|default:selected_producer.user.username|slice:":1"|upper }}</div>
           {% endif %}
           <div>
-            <div class="small text-uppercase text-success fw-semibold mb-1">Producteur selectionne</div>
+            <div class="small text-uppercase text-success fw-semibold mb-1">Producteur sélectionné</div>
             <h2 class="h4 mb-1">{% if selected_producer_data %}{{ selected_producer_data.name }}{% else %}{{ selected_producer.user.get_full_name|default:selected_producer.user.username }}{% endif %}</h2>
-            <div class="text-muted mb-1">{{ selected_producer.full_address|default:"Adresse non renseignee" }}</div>
+            <div class="text-muted mb-1">{{ selected_producer.full_address|default:"Adresse non renseignée" }}</div>
             <div class="d-flex gap-2 flex-wrap">
-              <span class="tech-chip">{{ selected_series|length }} series actives</span>
+              <span class="tech-chip">{{ selected_series|length }} séries actives</span>
               <span class="tech-chip">{{ records|length }} comptages</span>
               <span class="tech-chip">{{ actions|length }} actions</span>
             </div>
@@ -293,15 +293,15 @@
         </div>
         <div class="d-flex gap-2 flex-wrap">
           {% if active_control_profile and active_control_profile.user_id == selected_producer.user_id %}
-            <a href="{% url 'dashboard' %}" class="btn btn-success">Ouvrir l interface producteur</a>
+            <a href="{% url 'dashboard' %}" class="btn btn-success">Ouvrir l’interface producteur</a>
             <form method="post" action="{% url 'producer_control_stop' %}" class="d-inline">
               {% csrf_token %}
-              <button type="submit" class="btn btn-outline-secondary">Quitter le controle</button>
+              <button type="submit" class="btn btn-outline-secondary">Quitter le contrôle</button>
             </form>
           {% else %}
             <form method="post" action="{% url 'producer_control_start' selected_producer.user_id %}" class="d-inline">
               {% csrf_token %}
-              <button type="submit" class="btn btn-success">Prendre le controle du compte</button>
+              <button type="submit" class="btn btn-success">Prendre le contrôle du compte</button>
             </form>
           {% endif %}
           <a href="{% url 'producer_update' selected_producer.user_id %}?next=technician_records" class="btn btn-success">Modifier le producteur</a>
@@ -311,15 +311,15 @@
       {% if selected_series %}
         <hr class="my-4">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-          <h3 class="h5 mb-0">Series disponibles pour la saisie</h3>
-          <div class="small text-muted">Le technicien peut saisir un comptage ou une action pour chaque serie.</div>
+          <h3 class="h5 mb-0">Séries disponibles pour la saisie</h3>
+          <div class="small text-muted">Le technicien peut saisir un comptage ou une action pour chaque série.</div>
         </div>
         <div class="series-grid">
           {% for series in selected_series %}
             <div class="series-card">
               <div class="fw-bold fs-5">{{ series.name }}</div>
               <div class="series-meta">
-                <span class="series-pill">Annee {{ series.year }}</span>
+                <span class="series-pill">Année {{ series.year }}</span>
                 <span class="series-pill">{{ series.crop.name }}</span>
                 <span class="series-pill">{{ series.conduct_type.name }}</span>
                 <span class="series-pill">{{ series.variety.name }}</span>
@@ -354,7 +354,7 @@
                   {% endif %}
                 </div>
               {% else %}
-                <div class="small text-muted">Aucun comptage pour cette serie.</div>
+                <div class="small text-muted">Aucun comptage pour cette série.</div>
               {% endif %}
               <div class="d-flex gap-2 flex-wrap">
                 <a href="{% url 'record_create' %}?plant_series={{ series.id }}&mode=count" class="btn btn-sm btn-success">Comptage</a>
@@ -378,12 +378,12 @@
           <thead>
             <tr>
               <th>Date</th>
-              <th>Serie</th>
+              <th>Série</th>
               <th>Culture</th>
               <th>% infeste</th>
               <th>Aux/plant</th>
               <th>Risque</th>
-              <th>Preconisation</th>
+              <th>Préconisation</th>
               <th>Commentaire</th>
               <th>Action</th>
             </tr>
@@ -442,7 +442,7 @@
   <div class="card shadow-sm data-card">
     <div class="card-body p-3 p-lg-4">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <h2 class="h5 mb-0">Suivi des actions preventives / curatives</h2>
+        <h2 class="h5 mb-0">Suivi des actions préventives / curatives</h2>
         <span class="tech-chip">{{ actions|length }} actions</span>
       </div>
       <div class="table-responsive">
@@ -450,12 +450,12 @@
           <thead>
             <tr>
               <th>Date</th>
-              <th>Serie</th>
+              <th>Série</th>
               <th>Type</th>
-              <th>Portee</th>
-              <th>Molecule</th>
+              <th>Portée</th>
+              <th>Molécule</th>
               <th>Auxiliaire</th>
-              <th>Details</th>
+              <th>Détails</th>
             </tr>
           </thead>
           <tbody>
@@ -482,8 +482,8 @@
 {% else %}
   <div class="card shadow-sm tech-empty">
     <div class="card-body p-4 text-center">
-      <h2 class="h5 mb-2">Aucun producteur selectionne</h2>
-      <p class="text-muted mb-0">Le technicien reste sur la carte tant qu il n a pas clique sur une exploitation.</p>
+      <h2 class="h5 mb-2">Aucun producteur sélectionné</h2>
+      <p class="text-muted mb-0">Le technicien reste sur la carte tant qu’il n’a pas cliqué sur une exploitation.</p>
     </div>
   </div>
 {% endif %}
@@ -530,14 +530,14 @@ function popupHtml(producer) {
     : `<div class="producer-photo-fallback">${initial}</div>`;
   const addressHtml = producer.address
     ? `<div class="producer-popup-address">${escapeHtml(producer.address)}</div>`
-    : `<div class="producer-popup-address">Adresse non renseignee</div>`;
+    : `<div class="producer-popup-address">Adresse non renseignée</div>`;
   return `
     <div class="producer-popup">
       <div class="producer-popup-top">
         ${media}
         <div>
           <div class="producer-popup-name">${escapeHtml(producer.name)}</div>
-          <div class="producer-popup-subtitle">${escapeHtml(producer.series_count)} serie(s)</div>
+          <div class="producer-popup-subtitle">${escapeHtml(producer.series_count)} série(s)</div>
         </div>
       </div>
       ${addressHtml}

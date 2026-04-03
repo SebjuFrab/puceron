@@ -1,7 +1,7 @@
 ﻿{% extends 'base.html' %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-  <h1 class="h4 mb-0">Mes donnees</h1>
+  <h1 class="h4 mb-0">Mes donées</h1>
   <a href="{% url 'export_records' %}{% if export_scope_all %}?scope=all{% endif %}" class="btn btn-outline-success">Exporter Excel</a>
 </div>
 <table class="table table-striped table-sm bg-white shadow-sm">
@@ -9,7 +9,7 @@
     <tr>
       <th>Date</th>
       {% if show_producer_column %}<th>Producteur</th>{% endif %}
-      <th>Serie</th><th>Annee</th><th>Semaine</th><th>Departement</th><th>Culture</th><th>% infeste</th><th>Aux/plant</th><th>Risque</th><th>Commentaire</th><th>Action</th>
+      <th>Série</th><th>Année</th><th>Semaine</th><th>Département</th><th>Culture</th><th>Puceron principal</th><th>Espèces observées</th><th>Auxiliaires observés</th><th>% infeste</th><th>Aux/plant</th><th>Risque</th><th>Commentaire</th><th>Action</th>
     </tr>
   </thead>
   <tbody>
@@ -22,29 +22,47 @@
       <td>{{ rec.week }}</td>
       <td>{{ rec.department }}</td>
       <td>{{ rec.get_crop_display }}</td>
+      <td>{{ rec.primary_aphid_species|default:'-' }}</td>
+      <td>{{ rec.aphid_species_list }}</td>
+      <td>{{ rec.auxiliary_taxa_list }}</td>
       <td>{{ rec.aphid_infested_percent }}</td>
       <td>{{ rec.auxiliaries_per_plant|floatformat:2 }}</td>
       <td>{{ rec.risk_level }}</td>
       <td>{{ rec.comment|default:'-' }}</td>
       <td>
-        <a class="btn btn-sm btn-outline-primary" href="{% url 'record_update' rec.id %}">Modifier</a>
+        <div class="d-flex gap-1 flex-wrap">
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'record_update' rec.id %}">Modifier</a>
+          <form
+            method="post"
+            action="{% url 'record_delete' rec.id %}"
+            class="js-app-confirm m-0"
+            data-confirm-title="Supprimer le comptage"
+            data-confirm-subtitle="Cette action est définitive."
+            data-confirm-message="Supprimer ce comptage ?"
+            data-confirm-confirm-label="Supprimer"
+            data-confirm-confirm-class="btn-danger"
+          >
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">Supprimer</button>
+          </form>
+        </div>
       </td>
     </tr>
     {% empty %}
-    <tr><td colspan="{% if show_producer_column %}12{% else %}11{% endif %}">Aucune donnee.</td></tr>
+    <tr><td colspan="{% if show_producer_column %}15{% else %}14{% endif %}">Aucune donnée.</td></tr>
     {% endfor %}
   </tbody>
 </table>
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 mt-4">
-  <h2 class="h5 mb-0">Mes actions preventives / curatives</h2>
+  <h2 class="h5 mb-0">Mes actions préventives / curatives</h2>
 </div>
 <table class="table table-striped table-sm bg-white shadow-sm">
   <thead>
     <tr>
       <th>Date</th>
       {% if show_producer_column %}<th>Producteur</th>{% endif %}
-      <th>Serie</th><th>Type</th><th>Portee</th><th>Molecule</th><th>Auxiliaire</th><th>Details</th>
+      <th>Série</th><th>Type</th><th>Portée</th><th>Molécule</th><th>Auxiliaire</th><th>Détails</th><th>Action</th>
     </tr>
   </thead>
   <tbody>
@@ -58,9 +76,24 @@
       <td>{{ action.molecule.name|default:'-' }}</td>
       <td>{{ action.auxiliary_taxon.name|default:'-' }}</td>
       <td>{{ action.notes|default:'-' }}</td>
+      <td>
+        <form
+          method="post"
+          action="{% url 'action_delete' action.id %}"
+          class="js-app-confirm m-0"
+          data-confirm-title="Supprimer l’action"
+          data-confirm-subtitle="Cette action est définitive."
+          data-confirm-message="Supprimer cette action ?"
+          data-confirm-confirm-label="Supprimer"
+          data-confirm-confirm-class="btn-danger"
+        >
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-danger">Supprimer</button>
+        </form>
+      </td>
     </tr>
     {% empty %}
-    <tr><td colspan="{% if show_producer_column %}8{% else %}7{% endif %}">Aucune action.</td></tr>
+    <tr><td colspan="{% if show_producer_column %}9{% else %}8{% endif %}">Aucune action.</td></tr>
     {% endfor %}
   </tbody>
 </table>

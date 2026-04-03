@@ -25,6 +25,156 @@
     font-weight: 700;
     color: #5c6b65;
   }
+  .plant-step-header {
+    display: none;
+    align-items: baseline;
+    gap: 0.45rem;
+    margin-bottom: 0.5rem;
+    color: #0f5132;
+  }
+  .all-plants-mode .plant-step-header {
+    display: flex;
+  }
+  .plant-step-header-label {
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #5c6b65;
+  }
+  .plant-step-header-number {
+    font-size: 1.9rem;
+    line-height: 1;
+    font-weight: 900;
+    color: #198754;
+  }
+  .plant-species-box {
+    border: 1px solid #f3d3d3;
+    border-radius: 12px;
+    background: #fff8f8;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+  }
+  .plant-species-box.is-hidden {
+    display: none;
+  }
+  .plant-species-label {
+    font-size: 0.85rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #9d174d;
+    letter-spacing: 0.02em;
+  }
+  .plant-species-help {
+    color: #6b7280;
+    font-size: 0.82rem;
+  }
+  .plant-species-open {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    font-weight: 800;
+    text-align: left;
+  }
+  .plant-species-button-text {
+    display: block;
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+  .species-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .species-item {
+    border: 1px solid #e8d2d2;
+    border-radius: 12px;
+    background: #fff;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: left;
+  }
+  .species-item.selected {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 2px rgba(220,53,69,0.15) inset;
+    background: #fff6f6;
+  }
+  .species-photo-wrap {
+    width: 100%;
+    height: 104px;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid #e7dada;
+    background: #f8f3f3;
+  }
+  .species-photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .species-label {
+    font-weight: 800;
+    color: #7f1d1d;
+    font-size: 0.92rem;
+    line-height: 1.15;
+  }
+  .species-latin {
+    font-size: 0.78rem;
+    color: #6b7280;
+    line-height: 1.1;
+  }
+  .species-detail {
+    border: 1px solid #e7dada;
+    border-radius: 12px;
+    background: #fff9f9;
+    padding: 10px 12px;
+  }
+  .species-detail-title {
+    font-weight: 800;
+    color: #7f1d1d;
+  }
+  .species-detail-label {
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #9d174d;
+    margin-bottom: 2px;
+  }
+  .species-detail-text {
+    font-size: 0.92rem;
+    color: #374151;
+    margin-bottom: 8px;
+  }
+  .draft-choice {
+    border: 1px solid #7edfff;
+    border-radius: 14px;
+    background: #eefaff;
+    padding: 12px 14px;
+  }
+  .draft-choice-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .primary-species-grid {
+    margin-top: 0.5rem;
+  }
+  .primary-species-card {
+    cursor: pointer;
+  }
+  .primary-species-card:focus {
+    outline: 0;
+    box-shadow: 0 0 0 3px rgba(220,53,69,0.18);
+  }
   .leaf-actions { display: flex; gap: 10px; }
   .btn-leaf { min-width: 140px; min-height: 54px; border-radius: 16px; font-weight: 800; font-size: 1.35rem; }
   .aphid-on { background: #00c2ff; color: #002a33; border-color: #00c2ff; }
@@ -100,6 +250,8 @@
 
 <form method="post">
   {% csrf_token %}
+  <input type="hidden" name="form_step" id="formStepInput" value="plants">
+  <input type="hidden" name="current_plant" id="currentPlantInput" value="1">
   {% if request.GET.next %}
     <input type="hidden" name="next" value="{{ request.GET.next }}">
   {% endif %}
@@ -129,6 +281,14 @@
       {% endif %}
       <div id="offlineStatus" class="alert alert-warning py-2 mb-2 d-none"></div>
       <div id="draftStatus" class="alert alert-info py-2 mb-2 d-none"></div>
+      <div id="draftChoicePrompt" class="draft-choice mb-2 d-none">
+        <div class="fw-semibold mb-1">Un brouillon local a été trouvé sur ce téléphone.</div>
+        <div class="small text-muted" id="draftChoiceMeta">Vous pouvez reprendre la saisie précédente ou recommencer.</div>
+        <div class="draft-choice-actions">
+          <button type="button" class="btn btn-success btn-sm" id="resumeDraftBtn">Reprendre les données</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="discardDraftBtn">Recommencer</button>
+        </div>
+      </div>
       <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
         <div class="plant-progress" aria-live="polite">
           <span class="plant-progress-label">Plant</span>
@@ -143,7 +303,26 @@
 
       {% for plant in plants %}
       <section class="plant-step {% if forloop.first %}active{% endif %}" data-plant="{{ plant }}">
-        <div class="mb-2 small text-muted">Cliquez sur <b>puceron</b> si presence, puis sur <b>aux</b> pour ajouter un auxiliaire.</div>
+        <div class="plant-step-header">
+          <span class="plant-step-header-label">Plant</span>
+          <span class="plant-step-header-number">{{ plant }}</span>
+        </div>
+        <div class="mb-2 small text-muted">Cliquez sur <b>puceron</b> si présence, puis sur <b>auxiliaire</b> pour ajouter un auxiliaire.</div>
+        <div class="plant-species-box is-hidden">
+          <div class="plant-species-label mb-1">Espèce principale du plant</div>
+          <div class="plant-species-help mb-2">Le choix sera repris par défaut sur les plants suivants tant qu’il n’est pas modifié.</div>
+          <button
+            type="button"
+            class="btn btn-outline-danger plant-species-open"
+            data-plant="{{ plant }}"
+            {% if not aphid_species_options %}disabled{% endif %}
+          >
+            <span class="plant-species-button-text">{{ default_aphid_species_label }}</span>
+            <span class="small">Changer</span>
+          </button>
+          <input type="hidden" name="plant_{{ plant }}_aphid_species" id="plant_{{ plant }}_aphid_species" value="">
+          <input type="hidden" name="plant_{{ plant }}_aphid_species_touched" id="plant_{{ plant }}_aphid_species_touched" value="0">
+        </div>
 
         {% for pos, pos_label in leaf_positions %}
         <div class="leaf-row" data-leaf-key="{{ plant }}-{{ pos }}">
@@ -151,7 +330,7 @@
           <div class="leaf-actions mb-2">
             <button type="button" class="btn btn-outline-info btn-leaf aphid-toggle" data-plant="{{ plant }}" data-pos="{{ pos }}">puceron</button>
             <input type="checkbox" class="d-none aphid-input" name="p{{ plant }}_{{ pos }}_aphid" id="p{{ plant }}_{{ pos }}_aphid">
-            <button type="button" class="btn btn-outline-warning btn-leaf aux-open" data-plant="{{ plant }}" data-pos="{{ pos }}" {% if not auxiliary_taxa %}disabled{% endif %}>aux</button>
+            <button type="button" class="btn btn-outline-warning btn-leaf aux-open" data-plant="{{ plant }}" data-pos="{{ pos }}" {% if not auxiliary_taxa %}disabled{% endif %}>auxiliaire</button>
           </div>
           <div class="aux-summary small text-muted">Aucun auxiliaire saisi.</div>
           <div class="aux-hidden"></div>
@@ -159,7 +338,7 @@
         {% endfor %}
 
         <div class="plant-nav d-flex gap-2">
-          <button type="button" class="btn btn-outline-secondary w-50 prev-plant" {% if forloop.first %}disabled{% endif %}>Plant precedent</button>
+          <button type="button" class="btn btn-outline-secondary w-50 prev-plant" {% if forloop.first %}disabled{% endif %}>Plant précédent</button>
           {% if not forloop.last %}
           <button type="button" class="btn btn-outline-success w-50 next-plant">Enregistrer et passer au plant suivant</button>
           {% else %}
@@ -176,6 +355,24 @@
       <h2 class="h5">Finaliser la saisie</h2>
       <div class="row g-2">
         <div class="col-12">
+          <input type="hidden" name="primary_aphid_species" id="primaryAphidSpeciesInput" value="">
+          <div id="primaryAphidSpeciesWrap" class="d-none">
+            <label class="form-label">Espèce principale du comptage</label>
+            <div id="primaryAphidSpeciesGrid" class="species-grid primary-species-grid mb-2"></div>
+            <div id="primaryAphidSpeciesDetail" class="species-detail d-none mb-1">
+              <div id="primaryAphidSpeciesDetailTitle" class="species-detail-title mb-2"></div>
+              <div id="primaryAphidSpeciesDetailLatin" class="species-latin mb-2"></div>
+              <div class="species-detail-label">Molécules de lutte</div>
+              <div id="primaryAphidSpeciesDetailMolecules" class="species-detail-text"></div>
+              <div class="species-detail-label">Auxiliaires de lutte</div>
+              <div id="primaryAphidSpeciesDetailAuxiliaries" class="species-detail-text"></div>
+              <div class="species-detail-label">Description</div>
+              <div id="primaryAphidSpeciesDetailDescription" class="species-detail-text mb-0"></div>
+            </div>
+            <div class="form-text">Plusieurs espèces ont été renseignées. Choisissez celle qui domine le comptage.</div>
+          </div>
+        </div>
+        <div class="col-12">
           <label class="form-label">Date observation</label>
           <div class="input-group">
             {{ form.scouting_date }}
@@ -190,7 +387,7 @@
       {% if form.non_field_errors %}<div class="text-danger mt-2 small">{{ form.non_field_errors }}</div>{% endif %}
       <div class="d-flex gap-2 mt-3">
         <button type="button" class="btn btn-outline-secondary w-50" id="backToPlants">Retour aux plants</button>
-        <button type="submit" class="btn btn-success w-50">Enregistrer le comptage</button>
+        <button type="submit" class="btn btn-success w-50" id="saveRecordBtn">Enregistrer le comptage</button>
       </div>
     </div>
   </div>
@@ -238,22 +435,77 @@
     </div>
   </div>
 </div>
+<div class="modal fade" id="aphidSpeciesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Choisir l'espèce de puceron</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="aphidSpeciesPlant">
+        <input type="hidden" id="aphidSpeciesSelected">
+        <div id="aphidSpeciesGrid" class="species-grid mb-3">
+          {% for species in aphid_species_options %}
+            <button type="button" class="species-item" data-id="{{ species.id }}">
+              <span class="species-photo-wrap">
+                {% if species.photoUrl %}
+                  <img class="species-photo" src="{{ species.photoUrl }}" alt="{{ species.label }}">
+                {% else %}
+                  <span class="taxon-fallback">{{ species.label|slice:":1"|upper }}</span>
+                {% endif %}
+              </span>
+              <span class="species-label">{{ species.vernacularName }}</span>
+              {% if species.latinName %}
+                <span class="species-latin">{{ species.latinName }}</span>
+              {% endif %}
+            </button>
+          {% endfor %}
+        </div>
+        <div id="aphidSpeciesDetail" class="species-detail d-none">
+          <div id="aphidSpeciesDetailTitle" class="species-detail-title mb-2"></div>
+          <div id="aphidSpeciesDetailLatin" class="species-latin mb-2"></div>
+          <div class="species-detail-label">Molécules de lutte</div>
+          <div id="aphidSpeciesDetailMolecules" class="species-detail-text"></div>
+          <div class="species-detail-label">Auxiliaires de lutte</div>
+          <div id="aphidSpeciesDetailAuxiliaries" class="species-detail-text"></div>
+          <div class="species-detail-label">Description</div>
+          <div id="aphidSpeciesDetailDescription" class="species-detail-text mb-0"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
+{{ aphid_species_options|json_script:"aphid-species-json" }}
 <script>
 const auxData = {};
+const plantSpeciesTouched = {};
 let currentPlant = 1;
 let showAllPlants = false;
 let inFinalStep = false;
 let isDirty = false;
 let allowUnload = false;
 let isSubmitting = false;
+let draftTimer = null;
+let nextInfestedSpeciesId = '';
+let primarySpeciesChosenManually = false;
+let lastObservedSpeciesSignature = '';
+let pendingDraft = null;
 const draftStorageKey = "puceron:draft:record:user-{{ user.id }}:{% if record_obj %}record-{{ record_obj.id }}{% else %}series-{{ selected_series.id }}{% endif %}";
 const clearDraftFlagKey = 'puceron:clearDraftKey';
 const initialLeafData = {{ initial_leaf_data_json|safe }};
 const totalPlants = parseInt("{{ plants|length }}", 10) || 1;
+const leavesPerPlant = parseInt("{{ leaf_positions|length }}", 10) || 3;
+const defaultAphidSpeciesId = String("{{ default_aphid_species_id }}");
+const defaultAphidSpeciesLabel = "{{ default_aphid_species_label|escapejs }}";
+const aphidSpeciesData = JSON.parse(document.getElementById('aphid-species-json')?.textContent || '[]');
+const aphidSpeciesMap = Object.fromEntries(aphidSpeciesData.map(item => [String(item.id), item]));
 const auxModal = new bootstrap.Modal(document.getElementById('auxModal'));
+const aphidSpeciesModalElement = document.getElementById('aphidSpeciesModal');
+const aphidSpeciesModal = aphidSpeciesModalElement ? new bootstrap.Modal(aphidSpeciesModalElement) : null;
 const dateInput = document.getElementById('id_scouting_date');
 const auxTaxonSelectedInput = document.getElementById('auxTaxonSelected');
 const taxonButtons = [...document.querySelectorAll('.taxon-item')];
@@ -262,8 +514,19 @@ const auxEditTaxonIdInput = document.getElementById('auxEditTaxonId');
 const saveAuxBtn = document.getElementById('saveAuxBtn');
 const deleteAuxBtn = document.getElementById('deleteAuxBtn');
 const mainForm = document.querySelector('form[method="post"]');
+const saveRecordBtn = document.getElementById('saveRecordBtn');
 const offlineStatus = document.getElementById('offlineStatus');
 const draftStatus = document.getElementById('draftStatus');
+const draftChoicePrompt = document.getElementById('draftChoicePrompt');
+const draftChoiceMeta = document.getElementById('draftChoiceMeta');
+const aphidSpeciesSelectedInput = document.getElementById('aphidSpeciesSelected');
+const aphidSpeciesPlantInput = document.getElementById('aphidSpeciesPlant');
+const aphidSpeciesCards = [...document.querySelectorAll('.species-item')];
+const primaryAphidSpeciesWrap = document.getElementById('primaryAphidSpeciesWrap');
+const primaryAphidSpeciesGrid = document.getElementById('primaryAphidSpeciesGrid');
+const primaryAphidSpeciesInput = document.getElementById('primaryAphidSpeciesInput');
+const formStepInput = document.getElementById('formStepInput');
+const currentPlantInput = document.getElementById('currentPlantInput');
 
 function markDirty() {
   isDirty = true;
@@ -273,10 +536,6 @@ function showDraftStatus(message, level = 'info') {
   draftStatus.classList.remove('d-none', 'alert-info', 'alert-warning', 'alert-success');
   draftStatus.classList.add(level === 'warning' ? 'alert-warning' : (level === 'success' ? 'alert-success' : 'alert-info'));
   draftStatus.textContent = message;
-}
-function hideDraftStatus() {
-  if (!draftStatus) return;
-  draftStatus.classList.add('d-none');
 }
 
 function leafKey(plant, pos) { return `${plant}-${pos}`; }
@@ -293,11 +552,208 @@ function selectTaxon(taxonId) {
   auxTaxonSelectedInput.value = String(taxonId || '');
   taxonButtons.forEach(btn => btn.classList.toggle('selected', btn.dataset.id === String(taxonId)));
 }
+function getPlantSpeciesInput(plant) {
+  return document.getElementById(`plant_${plant}_aphid_species`);
+}
+function getPlantSpeciesTouchedInput(plant) {
+  return document.getElementById(`plant_${plant}_aphid_species_touched`);
+}
+function getPlantSpeciesBox(plant) {
+  return document.querySelector(`.plant-step[data-plant="${plant}"] .plant-species-box`);
+}
+function getAphidSpecies(speciesId) {
+  return aphidSpeciesMap[String(speciesId)] || null;
+}
+function getPlantSpeciesId(plant) {
+  return String(getPlantSpeciesInput(plant)?.value || '');
+}
+function plantHasAphids(plant) {
+  for (let leafIdx = 1; leafIdx <= leavesPerPlant; leafIdx += 1) {
+    const input = document.getElementById(`p${plant}_leaf_${leafIdx}_aphid`);
+    if (input?.checked) {
+      return true;
+    }
+  }
+  return false;
+}
+function isPlantSpeciesTouched(plant) {
+  const plantKey = String(plant);
+  if (Object.prototype.hasOwnProperty.call(plantSpeciesTouched, plantKey)) {
+    return !!plantSpeciesTouched[plantKey];
+  }
+  return getPlantSpeciesTouchedInput(plant)?.value === '1';
+}
+function updatePlantSpeciesButton(plant) {
+  const button = document.querySelector(`.plant-species-open[data-plant="${plant}"] .plant-species-button-text`);
+  if (!button) return;
+  const species = getAphidSpecies(getPlantSpeciesId(plant) || defaultAphidSpeciesId);
+  button.textContent = species ? species.label : defaultAphidSpeciesLabel;
+}
+function setPlantSpecies(plant, speciesId, options = {}) {
+  const plantKey = String(plant);
+  const markTouchedSpecies = options.markTouched !== false;
+  const input = getPlantSpeciesInput(plant);
+  const touchedInput = getPlantSpeciesTouchedInput(plant);
+  if (!input) return;
+  input.value = String(speciesId || '');
+  if (markTouchedSpecies) {
+    plantSpeciesTouched[plantKey] = true;
+    if (touchedInput) touchedInput.value = '1';
+  } else if (touchedInput) {
+    touchedInput.value = plantSpeciesTouched[plantKey] ? '1' : '0';
+  }
+  if (speciesId) {
+    nextInfestedSpeciesId = String(speciesId);
+  }
+  updatePlantSpeciesButton(plant);
+}
+function refreshPlantSpeciesState(plant, options = {}) {
+  const assignDefault = options.assignDefault !== false;
+  const box = getPlantSpeciesBox(plant);
+  const hasAphids = plantHasAphids(plant);
+  box?.classList.toggle('is-hidden', !hasAphids);
+  if (!hasAphids) {
+    return;
+  }
+  if (!getPlantSpeciesId(plant) && assignDefault) {
+    setPlantSpecies(plant, nextInfestedSpeciesId || defaultAphidSpeciesId, { markTouched: false });
+  } else {
+    updatePlantSpeciesButton(plant);
+  }
+}
+function recomputeNextInfestedSpeciesId() {
+  let nextId = defaultAphidSpeciesId || '';
+  for (let plant = 1; plant <= totalPlants; plant += 1) {
+    const speciesId = getPlantSpeciesId(plant);
+    if (speciesId && plantHasAphids(plant)) {
+      nextId = speciesId;
+    }
+  }
+  nextInfestedSpeciesId = nextId;
+}
+function getObservedSpeciesIds() {
+  const observed = new Set();
+  for (let plant = 1; plant <= totalPlants; plant += 1) {
+    if (plantHasAphids(plant)) {
+      const speciesId = getPlantSpeciesId(plant) || defaultAphidSpeciesId;
+      if (speciesId) observed.add(speciesId);
+    }
+  }
+  return [...observed];
+}
+function renderPrimarySpeciesDetail(speciesId) {
+  const detail = document.getElementById('primaryAphidSpeciesDetail');
+  if (!detail) return;
+  const species = getAphidSpecies(speciesId);
+  if (!species) {
+    detail.classList.add('d-none');
+    return;
+  }
+  detail.classList.remove('d-none');
+  document.getElementById('primaryAphidSpeciesDetailTitle').textContent = species.vernacularName || species.label;
+  document.getElementById('primaryAphidSpeciesDetailLatin').textContent = species.latinName || '';
+  document.getElementById('primaryAphidSpeciesDetailMolecules').textContent = species.moleculesLabel || 'Aucune molécule renseignée.';
+  document.getElementById('primaryAphidSpeciesDetailAuxiliaries').textContent = species.auxiliariesLabel || 'Aucun auxiliaire renseigne.';
+  document.getElementById('primaryAphidSpeciesDetailDescription').textContent = species.description || 'Aucune description renseignee.';
+}
+function setPrimarySpeciesChoice(speciesId, options = {}) {
+  const value = String(speciesId || '');
+  const manual = options.manual !== false;
+  primaryAphidSpeciesInput.value = value;
+  primarySpeciesChosenManually = manual && !!value;
+  primaryAphidSpeciesGrid?.querySelectorAll('.primary-species-card').forEach(card => {
+    card.classList.toggle('selected', card.dataset.id === value);
+    card.setAttribute('aria-pressed', card.dataset.id === value ? 'true' : 'false');
+  });
+  if (value) {
+    renderPrimarySpeciesDetail(value);
+  } else if (!options.keepDetail) {
+    renderPrimarySpeciesDetail('');
+  }
+}
+function refreshPrimarySpeciesPrompt() {
+  if (!primaryAphidSpeciesWrap || !primaryAphidSpeciesGrid || !primaryAphidSpeciesInput) return;
+  const observedSpeciesIds = getObservedSpeciesIds();
+  const observedSignature = [...observedSpeciesIds].map(String).sort().join('|');
+  if (observedSpeciesIds.length > 1) {
+    if (observedSignature !== lastObservedSpeciesSignature) {
+      primarySpeciesChosenManually = false;
+      primaryAphidSpeciesInput.value = '';
+    }
+    primaryAphidSpeciesWrap.classList.remove('d-none');
+    const currentValue = primarySpeciesChosenManually && observedSpeciesIds.includes(String(primaryAphidSpeciesInput.value || ''))
+      ? String(primaryAphidSpeciesInput.value || '')
+      : '';
+    primaryAphidSpeciesGrid.innerHTML = observedSpeciesIds
+      .map(speciesId => {
+        const species = getAphidSpecies(speciesId);
+        const label = species?.label || defaultAphidSpeciesLabel;
+        const vernacular = species?.vernacularName || label;
+        const latin = species?.latinName ? `<span class="species-latin">${species.latinName}</span>` : '';
+        const photo = species?.photoUrl
+          ? `<img class="species-photo" src="${species.photoUrl}" alt="${label}">`
+          : `<span class="taxon-fallback">${label.slice(0, 1).toUpperCase()}</span>`;
+        const selected = String(currentValue) === String(speciesId) ? ' selected' : '';
+        const pressed = String(currentValue) === String(speciesId) ? 'true' : 'false';
+        return `
+          <button type="button" class="species-item primary-species-card${selected}" data-id="${speciesId}" aria-pressed="${pressed}">
+            <span class="species-photo-wrap">${photo}</span>
+            <span class="species-label">${vernacular}</span>
+            ${latin}
+          </button>
+        `;
+      })
+      .join('');
+    setPrimarySpeciesChoice(currentValue);
+    if (!currentValue && observedSpeciesIds.length) {
+      renderPrimarySpeciesDetail(observedSpeciesIds[0]);
+    }
+  } else {
+    primarySpeciesChosenManually = false;
+    primaryAphidSpeciesWrap.classList.add('d-none');
+    primaryAphidSpeciesGrid.innerHTML = '';
+    renderPrimarySpeciesDetail('');
+    setPrimarySpeciesChoice(observedSpeciesIds.length === 1 ? String(observedSpeciesIds[0]) : '', { manual: false });
+  }
+  lastObservedSpeciesSignature = observedSignature;
+}
+function renderAphidSpeciesDetail(speciesId) {
+  const detail = document.getElementById('aphidSpeciesDetail');
+  if (!detail) return;
+  const species = getAphidSpecies(speciesId);
+  if (!species) {
+    detail.classList.add('d-none');
+    return;
+  }
+  detail.classList.remove('d-none');
+  document.getElementById('aphidSpeciesDetailTitle').textContent = species.vernacularName || species.label;
+  document.getElementById('aphidSpeciesDetailLatin').textContent = species.latinName || '';
+  document.getElementById('aphidSpeciesDetailMolecules').textContent = species.moleculesLabel || 'Aucune molécule renseignée.';
+  document.getElementById('aphidSpeciesDetailAuxiliaries').textContent = species.auxiliariesLabel || 'Aucun auxiliaire renseigne.';
+  document.getElementById('aphidSpeciesDetailDescription').textContent = species.description || 'Aucune description renseignee.';
+}
+function selectAphidSpeciesCard(speciesId) {
+  aphidSpeciesSelectedInput.value = String(speciesId || '');
+  aphidSpeciesCards.forEach(card => card.classList.toggle('selected', card.dataset.id === String(speciesId)));
+  renderAphidSpeciesDetail(speciesId);
+}
+function openAphidSpeciesModal(plant) {
+  if (!aphidSpeciesModal) return;
+  aphidSpeciesPlantInput.value = String(plant);
+  refreshPlantSpeciesState(plant);
+  const selectedSpeciesId = getPlantSpeciesId(plant) || nextInfestedSpeciesId || defaultAphidSpeciesId;
+  selectAphidSpeciesCard(selectedSpeciesId);
+  aphidSpeciesModal.show();
+}
 
 function updatePlantDisplay() {
   const finalStep = document.getElementById('finalStep');
   const toggleBtn = document.getElementById('toggleAllPlants');
+  if (formStepInput) formStepInput.value = inFinalStep ? 'final' : 'plants';
+  if (currentPlantInput) currentPlantInput.value = String(currentPlant);
+  mainForm?.classList.toggle('all-plants-mode', showAllPlants && !inFinalStep);
   if (inFinalStep) {
+    refreshPrimarySpeciesPrompt();
     document.querySelectorAll('.plant-step').forEach(section => section.classList.remove('active'));
     if (finalStep) finalStep.style.display = 'block';
     if (toggleBtn) toggleBtn.style.display = 'none';
@@ -324,9 +780,15 @@ function updateConnectivityUI() {
 }
 function collectDraftData() {
   const aphids = {};
+  const plantSpecies = {};
+  const touched = {};
   document.querySelectorAll('.aphid-input').forEach(input => {
     aphids[input.name] = !!input.checked;
   });
+  for (let plant = 1; plant <= totalPlants; plant += 1) {
+    plantSpecies[String(plant)] = getPlantSpeciesId(plant);
+    touched[String(plant)] = isPlantSpeciesTouched(plant);
+  }
   return {
     savedAt: new Date().toISOString(),
     currentPlant,
@@ -336,6 +798,8 @@ function collectDraftData() {
     comment: document.getElementById('id_comment')?.value || '',
     aphids,
     auxData: JSON.parse(JSON.stringify(auxData)),
+    plantSpecies,
+    plantSpeciesTouched: touched,
   };
 }
 function saveDraft() {
@@ -346,16 +810,27 @@ function saveDraft() {
     }
   } catch (e) {}
 }
-let draftTimer = null;
 function saveDraftDebounced() {
   if (draftTimer) clearTimeout(draftTimer);
   draftTimer = setTimeout(saveDraft, 250);
 }
-function clearDraft() {
+function clearStoredDraft() {
   try {
     localStorage.removeItem(draftStorageKey);
   } catch (e) {}
-  hideDraftStatus();
+}
+function hideDraftChoicePrompt() {
+  draftChoicePrompt?.classList.add('d-none');
+}
+function showDraftChoicePrompt(draft) {
+  if (!draftChoicePrompt) return;
+  const savedAt = draft?.savedAt ? new Date(draft.savedAt) : null;
+  if (draftChoiceMeta) {
+    draftChoiceMeta.textContent = savedAt && !Number.isNaN(savedAt.getTime())
+      ? `Brouillon enregistré le ${savedAt.toLocaleDateString('fr-FR')} à ${savedAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.`
+      : 'Vous pouvez reprendre la saisie précédente ou recommencer.';
+  }
+  draftChoicePrompt.classList.remove('d-none');
 }
 function applyDraftData(draft, options = {}) {
   const quiet = !!options.quiet;
@@ -373,6 +848,15 @@ function applyDraftData(draft, options = {}) {
     const button = document.querySelector(`.aphid-toggle[data-plant="${plant}"][data-pos="${pos}"]`);
     syncAphidToggle(button, checkbox.checked);
   });
+  const draftPlantSpecies = draft.plantSpecies || {};
+  const touched = draft.plantSpeciesTouched || {};
+  for (let plant = 1; plant <= totalPlants; plant += 1) {
+    const plantKey = String(plant);
+    plantSpeciesTouched[plantKey] = !!touched[plantKey];
+    const touchedInput = getPlantSpeciesTouchedInput(plant);
+    if (touchedInput) touchedInput.value = plantSpeciesTouched[plantKey] ? '1' : '0';
+    setPlantSpecies(plant, draftPlantSpecies[plantKey] || '', { markTouched: false });
+  }
   const restoredAux = draft.auxData || {};
   Object.keys(auxData).forEach(key => delete auxData[key]);
   Object.entries(restoredAux).forEach(([key, val]) => { auxData[key] = val; });
@@ -386,10 +870,15 @@ function applyDraftData(draft, options = {}) {
   if (dateInput && draft.scoutingDate) dateInput.value = draft.scoutingDate;
   const commentField = document.getElementById('id_comment');
   if (commentField && draft.comment !== undefined) commentField.value = draft.comment;
+  for (let plant = 1; plant <= totalPlants; plant += 1) {
+    refreshPlantSpeciesState(plant);
+  }
+  recomputeNextInfestedSpeciesId();
   currentPlant = Math.min(Math.max(parseInt(draft.currentPlant || 1, 10), 1), totalPlants);
   showAllPlants = !!draft.showAllPlants;
   inFinalStep = !!draft.inFinalStep;
   updatePlantDisplay();
+  refreshPrimarySpeciesPrompt();
   if (!quiet) {
     showDraftStatus('Brouillon restaure depuis ce telephone.', 'info');
   }
@@ -397,13 +886,14 @@ function applyDraftData(draft, options = {}) {
     isDirty = true;
   }
 }
-function restoreDraftIfExists() {
+function loadStoredDraft() {
   try {
     const raw = localStorage.getItem(draftStorageKey);
-    if (!raw) return;
-    const draft = JSON.parse(raw);
-    applyDraftData(draft, { quiet: false, setDirty: true });
-  } catch (e) {}
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
 }
 
 function renderLeaf(plant, pos) {
@@ -465,13 +955,45 @@ function openAuxModal(plant, pos, taxonId = null) {
 }
 
 document.querySelectorAll('.aphid-toggle').forEach(btn => btn.addEventListener('click', () => {
+  const plant = Number(btn.dataset.plant);
   const checkbox = document.getElementById(`p${btn.dataset.plant}_${btn.dataset.pos}_aphid`);
   checkbox.checked = !checkbox.checked;
   syncAphidToggle(btn, checkbox.checked);
+  refreshPlantSpeciesState(plant, { assignDefault: checkbox.checked });
+  recomputeNextInfestedSpeciesId();
   btn.blur();
+  refreshPrimarySpeciesPrompt();
   markDirty();
   saveDraftDebounced();
 }));
+
+document.querySelectorAll('.plant-species-open').forEach(btn => {
+  btn.addEventListener('click', () => openAphidSpeciesModal(btn.dataset.plant));
+});
+
+aphidSpeciesCards.forEach(card => {
+  card.addEventListener('click', () => {
+    const plant = aphidSpeciesPlantInput.value;
+    const speciesId = card.dataset.id || defaultAphidSpeciesId;
+    if (!plant || !speciesId) return;
+    selectAphidSpeciesCard(speciesId);
+    setPlantSpecies(plant, speciesId);
+    refreshPlantSpeciesState(plant);
+    recomputeNextInfestedSpeciesId();
+    refreshPrimarySpeciesPrompt();
+    aphidSpeciesModal?.hide();
+    markDirty();
+    saveDraftDebounced();
+  });
+});
+
+primaryAphidSpeciesGrid?.addEventListener('click', event => {
+  const card = event.target.closest('.primary-species-card');
+  if (!card) return;
+  setPrimarySpeciesChoice(card.dataset.id || '', { manual: true });
+  markDirty();
+  saveDraftDebounced();
+});
 
 document.querySelectorAll('.aux-open').forEach(btn => btn.addEventListener('click', () => openAuxModal(btn.dataset.plant, btn.dataset.pos, null)));
 document.querySelectorAll('.aux-summary').forEach(node => node.addEventListener('click', e => {
@@ -523,12 +1045,27 @@ taxonButtons.forEach(btn => {
 });
 
 document.querySelectorAll('.next-plant').forEach(btn => btn.addEventListener('click', () => {
-  if (currentPlant < totalPlants) { currentPlant += 1; updatePlantDisplay(); saveDraftDebounced(); }
+  if (currentPlant >= totalPlants) return;
+  currentPlant += 1;
+  updatePlantDisplay();
+  refreshPrimarySpeciesPrompt();
+  saveDraftDebounced();
 }));
 document.querySelectorAll('.prev-plant').forEach(btn => btn.addEventListener('click', () => {
-  if (currentPlant > 1) { currentPlant -= 1; updatePlantDisplay(); saveDraftDebounced(); }
+  if (currentPlant <= 1) return;
+  currentPlant -= 1;
+  updatePlantDisplay();
+  saveDraftDebounced();
 }));
-document.querySelectorAll('.next-final').forEach(btn => btn.addEventListener('click', () => { inFinalStep = true; updatePlantDisplay(); saveDraftDebounced(); }));
+document.querySelectorAll('.next-final').forEach(btn => btn.addEventListener('click', () => {
+  inFinalStep = true;
+  updatePlantDisplay();
+  refreshPrimarySpeciesPrompt();
+  if (getObservedSpeciesIds().length > 1 && !primaryAphidSpeciesInput.value) {
+    primaryAphidSpeciesGrid?.querySelector('.primary-species-card')?.focus();
+  }
+  saveDraftDebounced();
+}));
 document.getElementById('backToPlants')?.addEventListener('click', () => { inFinalStep = false; showAllPlants = false; currentPlant = totalPlants; updatePlantDisplay(); saveDraftDebounced(); });
 document.getElementById('toggleAllPlants')?.addEventListener('click', () => { showAllPlants = !showAllPlants; updatePlantDisplay(); saveDraftDebounced(); });
 
@@ -542,11 +1079,42 @@ if (dateInput) {
   dateInput.addEventListener('change', () => { markDirty(); saveDraftDebounced(); });
 }
 document.getElementById('id_comment')?.addEventListener('input', () => { markDirty(); saveDraftDebounced(); });
+document.getElementById('resumeDraftBtn')?.addEventListener('click', () => {
+  if (!pendingDraft) return;
+  applyDraftData(pendingDraft, { quiet: false, setDirty: true });
+  hideDraftChoicePrompt();
+  pendingDraft = null;
+});
+document.getElementById('discardDraftBtn')?.addEventListener('click', () => {
+  clearStoredDraft();
+  pendingDraft = null;
+  hideDraftChoicePrompt();
+  showDraftStatus('Brouillon supprimé. Vous repartez d’une nouvelle saisie.', 'info');
+  isDirty = false;
+});
 
 if (mainForm) {
+  const prepareSubmitNavigation = () => {
+    allowUnload = true;
+  };
+  saveRecordBtn?.addEventListener('pointerdown', prepareSubmitNavigation);
+  saveRecordBtn?.addEventListener('touchstart', prepareSubmitNavigation, { passive: true });
+  saveRecordBtn?.addEventListener('click', prepareSubmitNavigation);
   mainForm.addEventListener('submit', event => {
+    refreshPrimarySpeciesPrompt();
+    if (getObservedSpeciesIds().length > 1 && !primaryAphidSpeciesInput.value) {
+      event.preventDefault();
+      allowUnload = false;
+      inFinalStep = true;
+      updatePlantDisplay();
+      primaryAphidSpeciesWrap?.classList.remove('d-none');
+      primaryAphidSpeciesGrid?.querySelector('.primary-species-card')?.focus();
+      showDraftStatus('Choisissez l’espèce principale du comptage avant de valider.', 'warning');
+      return;
+    }
     if (!navigator.onLine) {
       event.preventDefault();
+      allowUnload = false;
       saveDraft();
       showDraftStatus('Hors ligne: envoi impossible. Le brouillon est garde localement.', 'warning');
       return;
@@ -578,10 +1146,28 @@ document.addEventListener('click', event => {
   if (!isDirty || allowUnload || isSubmitting) return;
   const href = link.getAttribute('href') || '';
   if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
-  const ok = window.confirm('Vous avez une saisie non enregistree. Quitter cette page ?');
-  if (!ok) {
-    event.preventDefault();
-    event.stopPropagation();
+  event.preventDefault();
+  event.stopPropagation();
+  if (typeof window.openAppConfirm === 'function') {
+    window.openAppConfirm({
+      title: 'Quitter la saisie',
+      subtitle: 'Des données non enregistrées sont encore présentes.',
+      message: 'Vous avez une saisie non enregistrée. Quitter cette page ?',
+      confirmLabel: 'Quitter la page',
+      cancelLabel: 'Rester ici',
+      confirmClass: 'btn-warning',
+      icon: '!',
+      onConfirm: () => {
+        allowUnload = true;
+        window.location.href = href;
+      },
+    });
+    return;
+  }
+  const ok = window.confirm('Vous avez une saisie non enregistrée. Quitter cette page ?');
+  if (ok) {
+    allowUnload = true;
+    window.location.href = href;
   }
 });
 
@@ -591,12 +1177,22 @@ window.addEventListener('offline', () => {
 });
 window.addEventListener('online', () => {
   updateConnectivityUI();
-  showDraftStatus('Connexion retablie: vous pouvez envoyer la saisie.', 'success');
+  showDraftStatus('Connexion rétablie : vous pouvez envoyer la saisie.', 'success');
 });
 
+for (let plant = 1; plant <= totalPlants; plant += 1) {
+  plantSpeciesTouched[String(plant)] = false;
+  setPlantSpecies(plant, '', { markTouched: false });
+  refreshPlantSpeciesState(plant, { assignDefault: false });
+}
+recomputeNextInfestedSpeciesId();
 updateConnectivityUI();
 applyDraftData(initialLeafData, { quiet: true, setDirty: false });
-restoreDraftIfExists();
+pendingDraft = loadStoredDraft();
+if (pendingDraft) {
+  showDraftChoicePrompt(pendingDraft);
+}
+refreshPrimarySpeciesPrompt();
 updatePlantDisplay();
 </script>
 {% endblock %}

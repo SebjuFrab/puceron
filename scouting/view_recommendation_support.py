@@ -25,6 +25,9 @@ def _build_initial_leaf_state(record):
     data = {
         'aphids': {},
         'auxData': {},
+        'plantSpecies': {},
+        'plantSpeciesTouched': {},
+        'primaryAphidSpecies': str(record.primary_aphid_species_id or ''),
     }
     leaves = (
         record.leaf_observations.all()
@@ -37,6 +40,10 @@ def _build_initial_leaf_state(record):
             pos = f'leaf_{leaf.leaf_index}'
         aphid_key = f'p{leaf.plant_number}_{pos}_aphid'
         data['aphids'][aphid_key] = bool(leaf.aphid_present)
+        if leaf.aphid_species_id:
+            plant_key = str(leaf.plant_number)
+            data['plantSpecies'][plant_key] = str(leaf.aphid_species_id)
+            data['plantSpeciesTouched'][plant_key] = True
         leaf_key = f'{leaf.plant_number}-{pos}'
         data['auxData'][leaf_key] = {}
         for aux in leaf.auxiliary_observations.all():

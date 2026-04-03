@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Prefetch
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -21,7 +22,7 @@ def my_series_view(request):
     profile = _effective_profile(request)
     effective_user = _effective_user(request)
     if (request.user.is_superuser or _is_technician(request.user)) and not _show_producer_interface(request):
-        messages.error(request, 'La gestion de series est reservee aux producteurs.')
+        messages.error(request, 'La gestion de séries est réservée aux producteurs.')
         return redirect('dashboard')
 
     records_prefetch = Prefetch(
@@ -44,9 +45,48 @@ def my_series_view(request):
         try:
             editing_instance = series_qs.get(id=int(editing_id))
         except (ValueError, PlantSeries.DoesNotExist):
-            messages.warning(request, 'Serie a modifier introuvable.')
+            messages.warning(request, 'Série à modifier introuvable.')
 
     if request.method == 'POST':
+        action_kind = request.POST.get('action_kind')
+        action_series_id = request.POST.get('action_series_id')
+        if action_kind and action_series_id:
+            try:
+                target_series = series_qs.get(id=int(action_series_id))
+            except (ValueError, PlantSeries.DoesNotExist):
+                messages.error(request, 'Série introuvable.')
+                return redirect('my_series')
+
+            if action_kind == 'archive':
+                if not target_series.is_active:
+                    messages.info(request, 'La série est déjà archivée.')
+                else:
+                    target_series.is_active = False
+                    target_series.save(update_fields=['is_active'])
+                    messages.success(request, 'Série archivée.')
+                return redirect('my_series')
+
+            if action_kind == 'reactivate':
+                if target_series.is_active:
+                    messages.info(request, 'La série est déjà active.')
+                else:
+                    target_series.is_active = True
+                    target_series.save(update_fields=['is_active'])
+                    messages.success(request, 'Série réactivée.')
+                return redirect('my_series')
+
+            if action_kind == 'delete':
+                try:
+                    target_series.delete()
+                except ProtectedError:
+                    messages.error(
+                        request,
+                        'Suppression impossible : cette série est utilisée par des comptages ou des actions. Archivez-la à la place.',
+                    )
+                else:
+                    messages.success(request, 'Série supprimée.')
+                return redirect('my_series')
+
         post_series_id = request.POST.get('series_id')
         if post_series_id:
             try:
@@ -69,7 +109,7 @@ def my_series_view(request):
                     )
                 series.variety = variety
             series.save()
-            messages.success(request, 'Serie enregistree.')
+            messages.success(request, 'Série enregistrée.')
             return redirect('my_series')
     else:
         form = PlantSeriesForm(instance=editing_instance)

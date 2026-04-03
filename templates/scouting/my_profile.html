@@ -46,7 +46,7 @@
         <h1 class="h4">Mon profil</h1>
         <p class="text-muted">
           {% if profile.role == 'producer' and not profile_user.is_superuser %}
-            Informations de ferme, technicien referent et position GPS.
+            Informations de ferme, technicien référent et position GPS.
           {% else %}
             Informations de profil et position GPS.
           {% endif %}
@@ -74,7 +74,7 @@
           </div>
 
           <div class="col-md-6">
-            <label class="form-label" for="id_first_name">Prenom</label>
+            <label class="form-label" for="id_first_name">Prénom</label>
             {{ form.first_name }}
           </div>
           <div class="col-md-6">
@@ -94,18 +94,18 @@
           {% if profile.role == 'producer' and not profile_user.is_superuser %}
           <div class="col-12">
             <div class="tech-contact-card">
-              <div class="small text-uppercase text-success fw-semibold mb-1">Technicien referent</div>
+              <div class="small text-uppercase text-success fw-semibold mb-1">Technicien référent</div>
               <div class="h5 mb-1">
                 {% if profile.assigned_technician %}
                   {{ profile.assigned_technician.get_full_name|default:profile.assigned_technician.username }}
                 {% else %}
-                  Non renseigne
+                  Non renseigné
                 {% endif %}
               </div>
               {% if profile.assigned_technician %}
                 <div class="mt-2">
-                  <div><strong>Mobile:</strong> {% if technician_profile and technician_profile.phone %}{{ technician_profile.phone }}{% else %}Non renseigne{% endif %}</div>
-                  <div><strong>Email:</strong> {% if profile.assigned_technician.email %}{{ profile.assigned_technician.email }}{% else %}Non renseigne{% endif %}</div>
+                  <div><strong>Mobile:</strong> {% if technician_profile and technician_profile.phone %}{{ technician_profile.phone }}{% else %}Non renseigné{% endif %}</div>
+                  <div><strong>Email:</strong> {% if profile.assigned_technician.email %}{{ profile.assigned_technician.email }}{% else %}Non renseigné{% endif %}</div>
                 </div>
                 <div class="tech-contact-actions">
                   {% if technician_profile and technician_profile.phone %}
@@ -120,7 +120,7 @@
           </div>
           {% else %}
           <div class="col-md-4">
-            <label class="form-label" for="id_department">Departement</label>
+            <label class="form-label" for="id_department">Département</label>
             {{ form.department }}
           </div>
           {% endif %}
@@ -147,7 +147,7 @@
                 {% if profile_has_coordinates %}
                   GPS: {{ profile.latitude }}, {{ profile.longitude }}
                 {% else %}
-                  Aucune coordonnee GPS enregistree.
+                  Aucune coordonnée GPS enregistrée.
                 {% endif %}
               </span>
             </div>
@@ -240,7 +240,7 @@ async function geocodeProfileAddress() {
 
 document.getElementById('profileGeocodeBtn')?.addEventListener('click', function() {
   geocodeProfileAddress().catch(function() {
-    profileCoordsLabel.textContent = 'La geolocalisation a echoue.';
+    profileCoordsLabel.textContent = 'La géolocalisation a échoué.';
   });
 });
 </script>

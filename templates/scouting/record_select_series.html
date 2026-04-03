@@ -154,10 +154,10 @@
 <section class="series-wrap">
   <div class="series-head">
     <div>
-      <h1 class="series-title">Choisir une serie de plants</h1>
-      <p class="series-sub">Selectionnez la serie a observer avant de demarrer le comptage.</p>
+      <h1 class="series-title">Choisir une série de plants</h1>
+      <p class="series-sub">Sélectionnez la série à observer avant de démarrer le comptage.</p>
       {% if is_technician %}
-      <p class="series-sub"><b>Mode technicien:</b> saisie pour les producteurs de votre departement.</p>
+      <p class="series-sub"><b>Mode technicien :</b> saisie pour les producteurs de votre département.</p>
       {% endif %}
     </div>
     <div class="d-flex gap-2 align-items-center flex-wrap">
@@ -173,8 +173,8 @@
         {{ recommendation_result.rule.title }}
       </div>
       <div class="text-muted mb-2">
-        Serie: <b>{{ recommendation_record.plant_series.name|default:"-" }}</b>
-        {% if recommendation_record.plant_series %} | Annee {{ recommendation_record.plant_series.year }}{% endif %}
+        Série : <b>{{ recommendation_record.plant_series.name|default:"-" }}</b>
+        {% if recommendation_record.plant_series %} | Année {{ recommendation_record.plant_series.year }}{% endif %}
         | Observation du {{ recommendation_record.scouting_date }}
       </div>
       <div class="small text-uppercase text-muted fw-semibold mb-2">Scores obtenus</div>
@@ -182,7 +182,7 @@
       <div>{{ recommendation_result.rule.description }}</div>
       {% include 'scouting/includes/recommendation_actions.html' with recommendation=recommendation_result record=recommendation_record plant_series_id=recommendation_record.plant_series_id dismiss_reasons=dismiss_reasons next_path=request.get_full_path %}
       {% if not recommendation_result.levers %}
-        <div class="alert alert-warning mt-3 mb-0">Aucun levier actif n'est parametre pour cette regle.</div>
+        <div class="alert alert-warning mt-3 mb-0">Aucun levier actif n'est paramétré pour cette règle.</div>
       {% endif %}
     </div>
   {% elif recommendation_record and recommendation_result and not recommendation_result.rule %}
@@ -190,8 +190,8 @@
       <div class="small text-uppercase text-success fw-semibold mb-1">Dernier comptage enregistre</div>
       <div class="decision-title">Aucune preconisation correspondante</div>
       <div class="text-muted mb-2">
-        Serie: <b>{{ recommendation_record.plant_series.name|default:"-" }}</b>
-        {% if recommendation_record.plant_series %} | Annee {{ recommendation_record.plant_series.year }}{% endif %}
+        Série : <b>{{ recommendation_record.plant_series.name|default:"-" }}</b>
+        {% if recommendation_record.plant_series %} | Année {{ recommendation_record.plant_series.year }}{% endif %}
         | Observation du {{ recommendation_record.scouting_date }}
       </div>
       <div class="small text-uppercase text-muted fw-semibold mb-2">Scores obtenus</div>
@@ -202,7 +202,7 @@
 
   {% if not series_list %}
     <div class="alert alert-warning mb-0">
-      Aucune serie disponible. Creez d'abord une serie dans <a href="{% url 'my_series' %}">Mes series</a>.
+      Aucune série disponible. Créez d'abord une série dans <a href="{% url 'my_series' %}">Mes séries</a>.
     </div>
   {% else %}
     <div class="series-grid">
@@ -225,7 +225,7 @@
                 <span class="pill">{{ s.variety.name }}</span>
               </div>
               <div class="series-metrics">
-                <span class="metric">Annee {{ s.year }}</span>
+                <span class="metric">Année {{ s.year }}</span>
                 <span class="metric">{{ s.plants_count }} plants</span>
                 <span class="metric">{{ s.leaves_per_plant }} feuilles/plant</span>
               </div>

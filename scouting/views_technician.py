@@ -52,7 +52,7 @@ def technician_records_view(request):
             None,
         )
         if selected_producer is None:
-            messages.error(request, 'Le producteur selectionne est introuvable ou hors perimetre.')
+            messages.error(request, 'Le producteur sélectionné est introuvable ou hors périmètre.')
 
     producer_map_data = []
     producers_without_coordinates = []
@@ -236,13 +236,13 @@ def export_records_view(request):
     manager_user = _manager_user(request)
     scope = request.GET.get('scope', 'me')
     if scope == 'all' and _is_technician(manager_user):
-        qs = ScoutingRecord.objects.select_related('user').prefetch_related('leaf_observations')
+        qs = ScoutingRecord.objects.select_related('user', 'primary_aphid_species').prefetch_related('leaf_observations')
         if not manager_user.is_superuser:
             qs = qs.filter(_technician_visibility_q(manager_user))
     else:
         qs = (
             ScoutingRecord.objects.filter(user=effective_user)
-            .select_related('user')
+            .select_related('user', 'primary_aphid_species')
             .prefetch_related('leaf_observations')
         )
 
@@ -261,6 +261,7 @@ def export_records_view(request):
         'Date saisie',
         'Annee',
         'Semaine',
+        'Puceron principal',
         '% feuilles infestees',
         'Auxiliaires total',
         'Auxiliaires/plant',
@@ -281,6 +282,7 @@ def export_records_view(request):
             rec.scouting_date.isoformat(),
             rec.year,
             rec.week,
+            str(rec.primary_aphid_species or ''),
             float(rec.aphid_infested_percent),
             rec.auxiliary_total,
             rec.auxiliaries_per_plant,

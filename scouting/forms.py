@@ -56,7 +56,7 @@ class ScoutingRecordForm(forms.ModelForm):
 
 class UserProfileForm(forms.ModelForm):
     email = forms.EmailField(required=False, label='Email')
-    first_name = forms.CharField(required=False, max_length=150, label='Prenom')
+    first_name = forms.CharField(required=False, max_length=150, label='Prénom')
     last_name = forms.CharField(required=False, max_length=150, label='Nom')
 
     class Meta:
@@ -83,7 +83,7 @@ class UserProfileForm(forms.ModelForm):
             'street_address': 'Adresse',
             'postal_code': 'Code postal',
             'city': 'Commune',
-            'department': 'Departement',
+            'department': 'Département',
             'latitude': 'Latitude',
             'longitude': 'Longitude',
         }
@@ -123,7 +123,7 @@ class UserProfileForm(forms.ModelForm):
 
 
 class ProducerAccountCreationForm(UserCreationForm):
-    technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien referent')
+    technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien référent')
     farm_name = forms.CharField(max_length=150, label='Nom de ferme')
     phone = forms.CharField(required=False, max_length=30, label='Mobile')
     street_address = forms.CharField(max_length=255, label='Adresse')
@@ -174,7 +174,7 @@ class ProducerAccountCreationForm(UserCreationForm):
             if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
                 self.add_error('technician', 'Le rattachement doit pointer vers un technicien.')
             if not technician_profile.department:
-                self.add_error('technician', 'Le technicien doit avoir un departement renseigne.')
+                self.add_error('technician', 'Le technicien doit avoir un département renseigné.')
         return cleaned
 
     def save(self, commit=True):
@@ -200,9 +200,9 @@ class ProducerAccountCreationForm(UserCreationForm):
 
 class ProducerProfileUpdateForm(forms.ModelForm):
     username = forms.CharField(max_length=150, label='Identifiant')
-    first_name = forms.CharField(max_length=150, required=False, label='Prenom')
+    first_name = forms.CharField(max_length=150, required=False, label='Prénom')
     last_name = forms.CharField(max_length=150, required=False, label='Nom')
-    technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien referent')
+    technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien référent')
 
     class Meta:
         model = UserProfile
@@ -289,7 +289,7 @@ class ProducerProfileUpdateForm(forms.ModelForm):
             if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
                 self.add_error('technician', 'Le rattachement doit pointer vers un technicien.')
             if not technician_profile.department:
-                self.add_error('technician', 'Le technicien doit avoir un departement renseigne.')
+                self.add_error('technician', 'Le technicien doit avoir un département renseigné.')
         return cleaned
 
     def save(self, commit=True):
@@ -335,7 +335,7 @@ class ProducerImportForm(forms.Form):
 
 
 class PlantSeriesForm(forms.ModelForm):
-    new_variety_name = forms.CharField(required=False, label='Nouvelle variete (si absente)')
+    new_variety_name = forms.CharField(required=False, label='Nouvelle variété (si absente)')
 
     class Meta:
         model = PlantSeries
@@ -352,15 +352,15 @@ class PlantSeriesForm(forms.ModelForm):
             'is_active',
         ]
         labels = {
-            'name': 'Nom de la serie',
+            'name': 'Nom de la série',
             'crop': 'Culture',
             'conduct_type': 'Conduite',
             'organic_mode': 'Mode de conduite',
-            'variety': 'Variete',
-            'year': 'Annee',
+            'variety': 'Variété',
+            'year': 'Année',
             'plants_count': 'Nb plants',
             'leaves_per_plant': 'Nb feuilles / plant',
-            'is_active': 'Serie active',
+            'is_active': 'Série active',
         }
 
     def __init__(self, *args, **kwargs):
@@ -413,9 +413,9 @@ class PlantActionForm(forms.ModelForm):
         labels = {
             'action_date': "Date d'action",
             'action_type': "Type d'action",
-            'scope': 'Portee',
+            'scope': 'Portée',
             'auxiliary_taxon': 'Auxiliaire lache',
-            'notes': 'Details',
+            'notes': 'Détails',
         }
 
     def __init__(self, *args, **kwargs):
@@ -476,7 +476,7 @@ class RecommendationDismissForm(forms.Form):
     dismiss_reason = forms.ModelChoiceField(
         queryset=RecommendationDismissReason.objects.none(),
         required=False,
-        empty_label='Pourquoi ne pas suivre ? (facultatif)',
+        empty_label='Pourquoi ne pas suivre é (facultatif)',
         label='Motif',
     )
     dismiss_note = forms.CharField(

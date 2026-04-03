@@ -13,7 +13,6 @@
     box-shadow: 0 8px 20px rgba(25, 135, 84, 0.08);
   }
   .mode-card:hover { border-color: #0f6b41; color: #0f6b41; }
-  .mode-icon { font-size: 2rem; line-height: 1; margin-bottom: 8px; }
   .mode-title { font-size: 1.3rem; font-weight: 800; margin: 0 0 6px; }
   .mode-text { margin: 0; color: #2f4f3d; }
 </style>
@@ -33,13 +32,11 @@
 
 <div class="mode-grid">
   <a class="mode-card" href="{% url 'record_create' %}?plant_series={{ selected_series.id }}&mode=count">
-    <div class="mode-icon">C</div>
     <h2 class="mode-title">Effectuer un comptage</h2>
     <p class="mode-text">Saisir les observations feuille par feuille (pucerons et auxiliaires).</p>
   </a>
 
   <a class="mode-card" href="{% url 'action_create' %}?plant_series={{ selected_series.id }}">
-    <div class="mode-icon">A</div>
     <h2 class="mode-title">Renseigner une action preventive / curative</h2>
     <p class="mode-text">Saisir une action manuelle, un traitement, ou un lacher d'auxiliaires.</p>
   </a>

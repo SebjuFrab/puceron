@@ -15,12 +15,14 @@ from .views_public import (
 )
 from .views_records import (
     action_create_view,
+    action_delete_view,
     my_profile_view,
     my_recommendations_view,
     my_records_view,
     my_series_view,
     recommendation_dismiss_view,
     record_create_view,
+    record_delete_view,
     record_update_view,
 )
 from .views_technician import (
@@ -34,6 +36,7 @@ from .views_technician import (
 
 __all__ = [
     'action_create_view',
+    'action_delete_view',
     'dashboard_view',
     'export_records_view',
     'info_index_view',
@@ -55,6 +58,7 @@ __all__ = [
     'producer_update_view',
     'recommendation_dismiss_view',
     'record_create_view',
+    'record_delete_view',
     'record_update_view',
     'service_worker_view',
     'technician_records_view',
