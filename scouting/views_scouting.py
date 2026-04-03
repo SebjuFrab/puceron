@@ -215,6 +215,7 @@ def record_create_view(request):
             'record_obj': None,
             'initial_leaf_data_json': json.dumps({}),
             'form_mode': 'create',
+            'hide_mobile_record_cta': True,
         },
     )
 
@@ -440,6 +441,7 @@ def record_update_view(request, record_id):
             'record_obj': record,
             'initial_leaf_data_json': json.dumps(_build_initial_leaf_state(record)),
             'form_mode': 'edit',
+            'hide_mobile_record_cta': True,
         },
     )
 

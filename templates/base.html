@@ -73,7 +73,7 @@
   {% block head_extras %}{% endblock %}
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-light{% if user.is_authenticated and show_producer_nav %} has-mobile-record-cta{% endif %}">
+<body class="bg-light{% if user.is_authenticated and show_producer_nav and not hide_mobile_record_cta %} has-mobile-record-cta{% endif %}">
 <nav class="navbar navbar-expand-lg navbar-dark bg-success">
   <div class="container">
     <a class="navbar-brand fw-bold" href="{% url 'landing' %}">PUCERON</a>
@@ -170,12 +170,22 @@
   {% block content %}{% endblock %}
 </main>
 
-{% if user.is_authenticated and show_producer_nav %}
+{% if user.is_authenticated and show_producer_nav and not hide_mobile_record_cta %}
   <a class="mobile-record-cta" href="{% url 'record_create' %}">Saisir un comptage</a>
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+(function clearDraftAfterSuccessfulSubmit() {
+  try {
+    const clearDraftFlagKey = 'puceron:clearDraftKey';
+    const flagKey = sessionStorage.getItem(clearDraftFlagKey);
+    if (!flagKey) return;
+    localStorage.removeItem(flagKey);
+    sessionStorage.removeItem(clearDraftFlagKey);
+  } catch (e) {}
+})();
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register("{% url 'service_worker' %}").catch(function() {});
