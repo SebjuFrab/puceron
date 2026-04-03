@@ -5,6 +5,26 @@
   .plant-step.active { display: block; }
   .leaf-row { border: 1px solid #dfe3e8; border-radius: 12px; padding: 12px; margin-bottom: 10px; background: #fff; }
   .leaf-title { color: #1a8754; font-weight: 800; font-size: 1.25rem; }
+  .plant-progress {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    color: #0f5132;
+  }
+  .plant-progress-label {
+    font-weight: 700;
+  }
+  .plant-progress-number {
+    font-size: 2rem;
+    line-height: 1;
+    font-weight: 900;
+    color: #198754;
+  }
+  .plant-progress-total {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #5c6b65;
+  }
   .leaf-actions { display: flex; gap: 10px; }
   .btn-leaf { min-width: 140px; min-height: 54px; border-radius: 16px; font-weight: 800; font-size: 1.35rem; }
   .aphid-on { background: #00c2ff; color: #002a33; border-color: #00c2ff; }
@@ -68,6 +88,14 @@
     font-weight: 800;
     font-size: 1.4rem;
   }
+  @media (max-width: 991.98px) {
+    .plant-progress-number {
+      font-size: 2.35rem;
+    }
+    .plant-progress-total {
+      font-size: 1.05rem;
+    }
+  }
 </style>
 
 <form method="post">
@@ -101,8 +129,12 @@
       {% endif %}
       <div id="offlineStatus" class="alert alert-warning py-2 mb-2 d-none"></div>
       <div id="draftStatus" class="alert alert-info py-2 mb-2 d-none"></div>
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <div class="fw-semibold">Plant <span id="currentPlantNumber">1</span> / {{ plants|length }}</div>
+      <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+        <div class="plant-progress" aria-live="polite">
+          <span class="plant-progress-label">Plant</span>
+          <span id="currentPlantNumber" class="plant-progress-number">1</span>
+          <span class="plant-progress-total">/ {{ plants|length }}</span>
+        </div>
         <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleAllPlants">Voir tous les plants</button>
       </div>
       {% if not auxiliary_taxa %}
@@ -491,10 +523,10 @@ taxonButtons.forEach(btn => {
 });
 
 document.querySelectorAll('.next-plant').forEach(btn => btn.addEventListener('click', () => {
-  if (currentPlant < totalPlants) { currentPlant += 1; updatePlantDisplay(); window.scrollTo({ top: 0, behavior: 'smooth' }); saveDraftDebounced(); }
+  if (currentPlant < totalPlants) { currentPlant += 1; updatePlantDisplay(); saveDraftDebounced(); }
 }));
 document.querySelectorAll('.prev-plant').forEach(btn => btn.addEventListener('click', () => {
-  if (currentPlant > 1) { currentPlant -= 1; updatePlantDisplay(); window.scrollTo({ top: 0, behavior: 'smooth' }); saveDraftDebounced(); }
+  if (currentPlant > 1) { currentPlant -= 1; updatePlantDisplay(); saveDraftDebounced(); }
 }));
 document.querySelectorAll('.next-final').forEach(btn => btn.addEventListener('click', () => { inFinalStep = true; updatePlantDisplay(); saveDraftDebounced(); }));
 document.getElementById('backToPlants')?.addEventListener('click', () => { inFinalStep = false; showAllPlants = false; currentPlant = totalPlants; updatePlantDisplay(); saveDraftDebounced(); });
