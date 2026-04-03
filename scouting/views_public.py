@@ -1,8 +1,11 @@
 from django.contrib.auth.decorators import login_required
+from django.db import OperationalError, ProgrammingError
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
+from wagtail.models import Site
 
+from .models import SiteContentSettings
 from .views_support import (
     _effective_profile,
     _info_pages_queryset,
@@ -36,6 +39,23 @@ def offline_view(request):
 
 
 def manifest_view(request):
+    icons = []
+    try:
+        site = Site.find_for_request(request) or Site.objects.filter(is_default_site=True).first()
+        if site:
+            site_settings = SiteContentSettings.for_site(site)
+            if site_settings and site_settings.favicon:
+                icons.append(
+                    {
+                        'src': site_settings.favicon.file.url,
+                        'sizes': f'{site_settings.favicon.width}x{site_settings.favicon.height}',
+                        'type': 'image/png',
+                        'purpose': 'any',
+                    }
+                )
+    except (OperationalError, ProgrammingError):
+        icons = []
+
     data = {
         'name': 'PUCERON',
         'short_name': 'PUCERON',
@@ -44,6 +64,7 @@ def manifest_view(request):
         'background_color': '#ffffff',
         'theme_color': '#198754',
         'description': 'Suivi pucerons et auxiliaires en cultures sous abri.',
+        'icons': icons,
     }
     return JsonResponse(data, content_type='application/manifest+json')
 

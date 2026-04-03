@@ -354,6 +354,15 @@ class InfoContentPageResource(Orderable):
 
 @register_setting(icon='cogs')
 class SiteContentSettings(BaseSiteSetting):
+    favicon = models.ForeignKey(
+        'wagtailimages.Image',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        verbose_name='Favicon',
+        help_text='Icône du site affichée dans l’onglet du navigateur et sur l’écran d’accueil.',
+    )
     funders_title = models.CharField(max_length=160, default='Financeurs', verbose_name='Titre financeurs')
     funders_text = RichTextField(blank=True, verbose_name='Texte financeurs')
     funders_logos = StreamField(
@@ -372,6 +381,7 @@ class SiteContentSettings(BaseSiteSetting):
     )
 
     panels = [
+        FieldPanel('favicon'),
         FieldPanel('funders_title'),
         FieldPanel('funders_text'),
         FieldPanel('funders_logos'),
