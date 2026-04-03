@@ -107,17 +107,22 @@
   }
   .species-photo-wrap {
     width: 100%;
-    height: 104px;
+    height: 116px;
     border-radius: 10px;
     overflow: hidden;
     position: relative;
     border: 1px solid #e7dada;
-    background: #f8f3f3;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
   }
   .species-photo {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
+    object-position: center;
     display: block;
   }
   .species-label {
@@ -204,8 +209,8 @@
   .taxon-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .taxon-item { border: 1px solid #d8e0e6; border-radius: 10px; background: #fff; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 86px; }
   .taxon-item.selected { border-color: #ff7b00; box-shadow: 0 0 0 2px rgba(255,123,0,0.2) inset; background: #fffaf3; }
-  .taxon-photo-wrap { width: 100%; height: 68px; border-radius: 8px; overflow: hidden; position: relative; border: 1px solid #d9d9d9; background: #eef7f2; }
-  .taxon-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .taxon-photo-wrap { width: 100%; height: 68px; border-radius: 8px; overflow: hidden; position: relative; border: 1px solid #d9d9d9; background: #ffffff; display: flex; align-items: center; justify-content: center; padding: 4px; }
+  .taxon-photo { width: 100%; height: 100%; object-fit: contain; object-position: center; display: block; }
   .taxon-fallback { width: 100%; height: 100%; background: #e6f4ec; color: #156b43; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; }
   .taxon-label-on-photo { position: absolute; left: 4px; right: 4px; bottom: 4px; background: rgba(0,0,0,0.62); color: #fff; border-radius: 6px; padding: 2px 4px; font-size: 0.62rem; line-height: 1.05; text-align: center; font-weight: 700; }
   #auxModal .modal-dialog { max-width: min(96vw, 560px); margin: 0.5rem auto; }
