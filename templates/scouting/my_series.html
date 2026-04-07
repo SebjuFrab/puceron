@@ -7,7 +7,7 @@
         <h2 class="h6">Séries existantes</h2>
         <div class="table-responsive">
           <table class="table table-sm align-middle">
-            <thead><tr><th>Photo</th><th>Nom</th><th>Année</th><th>Culture</th><th>Conduite</th><th>Mode</th><th>Variété</th><th>Plants</th><th>Feuilles</th><th>Dernière préconisation</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Photo</th><th>Nom</th><th>Année</th><th>Sem. plantation</th><th>Culture</th><th>Conduite</th><th>Mode</th><th>Variété</th><th>Plants</th><th>Feuilles</th><th>Dernière préconisation</th><th>Actions</th></tr></thead>
             <tbody>
               {% for s in series_list %}
               <tr>
@@ -20,6 +20,7 @@
                 </td>
                 <td><a href="{% url 'my_series' %}?edit={{ s.id }}">{{ s.name }}</a></td>
                 <td>{{ s.year }}</td>
+                <td>{% if s.planting_week %}S{{ s.planting_week }}{% else %}-{% endif %}</td>
                 <td>{{ s.crop.name }}</td>
                 <td>{{ s.conduct_type.name }}</td>
                 <td>{{ s.get_organic_mode_display }}</td>
@@ -109,7 +110,7 @@
                 </td>
               </tr>
               {% empty %}
-              <tr><td colspan="11">Aucune série.</td></tr>
+              <tr><td colspan="12">Aucune série.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -131,6 +132,7 @@
           <div class="col-12"><label class="form-label">Conduite</label>{{ form.conduct_type }}</div>
           <div class="col-12"><label class="form-label">Mode de conduite</label>{{ form.organic_mode }}</div>
           <div class="col-12"><label class="form-label">Année</label>{{ form.year }}</div>
+          <div class="col-12"><label class="form-label">Numéro de la semaine de plantation</label>{{ form.planting_week }}</div>
           <div class="col-12"><label class="form-label">Recherche variété</label><input id="varietySearch" class="form-control" type="text" placeholder="Rechercher dans la liste..."></div>
           <div class="col-12"><label class="form-label">Variété</label>{{ form.variety }}</div>
           <div class="col-12"><label class="form-label">Nouvelle variété (si absente)</label>{{ form.new_variety_name }}</div>

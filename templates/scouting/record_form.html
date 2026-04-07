@@ -276,6 +276,9 @@
         <div>
           <div class="fw-semibold">{{ selected_series.name }}</div>
           <div class="small text-muted">{{ selected_series.crop.name }} | {{ selected_series.conduct_type.name }} | {{ selected_series.variety.name }}</div>
+          {% if selected_series.planting_week %}
+          <div class="small text-muted">Semaine de plantation : <b>S{{ selected_series.planting_week }}</b></div>
+          {% endif %}
           {% if is_technician %}
           <div class="small text-muted">Saisie pour producteur: <b>{{ target_user.get_full_name|default:target_user.username }}</b></div>
           {% endif %}

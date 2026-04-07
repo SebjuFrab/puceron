@@ -226,6 +226,9 @@
               </div>
               <div class="series-metrics">
                 <span class="metric">Année {{ s.year }}</span>
+                {% if s.planting_week %}
+                  <span class="metric">Plantation S{{ s.planting_week }}</span>
+                {% endif %}
                 <span class="metric">{{ s.plants_count }} plants</span>
                 <span class="metric">{{ s.leaves_per_plant }} feuilles/plant</span>
               </div>

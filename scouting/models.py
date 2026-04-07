@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Sum
@@ -471,6 +472,12 @@ class PlantSeries(models.Model):
     organic_mode = models.CharField(max_length=10, choices=ORGANIC_MODE_CHOICES, default='bio', verbose_name='Mode de conduite')
     variety = models.ForeignKey(Variety, on_delete=models.PROTECT, related_name='plant_series', verbose_name='Variete')
     year = models.PositiveSmallIntegerField(default=current_campaign_year, verbose_name='Annee')
+    planting_week = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(53)],
+        verbose_name='Numero de la semaine de plantation',
+    )
     plants_count = models.PositiveSmallIntegerField(default=10, verbose_name='Nombre de plants')
     leaves_per_plant = models.PositiveSmallIntegerField(default=3, verbose_name='Nombre de feuilles par plant')
     is_active = models.BooleanField(default=True, verbose_name='Active')

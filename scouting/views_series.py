@@ -109,7 +109,10 @@ def my_series_view(request):
                     )
                 series.variety = variety
             series.save()
-            messages.success(request, 'Série enregistrée.')
+            if editing_instance:
+                messages.success(request, 'S?rie modifi?e.')
+                return redirect(f"{reverse('my_series')}?edit={series.id}")
+            messages.success(request, 'S?rie enregistr?e.')
             return redirect('my_series')
     else:
         form = PlantSeriesForm(instance=editing_instance)

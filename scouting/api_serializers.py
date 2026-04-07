@@ -215,6 +215,7 @@ class PlantSeriesSerializer(serializers.ModelSerializer):
             'conduct_type',
             'organic_mode',
             'variety',
+            'planting_week',
             'plants_count',
             'leaves_per_plant',
             'is_active',

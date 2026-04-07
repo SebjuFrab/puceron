@@ -262,6 +262,7 @@ class PlantSeriesAdmin(admin.ModelAdmin):
         'photo_preview',
         'name',
         'year',
+        'planting_week',
         'user',
         'crop',
         'conduct_type',
@@ -277,6 +278,7 @@ class PlantSeriesAdmin(admin.ModelAdmin):
     fields = (
         'name',
         'year',
+        'planting_week',
         'user',
         'photo',
         'photo_preview',

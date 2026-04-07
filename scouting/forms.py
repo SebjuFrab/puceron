@@ -35,7 +35,7 @@ class ScoutingRecordForm(forms.ModelForm):
             'comment',
         ]
         widgets = {
-            'scouting_date': forms.DateInput(attrs={'type': 'date'}),
+            'scouting_date': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
             'comment': forms.Textarea(attrs={'rows': 3}),
         }
         labels = {
@@ -47,6 +47,7 @@ class ScoutingRecordForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs['class'] = 'form-control'
+        self.fields['scouting_date'].input_formats = ['%Y-%m-%d']
         self.fields['plant_series'].queryset = series_queryset
         self.fields['plant_series'].widget.attrs['class'] = 'form-select'
         self.fields['crop'].widget.attrs['class'] = 'form-select'
@@ -347,6 +348,7 @@ class PlantSeriesForm(forms.ModelForm):
             'organic_mode',
             'variety',
             'year',
+            'planting_week',
             'plants_count',
             'leaves_per_plant',
             'is_active',
@@ -358,6 +360,7 @@ class PlantSeriesForm(forms.ModelForm):
             'organic_mode': 'Mode de conduite',
             'variety': 'Variété',
             'year': 'Année',
+            'planting_week': 'Numéro de la semaine de plantation',
             'plants_count': 'Nb plants',
             'leaves_per_plant': 'Nb feuilles / plant',
             'is_active': 'Série active',
@@ -369,6 +372,7 @@ class PlantSeriesForm(forms.ModelForm):
             field.widget.attrs['class'] = 'form-control'
         for key in ['crop', 'conduct_type', 'organic_mode', 'variety']:
             self.fields[key].widget.attrs['class'] = 'form-select'
+        self.fields['planting_week'].widget.attrs.update({'min': 1, 'max': 53, 'placeholder': 'Ex. 14'})
         self.fields['crop'].queryset = Crop.objects.filter(is_active=True)
         self.fields['conduct_type'].queryset = ConductType.objects.filter(is_active=True)
         self.fields['variety'].queryset = Variety.objects.filter(is_active=True)
@@ -407,7 +411,7 @@ class PlantActionForm(forms.ModelForm):
             'notes',
         ]
         widgets = {
-            'action_date': forms.DateInput(attrs={'type': 'date'}),
+            'action_date': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
             'notes': forms.Textarea(attrs={'rows': 3}),
         }
         labels = {
@@ -427,6 +431,7 @@ class PlantActionForm(forms.ModelForm):
                 field.widget.attrs['class'] = 'form-select'
             else:
                 field.widget.attrs['class'] = 'form-control'
+        self.fields['action_date'].input_formats = ['%Y-%m-%d']
 
         self.fields['plant_series'].queryset = series_queryset
         self.fields['action_type'].queryset = ActionType.objects.filter(is_active=True).order_by('display_order', 'name')
