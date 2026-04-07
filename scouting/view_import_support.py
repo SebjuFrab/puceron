@@ -48,22 +48,53 @@ CSV_IMPORT_REQUIRED_FIELDS = (
     'city',
 )
 
+MOJIBAKE_MARKERS = ('Ã', 'Â', 'â', '€', '™', 'œ', '�')
+
 
 def _normalize_csv_header(value):
-    normalized = unicodedata.normalize('NFKD', str(value or ''))
+    normalized = unicodedata.normalize('NFKD', _clean_csv_text(str(value or '')))
     ascii_value = normalized.encode('ascii', 'ignore').decode('ascii')
     ascii_value = ' '.join(ascii_value.replace('_', ' ').replace('\t', ' ').split())
     return ascii_value.strip().lower()
 
 
+def _mojibake_score(value):
+    return sum(value.count(marker) for marker in MOJIBAKE_MARKERS)
+
+
+def _repair_mojibake(value):
+    text = str(value or '')
+    if not text:
+        return text
+
+    candidates = [text]
+    for source_encoding in ('latin-1', 'cp1252'):
+        try:
+            repaired = text.encode(source_encoding).decode('utf-8')
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            continue
+        candidates.append(repaired)
+
+    best = min(candidates, key=_mojibake_score)
+    if _mojibake_score(best) < _mojibake_score(text):
+        return best
+    return text
+
+
+def _clean_csv_text(value):
+    text = _repair_mojibake(str(value or ''))
+    text = text.replace('\ufeff', '').strip()
+    return unicodedata.normalize('NFC', text)
+
+
 def _decode_csv_upload(uploaded_file):
     raw = uploaded_file.read()
-    for encoding in ('utf-8-sig', 'utf-8', 'cp1252', 'latin-1'):
+    for encoding in ('utf-8-sig', 'utf-8', 'utf-16', 'utf-16-le', 'utf-16-be', 'windows-1252', 'cp1252', 'latin-1'):
         try:
-            return raw.decode(encoding)
+            return _clean_csv_text(raw.decode(encoding))
         except UnicodeDecodeError:
             continue
-    return raw.decode('utf-8', errors='ignore')
+    return _clean_csv_text(raw.decode('utf-8', errors='ignore'))
 
 
 def _load_csv_rows(uploaded_file):
@@ -95,7 +126,7 @@ def _load_csv_rows(uploaded_file):
     for index, row in enumerate(reader, start=2):
         mapped_row = {'_line': index}
         for original, mapped in normalized_headers.items():
-            mapped_row[mapped] = (row.get(original) or '').strip()
+            mapped_row[mapped] = _clean_csv_text(row.get(original) or '')
         if not any(value for key, value in mapped_row.items() if key != '_line'):
             continue
         rows.append(mapped_row)

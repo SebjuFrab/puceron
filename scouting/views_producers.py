@@ -243,7 +243,8 @@ def producer_import_template_view(request):
         ]
     )
 
-    response = HttpResponse(output.getvalue(), content_type='text/csv; charset=utf-8')
+    csv_bytes = output.getvalue().encode('cp1252', errors='replace')
+    response = HttpResponse(csv_bytes, content_type='text/csv; charset=windows-1252')
     response['Content-Disposition'] = 'attachment; filename="template_import_producteurs.csv"'
     return response
 
