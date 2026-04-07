@@ -223,6 +223,9 @@
                 <span class="pill">{{ s.crop.name }}</span>
                 <span class="pill">{{ s.conduct_type.name }}</span>
                 <span class="pill">{{ s.variety.name }}</span>
+                {% if s.greenhouse %}
+                  <span class="pill">Serre {{ s.greenhouse }}</span>
+                {% endif %}
               </div>
               <div class="series-metrics">
                 <span class="metric">Année {{ s.year }}</span>

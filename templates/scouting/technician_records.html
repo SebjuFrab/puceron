@@ -323,6 +323,9 @@
                 <span class="series-pill">{{ series.crop.name }}</span>
                 <span class="series-pill">{{ series.conduct_type.name }}</span>
                 <span class="series-pill">{{ series.variety.name }}</span>
+                {% if series.greenhouse %}
+                  <span class="series-pill">Serre {{ series.greenhouse }}</span>
+                {% endif %}
                 <span class="series-pill">{{ series.plants_count }} plants</span>
                 <span class="series-pill">{{ series.leaves_per_plant }} feuilles/plant</span>
               </div>

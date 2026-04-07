@@ -299,6 +299,9 @@
                 <input class="form-check-input mt-0" type="checkbox" name="visible_series" value="{{ series.id }}" {% if series.id in selected_series_ids %}checked{% endif %}>
                 <span class="series-pill">{{ series.variety.name }}</span>
                 <span class="series-pill">{{ series.get_organic_mode_display }}</span>
+                {% if series.greenhouse %}
+                  <span class="series-pill">Serre {{ series.greenhouse }}</span>
+                {% endif %}
                 {% if series.planting_week %}
                   <span class="series-pill">Plantation S{{ series.planting_week }}</span>
                 {% endif %}
@@ -356,6 +359,9 @@
         {% if displayed_series %}
           <div class="comparison-meta mt-2">
             {% for series in displayed_series %}
+              {% if series.greenhouse %}
+                <span class="compare-pill">{{ series.name }} : serre {{ series.greenhouse }}</span>
+              {% endif %}
               {% if series.planting_week %}
                 <span class="compare-pill">{{ series.name }} : plantation S{{ series.planting_week }}</span>
               {% endif %}

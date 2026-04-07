@@ -471,6 +471,7 @@ class PlantSeries(models.Model):
     )
     organic_mode = models.CharField(max_length=10, choices=ORGANIC_MODE_CHOICES, default='bio', verbose_name='Mode de conduite')
     variety = models.ForeignKey(Variety, on_delete=models.PROTECT, related_name='plant_series', verbose_name='Variete')
+    greenhouse = models.CharField(max_length=150, blank=True, verbose_name='Serre')
     year = models.PositiveSmallIntegerField(default=current_campaign_year, verbose_name='Annee')
     planting_week = models.PositiveSmallIntegerField(
         null=True,

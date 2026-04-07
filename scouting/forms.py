@@ -347,6 +347,7 @@ class PlantSeriesForm(forms.ModelForm):
             'conduct_type',
             'organic_mode',
             'variety',
+            'greenhouse',
             'year',
             'planting_week',
             'plants_count',
@@ -359,6 +360,7 @@ class PlantSeriesForm(forms.ModelForm):
             'conduct_type': 'Conduite',
             'organic_mode': 'Mode de conduite',
             'variety': 'Variété',
+            'greenhouse': 'Serre',
             'year': 'Année',
             'planting_week': 'Numéro de la semaine de plantation',
             'plants_count': 'Nb plants',
@@ -372,6 +374,7 @@ class PlantSeriesForm(forms.ModelForm):
             field.widget.attrs['class'] = 'form-control'
         for key in ['crop', 'conduct_type', 'organic_mode', 'variety']:
             self.fields[key].widget.attrs['class'] = 'form-select'
+        self.fields['greenhouse'].widget.attrs['placeholder'] = 'Ex. Tunnel 2 / Serre nord'
         self.fields['planting_week'].widget.attrs.update({'min': 1, 'max': 53, 'placeholder': 'Ex. 14'})
         self.fields['crop'].queryset = Crop.objects.filter(is_active=True)
         self.fields['conduct_type'].queryset = ConductType.objects.filter(is_active=True)

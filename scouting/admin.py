@@ -261,6 +261,7 @@ class PlantSeriesAdmin(admin.ModelAdmin):
     list_display = (
         'photo_preview',
         'name',
+        'greenhouse',
         'year',
         'planting_week',
         'user',
@@ -273,10 +274,11 @@ class PlantSeriesAdmin(admin.ModelAdmin):
         'is_active',
     )
     list_filter = ('crop', 'conduct_type', 'is_active')
-    search_fields = ('name', 'user__username')
+    search_fields = ('name', 'greenhouse', 'user__username')
     readonly_fields = ('photo_preview',)
     fields = (
         'name',
+        'greenhouse',
         'year',
         'planting_week',
         'user',
