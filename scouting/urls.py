@@ -46,4 +46,5 @@ urlpatterns = [
     path('actions/<int:action_id>/supprimer/', views.action_delete_view, name='action_delete'),
     path('technicien/donnees/', views.technician_records_view, name='technician_records'),
     path('export.xlsx', views.export_records_view, name='export_records'),
+    path('export-actions.xlsx', views.export_actions_view, name='export_actions'),
 ]

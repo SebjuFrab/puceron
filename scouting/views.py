@@ -26,6 +26,7 @@ from .views_records import (
     record_update_view,
 )
 from .views_technician import (
+    export_actions_view,
     export_records_view,
     producer_control_start_view,
     producer_control_stop_view,
@@ -38,6 +39,7 @@ __all__ = [
     'action_create_view',
     'action_delete_view',
     'dashboard_view',
+    'export_actions_view',
     'export_records_view',
     'info_index_view',
     'info_page_view',

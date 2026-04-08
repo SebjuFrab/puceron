@@ -3,7 +3,7 @@ from io import BytesIO
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -236,13 +236,20 @@ def export_records_view(request):
     manager_user = _manager_user(request)
     scope = request.GET.get('scope', 'me')
     if scope == 'all' and _is_technician(manager_user):
-        qs = ScoutingRecord.objects.select_related('user', 'primary_aphid_species').prefetch_related('leaf_observations')
+        qs = ScoutingRecord.objects.select_related(
+            'user',
+            'primary_aphid_species',
+            'plant_series',
+            'crop_ref',
+            'conduct_type_ref',
+            'variety_ref',
+        ).prefetch_related('leaf_observations')
         if not manager_user.is_superuser:
             qs = qs.filter(_technician_visibility_q(manager_user))
     else:
         qs = (
             ScoutingRecord.objects.filter(user=effective_user)
-            .select_related('user', 'primary_aphid_species')
+            .select_related('user', 'primary_aphid_species', 'plant_series', 'crop_ref', 'conduct_type_ref', 'variety_ref')
             .prefetch_related('leaf_observations')
         )
 
@@ -276,7 +283,7 @@ def export_records_view(request):
             display_user_name(rec.user),
             rec.department,
             rec.plant_series.name if rec.plant_series else '',
-            rec.get_crop_display(),
+            rec.crop_ref.name if rec.crop_ref_id and rec.crop_ref else (rec.plant_series.crop.name if rec.plant_series_id and rec.plant_series else rec.crop),
             rec.conduct_type_ref.name if rec.conduct_type_ref else '',
             rec.variety_ref.name if rec.variety_ref else '',
             rec.scouting_date.isoformat(),
@@ -300,4 +307,110 @@ def export_records_view(request):
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     )
     response['Content-Disposition'] = 'attachment; filename="comptages_pucerons.xlsx"'
+    return response
+
+
+@login_required
+def export_actions_view(request):
+    if Workbook is None:
+        return HttpResponse('openpyxl manquant: installer openpyxl pour l export Excel.', status=500)
+
+    effective_user = _effective_user(request)
+    manager_user = _manager_user(request)
+    scope = request.GET.get('scope', 'me')
+
+    if scope == 'all' and _is_technician(manager_user):
+        qs = PlantAction.objects.select_related(
+            'user',
+            'user__profile',
+            'action_type',
+            'plant_series',
+            'plant_series__crop',
+            'crop_ref',
+            'molecule',
+            'auxiliary_taxon',
+        )
+        if not manager_user.is_superuser:
+            qs = qs.filter(_technician_visibility_q(manager_user))
+    else:
+        qs = PlantAction.objects.filter(user=effective_user).select_related(
+            'user',
+            'user__profile',
+            'action_type',
+            'plant_series',
+            'plant_series__crop',
+            'crop_ref',
+            'molecule',
+            'auxiliary_taxon',
+        )
+
+    department = request.GET.get('department')
+    technician = request.GET.get('technician')
+    producer = request.GET.get('producer')
+    crop = request.GET.get('crop')
+    year = request.GET.get('year')
+    series = request.GET.get('series')
+
+    if department:
+        qs = qs.filter(department=department)
+    if technician:
+        qs = qs.filter(user__profile__assigned_technician_id=technician)
+    if producer:
+        qs = qs.filter(user_id=producer)
+    if crop:
+        qs = qs.filter(Q(crop_ref_id=crop) | Q(plant_series__crop_id=crop))
+    if year:
+        qs = qs.filter(plant_series__year=year)
+    if series:
+        qs = qs.filter(plant_series_id=series)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Actions'
+    ws.append(
+        [
+            'Utilisateur',
+            'Département',
+            'Série',
+            'Culture',
+            'Année',
+            'Date action',
+            'Type',
+            'Portée',
+            'Molécule',
+            'Auxiliaire',
+            'Détails',
+        ]
+    )
+
+    for action in qs.order_by('-action_date', '-created_at'):
+        crop_name = (
+            action.crop_ref.name
+            if action.crop_ref_id and action.crop_ref
+            else (action.plant_series.crop.name if action.plant_series_id and action.plant_series and action.plant_series.crop_id else '')
+        )
+        ws.append(
+            [
+                display_user_name(action.user),
+                action.department,
+                action.plant_series.name if action.plant_series else '',
+                crop_name,
+                action.plant_series.year if action.plant_series else '',
+                action.action_date.isoformat(),
+                action.action_type.name if action.action_type else '',
+                action.get_scope_display(),
+                action.molecule.name if action.molecule else '',
+                action.auxiliary_taxon.name if action.auxiliary_taxon else '',
+                action.notes,
+            ]
+        )
+
+    content = BytesIO()
+    wb.save(content)
+    content.seek(0)
+    response = HttpResponse(
+        content.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = 'attachment; filename="actions_pucerons.xlsx"'
     return response

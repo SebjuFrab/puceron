@@ -151,16 +151,22 @@ def _filter_records(request, queryset):
     year = request.GET.get('year')
     crop = request.GET.get('crop')
     department = request.GET.get('department')
+    technician = request.GET.get('technician')
     producer = request.GET.get('producer')
+    series = request.GET.get('series')
 
     if year:
         queryset = queryset.filter(year=year)
     if crop:
-        queryset = queryset.filter(crop=crop)
+        queryset = queryset.filter(Q(crop_ref_id=crop) | Q(plant_series__crop_id=crop) | Q(crop=crop))
     if department:
         queryset = queryset.filter(department=department)
+    if technician:
+        queryset = queryset.filter(user__profile__assigned_technician_id=technician)
     if producer:
         queryset = queryset.filter(user_id=producer)
+    if series:
+        queryset = queryset.filter(plant_series_id=series)
     return queryset
 
 
