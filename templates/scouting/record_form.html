@@ -206,16 +206,86 @@
   .aux-summary { display: flex; gap: 6px; flex-wrap: wrap; }
   .aux-chip { border: 1px solid #fd7e14; background: #fff7ef; color: #a04a00; border-radius: 999px; padding: 2px 10px; font-size: 0.85rem; }
   input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; }
-  .taxon-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-  .taxon-item { border: 1px solid #d8e0e6; border-radius: 10px; background: #fff; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 86px; }
-  .taxon-item.selected { border-color: #ff7b00; box-shadow: 0 0 0 2px rgba(255,123,0,0.2) inset; background: #fffaf3; }
-  .taxon-photo-wrap { width: 100%; height: 68px; border-radius: 8px; overflow: hidden; position: relative; border: 1px solid #d9d9d9; background: #ffffff; display: flex; align-items: center; justify-content: center; padding: 4px; }
+  .taxon-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .taxon-item {
+    border: 1px solid #d8e0e6;
+    border-radius: 14px;
+    background: #fff;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 124px;
+    position: relative;
+    text-align: left;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  .taxon-item.has-count { border-color: #ff7b00; box-shadow: 0 0 0 2px rgba(255,123,0,0.18) inset; background: #fffaf3; }
+  .taxon-item:focus { outline: 0; box-shadow: 0 0 0 3px rgba(255,123,0,0.18); }
+  .taxon-photo-wrap { width: 100%; height: 94px; border-radius: 10px; overflow: hidden; position: relative; border: 1px solid #d9d9d9; background: #ffffff; display: flex; align-items: center; justify-content: center; padding: 4px; }
   .taxon-photo { width: 100%; height: 100%; object-fit: contain; object-position: center; display: block; }
   .taxon-fallback { width: 100%; height: 100%; background: #e6f4ec; color: #156b43; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; }
   .taxon-label-on-photo { position: absolute; left: 4px; right: 4px; bottom: 4px; background: rgba(0,0,0,0.62); color: #fff; border-radius: 6px; padding: 2px 4px; font-size: 0.62rem; line-height: 1.05; text-align: center; font-weight: 700; }
   #auxModal .modal-dialog { max-width: min(96vw, 560px); margin: 0.5rem auto; }
   #auxModal .modal-body { padding-top: 0.75rem; padding-bottom: 0.75rem; }
-  .aux-count-row { margin-bottom: 8px; }
+  .taxon-count-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    min-width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: #ff7b00;
+    color: #fff;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 0.92rem;
+    box-shadow: 0 4px 10px rgba(255,123,0,0.28);
+    z-index: 2;
+  }
+  .taxon-item.has-count .taxon-count-badge { display: inline-flex; }
+  .taxon-minus-btn {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 999px;
+    background: #fff0eb;
+    color: #cc4b00;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    z-index: 2;
+  }
+  .taxon-item.has-count .taxon-minus-btn { display: inline-flex; }
+  .taxon-help {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin-bottom: 0.6rem;
+  }
+  .aux-quick-editor {
+    border: 1px solid #ffd8bf;
+    border-radius: 12px;
+    background: #fff8f2;
+    padding: 10px;
+    margin-top: 0.8rem;
+  }
+  .aux-quick-editor-label {
+    font-weight: 800;
+    color: #a04a00;
+    margin-bottom: 0.35rem;
+  }
   .series-head {
     display: flex;
     gap: 10px;
@@ -408,23 +478,24 @@
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Ajouter auxiliaire</h5>
+        <h5 class="modal-title">Saisir les auxiliaires</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="auxPlant">
         <input type="hidden" id="auxPos">
-        <input type="hidden" id="auxEditTaxonId">
-        <input type="hidden" id="auxTaxonSelected">
-        <div class="aux-count-row">
-          <label class="form-label mb-1" for="auxCount">Nombre</label>
-          <input id="auxCount" type="number" min="0" inputmode="numeric" class="form-control" value="1">
-        </div>
+        <div class="taxon-help">Touchez une carte pour ajouter 1 individu. Appui long pour saisir directement un nombre.</div>
         <div class="mb-2">
-          <label class="form-label">Type auxiliaire</label>
           <div id="taxonGrid" class="taxon-grid">
             {% for taxon in auxiliary_taxa %}
-              <button type="button" class="taxon-item" data-id="{{ taxon.id }}" data-name="{{ taxon.name }}">
+              <div
+                role="button"
+                tabindex="0"
+                class="taxon-item"
+                data-id="{{ taxon.id }}"
+                data-name="{{ taxon.name }}"
+              >
+                <span class="taxon-count-badge">0</span>
                 <span class="taxon-photo-wrap">
                   {% if taxon.photo %}
                     <img class="taxon-photo" src="{{ taxon.photo.url }}" alt="{{ taxon.name }}">
@@ -433,15 +504,22 @@
                   {% endif %}
                   <span class="taxon-label-on-photo">{{ taxon.name }}</span>
                 </span>
-              </button>
+                <button type="button" class="taxon-minus-btn" aria-label="Retirer un individu">−</button>
+              </div>
             {% endfor %}
+          </div>
+        </div>
+        <div id="auxQuickEditor" class="aux-quick-editor d-none">
+          <div id="auxQuickEditorLabel" class="aux-quick-editor-label"></div>
+          <div class="d-flex gap-2 align-items-center">
+            <input id="auxQuickCount" type="number" min="0" inputmode="numeric" class="form-control">
+            <button type="button" class="btn btn-success btn-sm" id="auxQuickApplyBtn">OK</button>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
-        <button type="button" class="btn btn-outline-danger d-none" id="deleteAuxBtn">Supprimer</button>
-        <button type="button" class="btn btn-warning" id="saveAuxBtn">Ajouter</button>
+        <button type="button" class="btn btn-outline-danger btn-sm" id="resetAuxBtn">Réinitialiser</button>
+        <button type="button" class="btn btn-warning" id="saveAuxBtn">Valider</button>
       </div>
     </div>
   </div>
@@ -505,6 +583,10 @@ let nextInfestedSpeciesId = '';
 let primarySpeciesChosenManually = false;
 let lastObservedSpeciesSignature = '';
 let pendingDraft = null;
+let auxModalState = {};
+let auxQuickTaxonId = '';
+let auxPressTimer = null;
+let auxLongPressTriggered = false;
 const draftStorageKey = "puceron:draft:record:user-{{ user.id }}:{% if record_obj %}record-{{ record_obj.id }}{% else %}series-{{ selected_series.id }}{% endif %}";
 const clearDraftFlagKey = 'puceron:clearDraftKey';
 const initialLeafData = {{ initial_leaf_data_json|safe }};
@@ -518,12 +600,14 @@ const auxModal = new bootstrap.Modal(document.getElementById('auxModal'));
 const aphidSpeciesModalElement = document.getElementById('aphidSpeciesModal');
 const aphidSpeciesModal = aphidSpeciesModalElement ? new bootstrap.Modal(aphidSpeciesModalElement) : null;
 const dateInput = document.getElementById('id_scouting_date');
-const auxTaxonSelectedInput = document.getElementById('auxTaxonSelected');
 const taxonButtons = [...document.querySelectorAll('.taxon-item')];
-const auxCountInput = document.getElementById('auxCount');
-const auxEditTaxonIdInput = document.getElementById('auxEditTaxonId');
+const taxonButtonMap = Object.fromEntries(taxonButtons.map(btn => [String(btn.dataset.id), btn]));
 const saveAuxBtn = document.getElementById('saveAuxBtn');
-const deleteAuxBtn = document.getElementById('deleteAuxBtn');
+const resetAuxBtn = document.getElementById('resetAuxBtn');
+const auxQuickEditor = document.getElementById('auxQuickEditor');
+const auxQuickEditorLabel = document.getElementById('auxQuickEditorLabel');
+const auxQuickCountInput = document.getElementById('auxQuickCount');
+const auxQuickApplyBtn = document.getElementById('auxQuickApplyBtn');
 const mainForm = document.querySelector('form[method="post"]');
 const saveRecordBtn = document.getElementById('saveRecordBtn');
 const offlineStatus = document.getElementById('offlineStatus');
@@ -556,12 +640,83 @@ function syncAphidToggle(button, checked) {
   button.setAttribute('aria-pressed', checked ? 'true' : 'false');
 }
 function getTaxonName(taxonId) {
-  const btn = taxonButtons.find(b => b.dataset.id === String(taxonId));
+  const btn = taxonButtonMap[String(taxonId)];
   return btn ? btn.dataset.name : '';
 }
-function selectTaxon(taxonId) {
-  auxTaxonSelectedInput.value = String(taxonId || '');
-  taxonButtons.forEach(btn => btn.classList.toggle('selected', btn.dataset.id === String(taxonId)));
+function cloneAuxLeafState(source = {}) {
+  const cloned = {};
+  Object.entries(source).forEach(([taxonId, item]) => {
+    const count = Math.max(0, parseInt(item?.count || '0', 10));
+    if (count > 0) {
+      cloned[String(taxonId)] = {
+        taxonId: String(item.taxonId || taxonId),
+        name: item.name || getTaxonName(taxonId),
+        count,
+      };
+    }
+  });
+  return cloned;
+}
+function getAuxStateCount(taxonId) {
+  return Number(auxModalState[String(taxonId)]?.count || 0);
+}
+function setAuxStateCount(taxonId, count) {
+  const normalized = Math.max(0, parseInt(count || '0', 10));
+  const key = String(taxonId);
+  if (normalized <= 0) {
+    delete auxModalState[key];
+  } else {
+    auxModalState[key] = {
+      taxonId: key,
+      name: getTaxonName(key),
+      count: normalized,
+    };
+  }
+}
+function closeQuickAuxEditor() {
+  auxQuickTaxonId = '';
+  auxQuickEditor?.classList.add('d-none');
+  if (auxQuickCountInput) auxQuickCountInput.value = '';
+}
+function renderAuxModalState() {
+  taxonButtons.forEach(btn => {
+    const count = getAuxStateCount(btn.dataset.id);
+    btn.classList.toggle('has-count', count > 0);
+    const badge = btn.querySelector('.taxon-count-badge');
+    if (badge) badge.textContent = String(count);
+  });
+  if (auxQuickTaxonId) {
+    const currentCount = getAuxStateCount(auxQuickTaxonId);
+    if (currentCount <= 0) {
+      closeQuickAuxEditor();
+    } else if (auxQuickCountInput) {
+      auxQuickCountInput.value = String(currentCount);
+    }
+  }
+}
+function openQuickAuxEditor(taxonId) {
+  const key = String(taxonId || '');
+  if (!key) return;
+  const taxonName = getTaxonName(key);
+  const currentCount = getAuxStateCount(key);
+  auxQuickTaxonId = key;
+  if (auxQuickEditorLabel) {
+    auxQuickEditorLabel.textContent = `Saisie rapide : ${taxonName}`;
+  }
+  if (auxQuickCountInput) {
+    auxQuickCountInput.value = String(currentCount || 1);
+  }
+  auxQuickEditor?.classList.remove('d-none');
+  setTimeout(() => {
+    auxQuickCountInput?.focus();
+    auxQuickCountInput?.select();
+  }, 20);
+}
+function applyQuickAuxEditor() {
+  if (!auxQuickTaxonId || !auxQuickCountInput) return;
+  setAuxStateCount(auxQuickTaxonId, auxQuickCountInput.value || '0');
+  renderAuxModalState();
+  closeQuickAuxEditor();
 }
 function getPlantSpeciesInput(plant) {
   return document.getElementById(`plant_${plant}_aphid_species`);
@@ -942,27 +1097,14 @@ function renderLeaf(plant, pos) {
   });
 }
 
-function openAuxModal(plant, pos, taxonId = null) {
+function openAuxModal(plant, pos) {
   document.getElementById('auxPlant').value = plant;
   document.getElementById('auxPos').value = pos;
-  auxEditTaxonIdInput.value = taxonId || '';
-  if (!taxonId) {
-    auxCountInput.value = 1;
-    deleteAuxBtn.classList.add('d-none');
-    saveAuxBtn.textContent = 'Ajouter';
-    document.querySelector('#auxModal .modal-title').textContent = 'Ajouter auxiliaire';
-    const first = taxonButtons[0];
-    selectTaxon(first ? first.dataset.id : '');
-  } else {
-    const item = auxData[leafKey(plant, pos)]?.[taxonId];
-    selectTaxon(taxonId);
-    auxCountInput.value = item ? item.count : 1;
-    deleteAuxBtn.classList.remove('d-none');
-    saveAuxBtn.textContent = 'Modifier';
-    document.querySelector('#auxModal .modal-title').textContent = 'Modifier auxiliaire';
-  }
+  auxModalState = cloneAuxLeafState(auxData[leafKey(plant, pos)] || {});
+  closeQuickAuxEditor();
+  renderAuxModalState();
+  document.querySelector('#auxModal .modal-title').textContent = `Auxiliaires - feuille ${pos}`;
   auxModal.show();
-  setTimeout(() => auxCountInput.focus(), 150);
 }
 
 document.querySelectorAll('.aphid-toggle').forEach(btn => btn.addEventListener('click', () => {
@@ -1006,53 +1148,94 @@ primaryAphidSpeciesGrid?.addEventListener('click', event => {
   saveDraftDebounced();
 });
 
-document.querySelectorAll('.aux-open').forEach(btn => btn.addEventListener('click', () => openAuxModal(btn.dataset.plant, btn.dataset.pos, null)));
+document.querySelectorAll('.aux-open').forEach(btn => btn.addEventListener('click', () => openAuxModal(btn.dataset.plant, btn.dataset.pos)));
 document.querySelectorAll('.aux-summary').forEach(node => node.addEventListener('click', e => {
   const chip = e.target.closest('.aux-chip');
-  if (chip) openAuxModal(chip.dataset.plant, chip.dataset.pos, chip.dataset.taxonId);
+  if (chip) openAuxModal(chip.dataset.plant, chip.dataset.pos);
 }));
 
 saveAuxBtn.addEventListener('click', () => {
   const plant = document.getElementById('auxPlant').value;
   const pos = document.getElementById('auxPos').value;
-  if (!taxonButtons.length) { auxModal.hide(); return; }
-  const taxonId = auxTaxonSelectedInput.value;
-  if (!taxonId) { return; }
-  const taxonName = getTaxonName(taxonId);
-  const count = Math.max(0, parseInt(auxCountInput.value || '0', 10));
   const key = leafKey(plant, pos);
-  const editingTaxonId = auxEditTaxonIdInput.value || null;
-  if (!auxData[key]) auxData[key] = {};
-  if (editingTaxonId) {
-    if (count === 0) delete auxData[key][editingTaxonId];
-    else auxData[key][editingTaxonId] = { taxonId: editingTaxonId, name: taxonName, count };
-  } else {
-    if (auxData[key][taxonId]) auxData[key][taxonId].count += count;
-    else auxData[key][taxonId] = { taxonId, name: taxonName, count };
-  }
+  auxData[key] = cloneAuxLeafState(auxModalState);
   renderLeaf(plant, pos);
+  closeQuickAuxEditor();
   auxModal.hide();
   markDirty();
   saveDraftDebounced();
 });
 
-deleteAuxBtn.addEventListener('click', () => {
-  const plant = document.getElementById('auxPlant').value;
-  const pos = document.getElementById('auxPos').value;
-  const taxonId = auxEditTaxonIdInput.value;
-  const key = leafKey(plant, pos);
-  if (auxData[key] && auxData[key][taxonId]) delete auxData[key][taxonId];
-  renderLeaf(plant, pos);
-  auxModal.hide();
-  markDirty();
-  saveDraftDebounced();
+resetAuxBtn?.addEventListener('click', () => {
+  auxModalState = {};
+  closeQuickAuxEditor();
+  renderAuxModalState();
 });
 
 taxonButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (auxEditTaxonIdInput.value) return;
-    selectTaxon(btn.dataset.id);
+  const taxonId = String(btn.dataset.id);
+  const minusBtn = btn.querySelector('.taxon-minus-btn');
+  const clearPress = () => {
+    if (auxPressTimer) {
+      clearTimeout(auxPressTimer);
+      auxPressTimer = null;
+    }
+  };
+
+  btn.addEventListener('pointerdown', event => {
+    if (event.target.closest('.taxon-minus-btn')) return;
+    auxLongPressTriggered = false;
+    clearPress();
+    auxPressTimer = setTimeout(() => {
+      auxLongPressTriggered = true;
+      openQuickAuxEditor(taxonId);
+    }, 500);
   });
+
+  btn.addEventListener('pointerup', event => {
+    if (event.target.closest('.taxon-minus-btn')) return;
+    clearPress();
+    if (auxLongPressTriggered) {
+      auxLongPressTriggered = false;
+      return;
+    }
+    setAuxStateCount(taxonId, getAuxStateCount(taxonId) + 1);
+    renderAuxModalState();
+  });
+
+  btn.addEventListener('pointerleave', clearPress);
+  btn.addEventListener('pointercancel', clearPress);
+  btn.addEventListener('contextmenu', event => event.preventDefault());
+  btn.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setAuxStateCount(taxonId, getAuxStateCount(taxonId) + 1);
+      renderAuxModalState();
+    }
+  });
+
+  minusBtn?.addEventListener('pointerdown', event => {
+    event.stopPropagation();
+    clearPress();
+  });
+  minusBtn?.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    setAuxStateCount(taxonId, Math.max(0, getAuxStateCount(taxonId) - 1));
+    renderAuxModalState();
+  });
+});
+
+auxQuickApplyBtn?.addEventListener('click', applyQuickAuxEditor);
+auxQuickCountInput?.addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    applyQuickAuxEditor();
+  }
+});
+document.getElementById('auxModal')?.addEventListener('hidden.bs.modal', () => {
+  auxModalState = {};
+  closeQuickAuxEditor();
 });
 
 document.querySelectorAll('.next-plant').forEach(btn => btn.addEventListener('click', () => {
