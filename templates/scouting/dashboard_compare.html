@@ -91,6 +91,15 @@
     background: #fbfffc;
     color: #1f563d;
   }
+  .compare-pill-button {
+    appearance: none;
+    cursor: pointer;
+  }
+  .compare-pill-button.is-active {
+    background: #198754;
+    border-color: #198754;
+    color: #ffffff;
+  }
   .series-selector {
     border: 1px solid #d6e8de;
     border-radius: 18px;
@@ -370,6 +379,36 @@
       </div>
     </section>
 
+    <section class="card chart-card">
+      <div class="card-body p-4">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">Autres ravageurs</h2>
+            <p class="panel-subtitle">% de feuilles touchées par ravageur.</p>
+          </div>
+        </div>
+        {% if displayed_series %}
+          <div class="comparison-meta mb-3">
+            {% for series in displayed_series %}
+              <button
+                type="button"
+                class="compare-pill compare-pill-button {% if forloop.first %}is-active{% endif %}"
+                data-other-pest-series="{{ series.id }}"
+              >
+                {{ series.name }}
+              </button>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% if displayed_series and chart_labels and other_pest_datasets %}
+          <div id="otherPestEmptyState" class="empty-chart d-none">Aucun autre ravageur observé sur cette série.</div>
+          <div class="chart-wrap" id="otherPestChartWrap"><canvas id="otherPestChart"></canvas></div>
+        {% else %}
+          <div class="empty-chart">Aucune présence d'autres ravageurs sur les séries affichées.</div>
+        {% endif %}
+      </div>
+    </section>
+
     <section class="card action-card">
       <div class="card-body p-4">
         <div class="panel-head">
@@ -404,6 +443,8 @@
 {{ chart_labels|json_script:"compare-labels-data" }}
 {{ aphid_datasets|json_script:"compare-aphid-datasets" }}
 {{ aux_datasets|json_script:"compare-aux-datasets" }}
+{{ other_pest_datasets|json_script:"compare-other-pest-datasets" }}
+{{ action_cards|json_script:"compare-action-markers" }}
 <script>
 function readJsonScript(id) {
   const node = document.getElementById(id);
@@ -425,15 +466,50 @@ function buildSeriesDatasets(rawDatasets) {
   }));
 }
 
-function makeSeriesChart(canvasId, labels, datasets, yTitle, yAxisOptions = {}) {
+function buildActionMarkerDatasets(rawActions, labels, allowedSeriesIds = null) {
+  const allowed = allowedSeriesIds ? new Set(allowedSeriesIds.map(String)) : null;
+  const stackByWeek = {};
+  return (rawActions || [])
+    .filter(action => !allowed || allowed.has(String(action.series_id)))
+    .map(action => {
+      const weekLabel = `S${action.week}`;
+      if (!labels.includes(weekLabel)) {
+        return null;
+      }
+      const slot = stackByWeek[weekLabel] || 0;
+      stackByWeek[weekLabel] = slot + 1;
+      const yValue = Math.max(0.18, 0.94 - (slot * 0.09));
+      return {
+        type: 'line',
+        label: `Action ${action.type_name}`,
+        data: labels.map(label => (label === weekLabel ? yValue : null)),
+        yAxisID: 'yActions',
+        showLine: false,
+        borderWidth: 0,
+        pointRadius: 8,
+        pointHoverRadius: 10,
+        pointHitRadius: 14,
+        pointStyle: action.chart_point_style || 'circle',
+        pointBackgroundColor: action.action_color || action.color,
+        pointBorderColor: action.series_color || action.color,
+        pointBorderWidth: 2,
+        isActionMarker: true,
+        actionMeta: action,
+      };
+    })
+    .filter(Boolean);
+}
+
+function makeSeriesChart(canvasId, labels, datasets, yTitle, yAxisOptions = {}, actionMarkers = []) {
   const canvas = document.getElementById(canvasId);
   if (!canvas || !labels || !labels.length || !datasets || !datasets.length) return;
+  const allowedSeriesIds = (datasets || []).map(dataset => dataset.id);
 
   new Chart(canvas, {
     type: 'line',
     data: {
       labels: labels,
-      datasets: buildSeriesDatasets(datasets),
+      datasets: buildSeriesDatasets(datasets).concat(buildActionMarkerDatasets(actionMarkers, labels, allowedSeriesIds)),
     },
     options: {
       responsive: true,
@@ -444,6 +520,29 @@ function makeSeriesChart(canvasId, labels, datasets, yTitle, yAxisOptions = {}) 
           labels: {
             boxWidth: 14,
             usePointStyle: true,
+            filter(legendItem, data) {
+              return !data.datasets?.[legendItem.datasetIndex]?.isActionMarker;
+            },
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label(context) {
+              const dataset = context.dataset || {};
+              if (dataset.isActionMarker && dataset.actionMeta) {
+                const action = dataset.actionMeta;
+                const lines = [
+                  `${action.series_name} • ${action.type_name}`,
+                  `${action.date} • ${action.scope}`,
+                ];
+                if (action.details && action.details !== 'Sans detail complementaire') {
+                  lines.push(action.details);
+                }
+                return lines;
+              }
+              const value = context.parsed?.y ?? context.raw;
+              return `${dataset.label}: ${value}`;
+            },
           },
         },
       },
@@ -463,14 +562,178 @@ function makeSeriesChart(canvasId, labels, datasets, yTitle, yAxisOptions = {}) 
             text: yTitle,
           },
         },
+        yActions: {
+          position: 'right',
+          min: 0,
+          max: 1,
+          display: false,
+          grid: {
+            drawOnChartArea: false,
+          },
+        },
       },
     },
   });
 }
 
+function buildOtherPestDatasets(rawDatasets, seriesId) {
+  return (rawDatasets || [])
+    .filter(dataset => String(dataset.seriesId) === String(seriesId))
+    .map(dataset => ({
+      type: 'line',
+      label: dataset.label,
+      data: dataset.data,
+      borderColor: dataset.borderColor,
+      backgroundColor: dataset.backgroundColor,
+      tension: 0.22,
+      borderWidth: 3,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      spanGaps: true,
+    }));
+}
+
+function buildSeriesRecordLabelsMap(rawSeriesDatasets, labels) {
+  const mapping = {};
+  (rawSeriesDatasets || []).forEach(dataset => {
+    const firstIndex = dataset.data.findIndex(value => value !== null && value !== undefined);
+    let lastIndex = -1;
+    dataset.data.forEach((value, index) => {
+      if (value !== null && value !== undefined) {
+        lastIndex = index;
+      }
+    });
+    mapping[String(dataset.id)] = firstIndex === -1 || lastIndex === -1
+      ? labels
+      : labels.slice(firstIndex, lastIndex + 1);
+  });
+  return mapping;
+}
+
+function buildOtherPestActionDatasets(rawActions, seriesId) {
+  return buildActionMarkerDatasets(rawActions, activeOtherPestLabels, [seriesId]);
+}
+
 const labels = readJsonScript('compare-labels-data');
-makeSeriesChart('aphidChart', labels, readJsonScript('compare-aphid-datasets'), '% feuilles infestees', { min: 0, max: 100 });
-makeSeriesChart('auxChart', labels, readJsonScript('compare-aux-datasets'), 'Auxiliaires / plant');
+const aphidRawDatasets = readJsonScript('compare-aphid-datasets') || [];
+const actionMarkers = readJsonScript('compare-action-markers') || [];
+makeSeriesChart('aphidChart', labels, aphidRawDatasets, '% feuilles infestees', { min: 0, max: 100 }, actionMarkers);
+makeSeriesChart('auxChart', labels, readJsonScript('compare-aux-datasets'), 'Auxiliaires / plant', {}, actionMarkers);
+const otherPestRawDatasets = readJsonScript('compare-other-pest-datasets') || [];
+const otherPestLabelsBySeries = buildSeriesRecordLabelsMap(aphidRawDatasets, labels);
+const otherPestButtons = Array.from(document.querySelectorAll('[data-other-pest-series]'));
+const otherPestCanvas = document.getElementById('otherPestChart');
+const otherPestWrap = document.getElementById('otherPestChartWrap');
+const otherPestEmptyState = document.getElementById('otherPestEmptyState');
+let otherPestChart = null;
+let activeOtherPestLabels = labels;
+
+function renderOtherPestChart(seriesId) {
+  if (!otherPestCanvas) return;
+  activeOtherPestLabels = otherPestLabelsBySeries[String(seriesId)] || labels;
+  const datasets = buildOtherPestDatasets(otherPestRawDatasets, seriesId).map(dataset => ({
+    ...dataset,
+    data: activeOtherPestLabels.map((label, index) => dataset.data[labels.indexOf(label)]),
+  }));
+  const actionDatasets = buildOtherPestActionDatasets(actionMarkers, seriesId);
+  if (otherPestChart) {
+    otherPestChart.destroy();
+    otherPestChart = null;
+  }
+  if (!datasets.length && !actionDatasets.length) {
+    otherPestWrap?.classList.add('d-none');
+    otherPestEmptyState?.classList.remove('d-none');
+    return;
+  }
+  otherPestWrap?.classList.remove('d-none');
+  otherPestEmptyState?.classList.add('d-none');
+  otherPestChart = new Chart(otherPestCanvas, {
+    type: 'line',
+    data: {
+      labels: activeOtherPestLabels,
+      datasets: datasets.concat(actionDatasets),
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            boxWidth: 14,
+            usePointStyle: true,
+            filter(legendItem, data) {
+              return !data.datasets?.[legendItem.datasetIndex]?.isActionMarker;
+            },
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label(context) {
+              const dataset = context.dataset || {};
+              if (dataset.isActionMarker && dataset.actionMeta) {
+                const action = dataset.actionMeta;
+                const lines = [
+                  `${action.series_name} • ${action.type_name}`,
+                  `${action.date} • ${action.scope}`,
+                ];
+                if (action.details && action.details !== 'Sans detail complementaire') {
+                  lines.push(action.details);
+                }
+                return lines;
+              }
+              const value = context.parsed?.y ?? context.raw;
+              return `${dataset.label}: ${value}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: 'Semaine',
+          },
+        },
+        y: {
+          beginAtZero: true,
+          min: 0,
+          max: 100,
+          title: {
+            display: true,
+            text: '% feuilles touchées',
+          },
+        },
+        yActions: {
+          position: 'right',
+          min: 0,
+          max: 1,
+          display: false,
+          grid: {
+            drawOnChartArea: false,
+          },
+        },
+      },
+    },
+  });
+}
+
+function setActiveOtherPestSeries(seriesId) {
+  otherPestButtons.forEach(button => {
+    button.classList.toggle('is-active', button.dataset.otherPestSeries === String(seriesId));
+  });
+  renderOtherPestChart(seriesId);
+}
+
+if (otherPestButtons.length) {
+  const defaultSeriesId = otherPestRawDatasets.length
+    ? String(otherPestRawDatasets[0].seriesId)
+    : otherPestButtons[0].dataset.otherPestSeries;
+  setActiveOtherPestSeries(defaultSeriesId);
+  otherPestButtons.forEach(button => {
+    button.addEventListener('click', () => setActiveOtherPestSeries(button.dataset.otherPestSeries));
+  });
+}
 </script>
 {% endif %}
 {% endblock %}

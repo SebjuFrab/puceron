@@ -16,6 +16,8 @@ from .models import (
     LeafAuxiliaryObservation,
     LeafObservation,
     Molecule,
+    OtherPestTaxon,
+    LeafOtherPestObservation,
     PlantSeries,
     PlantAction,
     RecommendationDismissReason,
@@ -43,12 +45,13 @@ ADMIN_MODEL_ORDER = {
         'Variety': 70,
         'AuxiliaryTaxon': 80,
         'AphidSpecies': 90,
-        'Molecule': 100,
-        'RecommendationDismissReason': 110,
-        'ActionType': 120,
-        'DecisionRule': 130,
-        'DecisionLever': 140,
-        'LeafObservation': 150,
+        'OtherPestTaxon': 100,
+        'Molecule': 110,
+        'RecommendationDismissReason': 120,
+        'ActionType': 130,
+        'DecisionRule': 140,
+        'DecisionLever': 150,
+        'LeafObservation': 160,
     },
     'auth': {
         'User': 10,
@@ -62,7 +65,7 @@ SCOUTING_ADMIN_GROUPS = [
     (
         'settings',
         'Parametrage',
-        ['Crop', 'ConductType', 'Variety', 'AuxiliaryTaxon', 'AphidSpecies', 'Molecule', 'RecommendationDismissReason'],
+        ['Crop', 'ConductType', 'Variety', 'AuxiliaryTaxon', 'AphidSpecies', 'OtherPestTaxon', 'Molecule', 'RecommendationDismissReason'],
     ),
     (
         'decisions',
@@ -316,6 +319,11 @@ class LeafAuxiliaryObservationInline(admin.TabularInline):
     extra = 0
 
 
+class LeafOtherPestObservationInline(admin.TabularInline):
+    model = LeafOtherPestObservation
+    extra = 0
+
+
 @admin.register(AuxiliaryTaxon)
 class AuxiliaryTaxonAdmin(admin.ModelAdmin):
     list_display = ('photo_preview', 'name', 'code', 'display_order', 'is_releasable', 'is_active')
@@ -325,6 +333,24 @@ class AuxiliaryTaxonAdmin(admin.ModelAdmin):
     ordering = ('display_order', 'name')
     readonly_fields = ('photo_preview',)
     fields = ('name', 'code', 'photo', 'photo_preview', 'display_order', 'is_releasable', 'is_active')
+
+    def photo_preview(self, obj):
+        if not obj.photo:
+            return '-'
+        return format_html('<img src="{}" style="height:48px;border-radius:6px;" />', obj.photo.url)
+
+    photo_preview.short_description = 'Photo'
+
+
+@admin.register(OtherPestTaxon)
+class OtherPestTaxonAdmin(admin.ModelAdmin):
+    list_display = ('photo_preview', 'name', 'code', 'display_order', 'is_active')
+    list_display_links = ('name',)
+    list_filter = ('is_active',)
+    search_fields = ('name', 'code')
+    ordering = ('display_order', 'name')
+    readonly_fields = ('photo_preview',)
+    fields = ('name', 'code', 'photo', 'photo_preview', 'display_order', 'is_active')
 
     def photo_preview(self, obj):
         if not obj.photo:
@@ -368,7 +394,7 @@ class AphidSpeciesAdmin(admin.ModelAdmin):
 class LeafObservationAdmin(admin.ModelAdmin):
     list_display = ('record', 'plant_number', 'leaf_position', 'aphid_present', 'aphid_species', 'total_auxiliaries')
     list_filter = ('leaf_position', 'aphid_present', 'aphid_species')
-    inlines = [LeafAuxiliaryObservationInline]
+    inlines = [LeafAuxiliaryObservationInline, LeafOtherPestObservationInline]
 
 
 @admin.register(ScoutingRecord)

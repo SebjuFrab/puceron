@@ -15,7 +15,9 @@ from .models import (
     AuxiliaryTaxon,
     DecisionLever,
     LeafAuxiliaryObservation,
+    LeafOtherPestObservation,
     LeafObservation,
+    OtherPestTaxon,
     PlantAction,
     ScoutingRecord,
     UserProfile,
@@ -82,7 +84,11 @@ def _serialize_aphid_species(aphid_species_list):
     return payload
 
 
-def _build_leaf_state_from_post(post_data, plants_count, leaves_count, taxa):
+def _active_other_pest_taxa():
+    return list(OtherPestTaxon.objects.filter(is_active=True).order_by('display_order', 'name'))
+
+
+def _build_leaf_state_from_post(post_data, plants_count, leaves_count, taxa, other_pest_taxa):
     try:
         current_plant = int(post_data.get('current_plant') or 1)
     except (TypeError, ValueError):
@@ -91,6 +97,7 @@ def _build_leaf_state_from_post(post_data, plants_count, leaves_count, taxa):
     data = {
         'aphids': {},
         'auxData': {},
+        'pestData': {},
         'plantSpecies': {},
         'plantSpeciesTouched': {},
         'primaryAphidSpecies': str(post_data.get('primary_aphid_species') or ''),
@@ -110,6 +117,7 @@ def _build_leaf_state_from_post(post_data, plants_count, leaves_count, taxa):
             data['aphids'][aphid_name] = post_data.get(aphid_name) == 'on'
             leaf_key = f'{plant}-{leaf_position}'
             data['auxData'][leaf_key] = {}
+            data['pestData'][leaf_key] = {}
             for taxon in taxa:
                 count = _parse_count(post_data.get(f'aux_{plant}_{leaf_position}_{taxon.id}'))
                 if count <= 0:
@@ -119,6 +127,14 @@ def _build_leaf_state_from_post(post_data, plants_count, leaves_count, taxa):
                     'taxonId': taxon_id,
                     'name': taxon.name,
                     'count': count,
+                }
+            for taxon in other_pest_taxa:
+                if post_data.get(f'pest_{plant}_{leaf_position}_{taxon.id}') != '1':
+                    continue
+                taxon_id = str(taxon.id)
+                data['pestData'][leaf_key][taxon_id] = {
+                    'taxonId': taxon_id,
+                    'name': taxon.name,
                 }
     return data
 
@@ -160,7 +176,7 @@ def _extract_record_species_data(post_data, plants_count, leaves_count, species_
     return plant_species_map, observed_species_ids, primary_species
 
 
-def _write_leaf_observations(record, post_data, plants_count, leaves_count, taxa, plant_species_map):
+def _write_leaf_observations(record, post_data, plants_count, leaves_count, taxa, other_pest_taxa, plant_species_map):
     record.leaf_observations.all().delete()
     for plant in range(1, plants_count + 1):
         plant_species = plant_species_map.get(plant)
@@ -177,6 +193,7 @@ def _write_leaf_observations(record, post_data, plants_count, leaves_count, taxa
                 aphid_species=plant_species if aphid_present else None,
             )
             leaf_aux_rows = []
+            leaf_pest_rows = []
             for taxon in taxa:
                 key = f'aux_{plant}_{leaf_position}_{taxon.id}'
                 count = _parse_count(post_data.get(key))
@@ -190,6 +207,17 @@ def _write_leaf_observations(record, post_data, plants_count, leaves_count, taxa
                     )
             if leaf_aux_rows:
                 LeafAuxiliaryObservation.objects.bulk_create(leaf_aux_rows)
+            for taxon in other_pest_taxa:
+                if post_data.get(f'pest_{plant}_{leaf_position}_{taxon.id}') != '1':
+                    continue
+                leaf_pest_rows.append(
+                    LeafOtherPestObservation(
+                        leaf_observation=leaf,
+                        taxon=taxon,
+                    )
+                )
+            if leaf_pest_rows:
+                LeafOtherPestObservation.objects.bulk_create(leaf_pest_rows)
 
 
 def _record_form_context(
@@ -198,6 +226,7 @@ def _record_form_context(
     plants,
     leaf_positions,
     taxa,
+    other_pest_taxa,
     selected_series,
     is_technician,
     target_user,
@@ -212,6 +241,7 @@ def _record_form_context(
         'plants': plants,
         'leaf_positions': leaf_positions,
         'auxiliary_taxa': taxa,
+        'other_pest_taxa': other_pest_taxa,
         'selected_series': selected_series,
         'is_technician': is_technician,
         'target_user': target_user,
@@ -228,6 +258,7 @@ def _record_form_context(
 @login_required
 def record_create_view(request):
     taxa = list(AuxiliaryTaxon.objects.filter(is_active=True).order_by('display_order', 'name'))
+    other_pest_taxa = _active_other_pest_taxa()
     aphid_species_list = _active_aphid_species()
     default_aphid_species = _default_aphid_species(aphid_species_list)
     aphid_species_lookup = {species.id: species for species in aphid_species_list}
@@ -319,7 +350,15 @@ def record_create_view(request):
                 try:
                     with transaction.atomic():
                         record.save()
-                        _write_leaf_observations(record, request.POST, plants_count, leaves_count, taxa, plant_species_map)
+                        _write_leaf_observations(
+                            record,
+                            request.POST,
+                            plants_count,
+                            leaves_count,
+                            taxa,
+                            other_pest_taxa,
+                            plant_species_map,
+                        )
                         record.recompute_from_leaf_observations()
                         record.primary_aphid_species = primary_species
                         record.save(update_fields=['primary_aphid_species'])
@@ -368,7 +407,13 @@ def record_create_view(request):
         plants = list(range(1, plants_count + 1))
         leaf_positions = _leaf_positions_for_series(selected_series)
         if request.method == 'POST':
-            initial_leaf_data = _build_leaf_state_from_post(request.POST, plants_count, leaves_count, taxa)
+            initial_leaf_data = _build_leaf_state_from_post(
+                request.POST,
+                plants_count,
+                leaves_count,
+                taxa,
+                other_pest_taxa,
+            )
     else:
         return render(
             request,
@@ -390,6 +435,7 @@ def record_create_view(request):
             plants=plants,
             leaf_positions=leaf_positions,
             taxa=taxa,
+            other_pest_taxa=other_pest_taxa,
             selected_series=selected_series,
             is_technician=is_tech_user,
             target_user=selected_series.user,
@@ -610,6 +656,7 @@ def record_update_view(request, record_id):
         return redirect('my_records')
 
     taxa = list(AuxiliaryTaxon.objects.filter(is_active=True).order_by('display_order', 'name'))
+    other_pest_taxa = _active_other_pest_taxa()
     aphid_species_list = _active_aphid_species()
     default_aphid_species = _default_aphid_species(aphid_species_list)
     aphid_species_lookup = {species.id: species for species in aphid_species_list}
@@ -654,7 +701,15 @@ def record_update_view(request, record_id):
                 try:
                     with transaction.atomic():
                         updated.save()
-                        _write_leaf_observations(updated, request.POST, plants_count, leaves_count, taxa, plant_species_map)
+                        _write_leaf_observations(
+                            updated,
+                            request.POST,
+                            plants_count,
+                            leaves_count,
+                            taxa,
+                            other_pest_taxa,
+                            plant_species_map,
+                        )
                         updated.recompute_from_leaf_observations()
                         updated.primary_aphid_species = primary_species
                         updated.save(update_fields=['primary_aphid_species'])
@@ -676,7 +731,7 @@ def record_update_view(request, record_id):
     plants = list(range(1, plants_count + 1))
     leaf_positions = _leaf_positions_for_series(selected_series)
     initial_leaf_data = (
-        _build_leaf_state_from_post(request.POST, plants_count, leaves_count, taxa)
+        _build_leaf_state_from_post(request.POST, plants_count, leaves_count, taxa, other_pest_taxa)
         if request.method == 'POST'
         else _build_initial_leaf_state(record)
     )
@@ -689,6 +744,7 @@ def record_update_view(request, record_id):
             plants=plants,
             leaf_positions=leaf_positions,
             taxa=taxa,
+            other_pest_taxa=other_pest_taxa,
             selected_series=selected_series,
             is_technician=(editor_is_technician and not acting_as_producer) or (
                 (request.user.id != selected_series.user_id) and not acting_as_producer

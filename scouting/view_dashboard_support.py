@@ -1,6 +1,8 @@
 from collections import defaultdict
 
-from .models import PlantAction, PlantSeries, ScoutingRecord
+from django.db.models import Count
+
+from .models import LeafObservation, LeafOtherPestObservation, PlantAction, PlantSeries, ScoutingRecord
 from .utils import display_user_name
 from .view_access import _effective_profile, _effective_user, _manager_user, _parse_positive_int, _series_queryset_for_user
 
@@ -15,6 +17,17 @@ DASHBOARD_SERIES_COLORS = [
     '#1c7ed6',
     '#2b8a3e',
     '#5f3dc4',
+]
+
+OTHER_PEST_CHART_COLORS = [
+    '#c2255c',
+    '#d9480f',
+    '#7b2cbf',
+    '#0ca678',
+    '#f59f00',
+    '#1c7ed6',
+    '#2b8a3e',
+    '#495057',
 ]
 
 ORGANIC_MODE_LABELS = {
@@ -68,6 +81,89 @@ def _series_chart_dataset(series, weeks, record_map, color):
     }
 
 
+def _contiguous_week_range(observed_weeks):
+    observed_weeks = sorted({week for week in observed_weeks if week})
+    if not observed_weeks:
+        return []
+    return list(range(observed_weeks[0], observed_weeks[-1] + 1))
+
+
+def _other_pest_chart_datasets(records, weeks):
+    record_ids = [record.id for record in records if record.week in weeks]
+    if not record_ids or not weeks:
+        return []
+
+    record_weeks_by_series = defaultdict(set)
+    for record in records:
+        if record.week in weeks:
+            record_weeks_by_series[record.plant_series_id].add(record.week)
+
+    total_leaves_by_week = {
+        (row['record__plant_series_id'], row['record__week']): row['total']
+        for row in (
+            LeafObservation.objects.filter(record_id__in=record_ids)
+            .values('record__plant_series_id', 'record__week')
+            .annotate(total=Count('id'))
+        )
+    }
+
+    rows = list(
+        LeafOtherPestObservation.objects.filter(leaf_observation__record_id__in=record_ids)
+        .values(
+            'leaf_observation__record__plant_series_id',
+            'taxon_id',
+            'taxon__name',
+            'taxon__display_order',
+            'leaf_observation__record__week',
+        )
+        .annotate(touched=Count('leaf_observation_id', distinct=True))
+        .order_by('taxon__display_order', 'taxon__name', 'taxon_id')
+    )
+    if not rows:
+        return []
+
+    values_by_series_and_taxon = defaultdict(lambda: defaultdict(dict))
+    taxon_names = {}
+    taxon_orders = {}
+    for row in rows:
+        series_id = row['leaf_observation__record__plant_series_id']
+        week = row['leaf_observation__record__week']
+        total_leaves = total_leaves_by_week.get((series_id, week)) or 0
+        percentage = round((row['touched'] / total_leaves) * 100, 2) if total_leaves else 0
+        taxon_id = row['taxon_id']
+        values_by_series_and_taxon[series_id][taxon_id][week] = percentage
+        taxon_names[taxon_id] = row['taxon__name']
+        taxon_orders[taxon_id] = row['taxon__display_order'] or 0
+
+    datasets = []
+    ordered_taxon_ids = sorted({taxon_id for taxon_map in values_by_series_and_taxon.values() for taxon_id in taxon_map.keys()}, key=lambda taxon_id: (taxon_orders.get(taxon_id, 999), taxon_names.get(taxon_id, '').lower(), taxon_id))
+    color_by_taxon_id = {
+        taxon_id: OTHER_PEST_CHART_COLORS[index % len(OTHER_PEST_CHART_COLORS)]
+        for index, taxon_id in enumerate(ordered_taxon_ids)
+    }
+    for series_id in sorted(values_by_series_and_taxon.keys()):
+        for taxon_id in ordered_taxon_ids:
+            values = values_by_series_and_taxon[series_id].get(taxon_id)
+            if not values:
+                continue
+            color = color_by_taxon_id[taxon_id]
+            datasets.append(
+                {
+                    'id': f'other-pest-{series_id}-{taxon_id}',
+                    'seriesId': series_id,
+                    'taxonId': taxon_id,
+                    'label': taxon_names.get(taxon_id, f'Ravageur {taxon_id}'),
+                    'data': [
+                        values.get(week, 0) if week in record_weeks_by_series.get(series_id, set()) else None
+                        for week in weeks
+                    ],
+                    'borderColor': color,
+                    'backgroundColor': color,
+                }
+            )
+    return datasets
+
+
 
 def _producer_dashboard_context(request):
     effective_user = _effective_user(request)
@@ -84,6 +180,7 @@ def _producer_dashboard_context(request):
             'chart_labels': [],
             'aphid_datasets': [],
             'aux_datasets': [],
+            'other_pest_datasets': [],
             'action_cards': [],
             'available_years': [],
             'crop_options': [],
@@ -132,7 +229,9 @@ def _producer_dashboard_context(request):
         .prefetch_related('leaf_observations')
         .order_by('week', 'scouting_date', 'id')
     )
-    weeks = sorted({record.week for record in records if record.week and record.plant_series_id in displayed_series_ids})
+    weeks = _contiguous_week_range(
+        {record.week for record in records if record.week and record.plant_series_id in displayed_series_ids}
+    )
 
     aphid_by_series = defaultdict(dict)
     aux_by_series = defaultdict(dict)
@@ -164,10 +263,14 @@ def _producer_dashboard_context(request):
     for action in actions:
         action_cards.append(
             {
+                'series_id': action.plant_series_id,
                 'week': action.action_date.isocalendar().week,
                 'date': action.action_date.strftime('%d/%m/%Y'),
                 'icon_symbol': action.action_type.chart_icon_symbol,
                 'color': color_by_series_id.get(action.plant_series_id, _chart_color_for_action_type(action.action_type)),
+                'series_color': color_by_series_id.get(action.plant_series_id, _chart_color_for_action_type(action.action_type)),
+                'action_color': _chart_color_for_action_type(action.action_type),
+                'chart_point_style': action.action_type.resolved_chart_icon,
                 'type_name': action.action_type.name,
                 'scope': action.get_scope_display(),
                 'details': _serialize_action_details(action),
@@ -176,6 +279,7 @@ def _producer_dashboard_context(request):
         )
 
     displayed_records = [record for record in records if record.plant_series_id in displayed_series_ids]
+    other_pest_datasets = _other_pest_chart_datasets(displayed_records, weeks)
     latest_weeks = sorted({record.week for record in displayed_records if record.week}, reverse=True)
     latest_week = latest_weeks[0] if latest_weeks else None
 
@@ -192,6 +296,7 @@ def _producer_dashboard_context(request):
         'chart_labels': [f'S{week}' for week in weeks],
         'aphid_datasets': aphid_datasets,
         'aux_datasets': aux_datasets,
+        'other_pest_datasets': other_pest_datasets,
         'action_cards': action_cards,
         'record_count': len(displayed_records),
         'series_count': len(year_series),
@@ -218,6 +323,7 @@ def _technician_dashboard_context(request):
             'chart_labels': [],
             'aphid_datasets': [],
             'aux_datasets': [],
+            'other_pest_datasets': [],
             'action_cards': [],
             'available_years': [],
             'crop_options': [],
@@ -334,7 +440,9 @@ def _technician_dashboard_context(request):
     if not manager_user.is_superuser:
         visible_user_ids = {series.user_id for series in variety_filtered_series}
         records = [record for record in records if record.user_id in visible_user_ids]
-    weeks = sorted({record.week for record in records if record.week and record.plant_series_id in displayed_series_ids})
+    weeks = _contiguous_week_range(
+        {record.week for record in records if record.week and record.plant_series_id in displayed_series_ids}
+    )
 
     aphid_by_series = defaultdict(dict)
     aux_by_series = defaultdict(dict)
@@ -370,10 +478,14 @@ def _technician_dashboard_context(request):
     for action in actions:
         action_cards.append(
             {
+                'series_id': action.plant_series_id,
                 'week': action.action_date.isocalendar().week,
                 'date': action.action_date.strftime('%d/%m/%Y'),
                 'icon_symbol': action.action_type.chart_icon_symbol,
                 'color': color_by_series_id.get(action.plant_series_id, _chart_color_for_action_type(action.action_type)),
+                'series_color': color_by_series_id.get(action.plant_series_id, _chart_color_for_action_type(action.action_type)),
+                'action_color': _chart_color_for_action_type(action.action_type),
+                'chart_point_style': action.action_type.resolved_chart_icon,
                 'type_name': action.action_type.name,
                 'scope': action.get_scope_display(),
                 'details': _serialize_action_details(action),
@@ -383,6 +495,7 @@ def _technician_dashboard_context(request):
         )
 
     displayed_records = [record for record in records if record.plant_series_id in displayed_series_ids]
+    other_pest_datasets = _other_pest_chart_datasets(displayed_records, weeks)
     latest_weeks = sorted({record.week for record in displayed_records if record.week}, reverse=True)
     latest_week = latest_weeks[0] if latest_weeks else None
 
@@ -402,6 +515,7 @@ def _technician_dashboard_context(request):
         'chart_labels': [f'S{week}' for week in weeks],
         'aphid_datasets': aphid_datasets,
         'aux_datasets': aux_datasets,
+        'other_pest_datasets': other_pest_datasets,
         'action_cards': action_cards,
         'record_count': len(displayed_records),
         'series_count': len(variety_filtered_series),

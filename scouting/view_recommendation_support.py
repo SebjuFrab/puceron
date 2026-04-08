@@ -25,13 +25,14 @@ def _build_initial_leaf_state(record):
     data = {
         'aphids': {},
         'auxData': {},
+        'pestData': {},
         'plantSpecies': {},
         'plantSpeciesTouched': {},
         'primaryAphidSpecies': str(record.primary_aphid_species_id or ''),
     }
     leaves = (
         record.leaf_observations.all()
-        .prefetch_related('auxiliary_observations__taxon')
+        .prefetch_related('auxiliary_observations__taxon', 'other_pest_observations__taxon')
         .order_by('plant_number', 'leaf_index')
     )
     for leaf in leaves:
@@ -46,6 +47,7 @@ def _build_initial_leaf_state(record):
             data['plantSpeciesTouched'][plant_key] = True
         leaf_key = f'{leaf.plant_number}-{pos}'
         data['auxData'][leaf_key] = {}
+        data['pestData'][leaf_key] = {}
         for aux in leaf.auxiliary_observations.all():
             if aux.count <= 0:
                 continue
@@ -54,6 +56,12 @@ def _build_initial_leaf_state(record):
                 'taxonId': taxon_id,
                 'name': aux.taxon.name,
                 'count': aux.count,
+            }
+        for pest in leaf.other_pest_observations.all():
+            taxon_id = str(pest.taxon_id)
+            data['pestData'][leaf_key][taxon_id] = {
+                'taxonId': taxon_id,
+                'name': pest.taxon.name,
             }
     return data
 

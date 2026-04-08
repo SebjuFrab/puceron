@@ -180,10 +180,23 @@
     outline: 0;
     box-shadow: 0 0 0 3px rgba(220,53,69,0.18);
   }
-  .leaf-actions { display: flex; gap: 10px; }
-  .btn-leaf { min-width: 140px; min-height: 54px; border-radius: 16px; font-weight: 800; font-size: 1.35rem; }
+  .leaf-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .btn-leaf {
+    min-width: 0;
+    width: 100%;
+    min-height: 54px;
+    border-radius: 16px;
+    font-weight: 800;
+    font-size: 1rem;
+    padding: 0.75rem 0.35rem;
+  }
   .aphid-on { background: #00c2ff; color: #002a33; border-color: #00c2ff; }
   .aux-on { background: #ff7b00; color: #fff; border-color: #ff7b00; }
+  .pest-on { background: #ff4d6d; color: #fff; border-color: #ff4d6d; }
   .aphid-toggle:not(.aphid-on),
   .aphid-toggle:not(.aphid-on):hover,
   .aphid-toggle:not(.aphid-on):focus,
@@ -204,7 +217,11 @@
   }
   .plant-nav { position: sticky; bottom: 8px; background: rgba(248,249,250,0.96); border: 1px solid #e5e5e5; border-radius: 12px; padding: 10px; }
   .aux-summary { display: flex; gap: 6px; flex-wrap: wrap; }
+  .aux-summary.is-empty { display: none; }
   .aux-chip { border: 1px solid #fd7e14; background: #fff7ef; color: #a04a00; border-radius: 999px; padding: 2px 10px; font-size: 0.85rem; }
+  .pest-summary { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .pest-summary.is-empty { display: none; }
+  .pest-chip { border: 1px solid #ff8aa1; background: #fff3f6; color: #b42344; border-radius: 999px; padding: 2px 10px; font-size: 0.85rem; }
   input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; }
   .taxon-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .taxon-item {
@@ -231,6 +248,8 @@
   .taxon-label-on-photo { position: absolute; left: 4px; right: 4px; bottom: 4px; background: rgba(0,0,0,0.62); color: #fff; border-radius: 6px; padding: 2px 4px; font-size: 0.62rem; line-height: 1.05; text-align: center; font-weight: 700; }
   #auxModal .modal-dialog { max-width: min(96vw, 560px); margin: 0.5rem auto; }
   #auxModal .modal-body { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+  #pestModal .modal-dialog { max-width: min(96vw, 680px); margin: 0.5rem auto; }
+  #pestModal .modal-body { padding-top: 0.75rem; padding-bottom: 0.75rem; }
   .taxon-count-badge {
     position: absolute;
     top: 10px;
@@ -274,6 +293,25 @@
     color: #6b7280;
     margin-bottom: 0.6rem;
   }
+  .pest-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .pest-item {
+    border: 1px solid #ead0d5;
+    border-radius: 14px;
+    background: #fff;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 128px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .pest-item.selected {
+    border-color: #ff4d6d;
+    box-shadow: 0 0 0 2px rgba(255,77,109,0.18) inset;
+    background: #fff5f7;
+  }
+  .pest-item:focus { outline: 0; box-shadow: 0 0 0 3px rgba(255,77,109,0.18); }
   .aux-quick-editor {
     border: 1px solid #ffd8bf;
     border-radius: 12px;
@@ -319,6 +357,10 @@
     }
     .plant-progress-total {
       font-size: 1.05rem;
+    }
+    .btn-leaf {
+      font-size: 0.94rem;
+      min-height: 50px;
     }
   }
 </style>
@@ -388,7 +430,7 @@
           <span class="plant-step-header-label">Plant</span>
           <span class="plant-step-header-number">{{ plant }}</span>
         </div>
-        <div class="mb-2 small text-muted">Cliquez sur <b>puceron</b> si présence, puis sur <b>auxiliaire</b> pour ajouter un auxiliaire.</div>
+        <div class="mb-2 small text-muted">Cliquez sur <b>puceron</b> si présence, puis sur <b>auxiliaire</b> ou <b>ravageur</b> pour compléter la feuille.</div>
         <div class="plant-species-box is-hidden">
           <div class="plant-species-label mb-1">Espèce principale du plant</div>
           <div class="plant-species-help mb-2">Le choix sera repris par défaut sur les plants suivants tant qu’il n’est pas modifié.</div>
@@ -412,9 +454,12 @@
             <button type="button" class="btn btn-outline-info btn-leaf aphid-toggle" data-plant="{{ plant }}" data-pos="{{ pos }}">puceron</button>
             <input type="checkbox" class="d-none aphid-input" name="p{{ plant }}_{{ pos }}_aphid" id="p{{ plant }}_{{ pos }}_aphid">
             <button type="button" class="btn btn-outline-warning btn-leaf aux-open" data-plant="{{ plant }}" data-pos="{{ pos }}" {% if not auxiliary_taxa %}disabled{% endif %}>auxiliaire</button>
+            <button type="button" class="btn btn-outline-danger btn-leaf pest-open" data-plant="{{ plant }}" data-pos="{{ pos }}" {% if not other_pest_taxa %}disabled{% endif %}>ravageur</button>
           </div>
-          <div class="aux-summary small text-muted">Aucun auxiliaire saisi.</div>
+          <div class="aux-summary small text-muted is-empty"></div>
+          <div class="pest-summary small text-muted is-empty"></div>
           <div class="aux-hidden"></div>
+          <div class="pest-hidden"></div>
         </div>
         {% endfor %}
 
@@ -524,6 +569,47 @@
     </div>
   </div>
 </div>
+<div class="modal fade" id="pestModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Saisir les autres ravageurs</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="pestPlant">
+        <input type="hidden" id="pestPos">
+        <div class="taxon-help">Sélectionnez toutes les espèces observées sur cette feuille. Pas de notion d'abondance.</div>
+        <div class="mb-2">
+          <div id="pestGrid" class="pest-grid">
+            {% for taxon in other_pest_taxa %}
+              <div
+                role="button"
+                tabindex="0"
+                class="pest-item"
+                data-id="{{ taxon.id }}"
+                data-name="{{ taxon.name }}"
+              >
+                <span class="species-photo-wrap">
+                  {% if taxon.photo %}
+                    <img class="species-photo" src="{{ taxon.photo.url }}" alt="{{ taxon.name }}">
+                  {% else %}
+                    <span class="taxon-fallback">{{ taxon.name|slice:":1"|upper }}</span>
+                  {% endif %}
+                </span>
+                <span class="species-label">{{ taxon.name }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-danger btn-sm" id="resetPestBtn">Réinitialiser</button>
+        <button type="button" class="btn btn-danger" id="savePestBtn">Valider</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="modal fade" id="aphidSpeciesModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
@@ -571,6 +657,7 @@
 {{ aphid_species_options|json_script:"aphid-species-json" }}
 <script>
 const auxData = {};
+const pestData = {};
 const plantSpeciesTouched = {};
 let currentPlant = 1;
 let showAllPlants = false;
@@ -584,6 +671,7 @@ let primarySpeciesChosenManually = false;
 let lastObservedSpeciesSignature = '';
 let pendingDraft = null;
 let auxModalState = {};
+let pestModalState = {};
 let auxQuickTaxonId = '';
 let auxPressTimer = null;
 let auxLongPressTriggered = false;
@@ -597,13 +685,18 @@ const defaultAphidSpeciesLabel = "{{ default_aphid_species_label|escapejs }}";
 const aphidSpeciesData = JSON.parse(document.getElementById('aphid-species-json')?.textContent || '[]');
 const aphidSpeciesMap = Object.fromEntries(aphidSpeciesData.map(item => [String(item.id), item]));
 const auxModal = new bootstrap.Modal(document.getElementById('auxModal'));
+const pestModal = new bootstrap.Modal(document.getElementById('pestModal'));
 const aphidSpeciesModalElement = document.getElementById('aphidSpeciesModal');
 const aphidSpeciesModal = aphidSpeciesModalElement ? new bootstrap.Modal(aphidSpeciesModalElement) : null;
 const dateInput = document.getElementById('id_scouting_date');
 const taxonButtons = [...document.querySelectorAll('.taxon-item')];
 const taxonButtonMap = Object.fromEntries(taxonButtons.map(btn => [String(btn.dataset.id), btn]));
+const pestButtons = [...document.querySelectorAll('.pest-item')];
+const pestButtonMap = Object.fromEntries(pestButtons.map(btn => [String(btn.dataset.id), btn]));
 const saveAuxBtn = document.getElementById('saveAuxBtn');
 const resetAuxBtn = document.getElementById('resetAuxBtn');
+const savePestBtn = document.getElementById('savePestBtn');
+const resetPestBtn = document.getElementById('resetPestBtn');
 const auxQuickEditor = document.getElementById('auxQuickEditor');
 const auxQuickEditorLabel = document.getElementById('auxQuickEditorLabel');
 const auxQuickCountInput = document.getElementById('auxQuickCount');
@@ -717,6 +810,35 @@ function applyQuickAuxEditor() {
   setAuxStateCount(auxQuickTaxonId, auxQuickCountInput.value || '0');
   renderAuxModalState();
   closeQuickAuxEditor();
+}
+function clonePestLeafState(source = {}) {
+  const cloned = {};
+  Object.entries(source).forEach(([taxonId, item]) => {
+    cloned[String(taxonId)] = {
+      taxonId: String(item?.taxonId || taxonId),
+      name: item?.name || (pestButtonMap[String(taxonId)]?.dataset.name || ''),
+    };
+  });
+  return cloned;
+}
+function isPestStatePresent(taxonId) {
+  return !!pestModalState[String(taxonId)];
+}
+function setPestStatePresent(taxonId, present) {
+  const key = String(taxonId);
+  if (!present) {
+    delete pestModalState[key];
+    return;
+  }
+  pestModalState[key] = {
+    taxonId: key,
+    name: pestButtonMap[key]?.dataset.name || '',
+  };
+}
+function renderPestModalState() {
+  pestButtons.forEach(btn => {
+    btn.classList.toggle('selected', isPestStatePresent(btn.dataset.id));
+  });
 }
 function getPlantSpeciesInput(plant) {
   return document.getElementById(`plant_${plant}_aphid_species`);
@@ -964,6 +1086,7 @@ function collectDraftData() {
     comment: document.getElementById('id_comment')?.value || '',
     aphids,
     auxData: JSON.parse(JSON.stringify(auxData)),
+    pestData: JSON.parse(JSON.stringify(pestData)),
     plantSpecies,
     plantSpeciesTouched: touched,
   };
@@ -1024,8 +1147,11 @@ function applyDraftData(draft, options = {}) {
     setPlantSpecies(plant, draftPlantSpecies[plantKey] || '', { markTouched: false });
   }
   const restoredAux = draft.auxData || {};
+  const restoredPests = draft.pestData || {};
   Object.keys(auxData).forEach(key => delete auxData[key]);
+  Object.keys(pestData).forEach(key => delete pestData[key]);
   Object.entries(restoredAux).forEach(([key, val]) => { auxData[key] = val; });
+  Object.entries(restoredPests).forEach(([key, val]) => { pestData[key] = val; });
   document.querySelectorAll('.leaf-row').forEach(row => {
     const leafKeyValue = row.dataset.leafKey;
     const parts = leafKeyValue.split('-');
@@ -1065,16 +1191,21 @@ function loadStoredDraft() {
 function renderLeaf(plant, pos) {
   const key = leafKey(plant, pos);
   const data = auxData[key] || {};
+  const pestEntries = Object.values(pestData[key] || {});
   const leafNode = document.querySelector(`.leaf-row[data-leaf-key="${key}"]`);
   if (!leafNode) return;
   const summary = leafNode.querySelector('.aux-summary');
+  const pestSummary = leafNode.querySelector('.pest-summary');
   const hidden = leafNode.querySelector('.aux-hidden');
+  const pestHidden = leafNode.querySelector('.pest-hidden');
   const entries = Object.values(data).filter(item => item.count > 0);
   if (entries.length === 0) {
-    summary.textContent = 'Aucun auxiliaire saisi.';
+    summary.innerHTML = '';
+    summary.classList.add('is-empty');
     leafNode.querySelector('.aux-open').classList.remove('aux-on');
   } else {
     summary.innerHTML = '';
+    summary.classList.remove('is-empty');
     entries.forEach(item => {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -1087,13 +1218,39 @@ function renderLeaf(plant, pos) {
     });
     leafNode.querySelector('.aux-open').classList.add('aux-on');
   }
+  if (pestEntries.length === 0) {
+    pestSummary.innerHTML = '';
+    pestSummary.classList.add('is-empty');
+    leafNode.querySelector('.pest-open').classList.remove('pest-on');
+  } else {
+    pestSummary.innerHTML = '';
+    pestSummary.classList.remove('is-empty');
+    pestEntries.forEach(item => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pest-chip';
+      btn.textContent = item.name;
+      btn.dataset.plant = String(plant);
+      btn.dataset.pos = pos;
+      pestSummary.appendChild(btn);
+    });
+    leafNode.querySelector('.pest-open').classList.add('pest-on');
+  }
   hidden.innerHTML = '';
+  pestHidden.innerHTML = '';
   entries.forEach(item => {
     const input = document.createElement('input');
     input.type = 'hidden';
     input.name = `aux_${plant}_${pos}_${item.taxonId}`;
     input.value = item.count;
     hidden.appendChild(input);
+  });
+  pestEntries.forEach(item => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = `pest_${plant}_${pos}_${item.taxonId}`;
+    input.value = '1';
+    pestHidden.appendChild(input);
   });
 }
 
@@ -1116,6 +1273,24 @@ function openAuxModal(plant, pos) {
   renderAuxModalState();
   document.querySelector('#auxModal .modal-title').textContent = `Auxiliaires - feuille ${pos}`;
   auxModal.show();
+}
+function commitPestModalState() {
+  const plant = document.getElementById('pestPlant').value;
+  const pos = document.getElementById('pestPos').value;
+  if (!plant || !pos) return;
+  const key = leafKey(plant, pos);
+  pestData[key] = clonePestLeafState(pestModalState);
+  renderLeaf(plant, pos);
+  markDirty();
+  saveDraftDebounced();
+}
+function openPestModal(plant, pos) {
+  document.getElementById('pestPlant').value = plant;
+  document.getElementById('pestPos').value = pos;
+  pestModalState = clonePestLeafState(pestData[leafKey(plant, pos)] || {});
+  renderPestModalState();
+  document.querySelector('#pestModal .modal-title').textContent = `Autres ravageurs - feuille ${pos}`;
+  pestModal.show();
 }
 
 document.querySelectorAll('.aphid-toggle').forEach(btn => btn.addEventListener('click', () => {
@@ -1164,6 +1339,11 @@ document.querySelectorAll('.aux-summary').forEach(node => node.addEventListener(
   const chip = e.target.closest('.aux-chip');
   if (chip) openAuxModal(chip.dataset.plant, chip.dataset.pos);
 }));
+document.querySelectorAll('.pest-open').forEach(btn => btn.addEventListener('click', () => openPestModal(btn.dataset.plant, btn.dataset.pos)));
+document.querySelectorAll('.pest-summary').forEach(node => node.addEventListener('click', e => {
+  const chip = e.target.closest('.pest-chip');
+  if (chip) openPestModal(chip.dataset.plant, chip.dataset.pos);
+}));
 
 saveAuxBtn.addEventListener('click', () => {
   commitAuxModalState();
@@ -1175,6 +1355,28 @@ resetAuxBtn?.addEventListener('click', () => {
   auxModalState = {};
   closeQuickAuxEditor();
   renderAuxModalState();
+});
+pestButtons.forEach(btn => {
+  const toggle = () => {
+    const taxonId = String(btn.dataset.id);
+    setPestStatePresent(taxonId, !isPestStatePresent(taxonId));
+    renderPestModalState();
+  };
+  btn.addEventListener('click', toggle);
+  btn.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggle();
+    }
+  });
+});
+savePestBtn?.addEventListener('click', () => {
+  commitPestModalState();
+  pestModal.hide();
+});
+resetPestBtn?.addEventListener('click', () => {
+  pestModalState = {};
+  renderPestModalState();
 });
 
 taxonButtons.forEach(btn => {
@@ -1242,6 +1444,10 @@ document.getElementById('auxModal')?.addEventListener('hidden.bs.modal', () => {
   commitAuxModalState();
   auxModalState = {};
   closeQuickAuxEditor();
+});
+document.getElementById('pestModal')?.addEventListener('hidden.bs.modal', () => {
+  commitPestModalState();
+  pestModalState = {};
 });
 
 document.querySelectorAll('.next-plant').forEach(btn => btn.addEventListener('click', () => {

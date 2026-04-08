@@ -5,7 +5,9 @@ from .models import (
     ConductType,
     Crop,
     LeafAuxiliaryObservation,
+    LeafOtherPestObservation,
     LeafObservation,
+    OtherPestTaxon,
     PlantSeries,
     ScoutingRecord,
     UserProfile,
@@ -21,12 +23,21 @@ class LeafAuxiliaryObservationSerializer(serializers.ModelSerializer):
         fields = ['id', 'taxon', 'taxon_name', 'count']
 
 
+class LeafOtherPestObservationSerializer(serializers.ModelSerializer):
+    taxon_name = serializers.CharField(source='taxon.name', read_only=True)
+
+    class Meta:
+        model = LeafOtherPestObservation
+        fields = ['id', 'taxon', 'taxon_name']
+
+
 class LeafObservationSerializer(serializers.ModelSerializer):
     auxiliary_observations = LeafAuxiliaryObservationSerializer(many=True, required=False)
+    other_pest_observations = LeafOtherPestObservationSerializer(many=True, required=False)
 
     class Meta:
         model = LeafObservation
-        fields = ['id', 'plant_number', 'leaf_position', 'aphid_present', 'auxiliary_observations']
+        fields = ['id', 'plant_number', 'leaf_position', 'aphid_present', 'auxiliary_observations', 'other_pest_observations']
 
 
 class ScoutingRecordSerializer(serializers.ModelSerializer):
@@ -123,9 +134,12 @@ class ScoutingRecordSerializer(serializers.ModelSerializer):
     def _save_leaves(self, record, leaves_data):
         for leaf_data in leaves_data:
             aux_data = leaf_data.pop('auxiliary_observations', [])
+            pest_data = leaf_data.pop('other_pest_observations', [])
             leaf = LeafObservation.objects.create(record=record, **leaf_data)
             for aux in aux_data:
                 LeafAuxiliaryObservation.objects.create(leaf_observation=leaf, **aux)
+            for pest in pest_data:
+                LeafOtherPestObservation.objects.create(leaf_observation=leaf, **pest)
 
     def validate(self, attrs):
         request = self.context['request']
@@ -149,6 +163,12 @@ class ScoutingRecordSerializer(serializers.ModelSerializer):
 class AuxiliaryTaxonSerializer(serializers.ModelSerializer):
     class Meta:
         model = AuxiliaryTaxon
+        fields = ['id', 'code', 'name', 'display_order', 'is_active', 'photo']
+
+
+class OtherPestTaxonSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OtherPestTaxon
         fields = ['id', 'code', 'name', 'display_order', 'is_active', 'photo']
 
 

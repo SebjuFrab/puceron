@@ -695,6 +695,22 @@ class AphidSpecies(models.Model):
         return self.vernacular_name
 
 
+class OtherPestTaxon(models.Model):
+    code = models.SlugField(max_length=50, unique=True, verbose_name='Code')
+    name = models.CharField(max_length=140, verbose_name='Nom')
+    photo = models.ImageField(upload_to='other_pest_taxa/', blank=True, verbose_name='Photo')
+    display_order = models.PositiveSmallIntegerField(default=1, verbose_name="Ordre d'affichage")
+    is_active = models.BooleanField(default=True, verbose_name='Actif')
+
+    class Meta:
+        ordering = ['display_order', 'name']
+        verbose_name = 'Autre ravageur'
+        verbose_name_plural = 'Autres ravageurs'
+
+    def __str__(self):
+        return self.name
+
+
 class ActionType(models.Model):
     name = models.CharField(max_length=120, unique=True, verbose_name='Nom')
     category = models.CharField(max_length=20, choices=ACTION_CATEGORY_CHOICES, default='manual', verbose_name='Categorie')
@@ -1243,3 +1259,31 @@ class LeafAuxiliaryObservation(models.Model):
 
     def __str__(self):
         return f'{self.taxon.name}: {self.count}'
+
+
+class LeafOtherPestObservation(models.Model):
+    leaf_observation = models.ForeignKey(
+        LeafObservation,
+        on_delete=models.CASCADE,
+        related_name='other_pest_observations',
+        verbose_name='Observation de feuille',
+    )
+    taxon = models.ForeignKey(
+        OtherPestTaxon,
+        on_delete=models.CASCADE,
+        related_name='leaf_observations',
+        verbose_name='Autre ravageur',
+    )
+
+    class Meta:
+        verbose_name = "Observation d'autre ravageur"
+        verbose_name_plural = "Observations d'autres ravageurs"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['leaf_observation', 'taxon'],
+                name='unique_other_pest_per_leaf_and_taxon',
+            )
+        ]
+
+    def __str__(self):
+        return self.taxon.name
