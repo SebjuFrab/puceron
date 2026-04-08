@@ -16,6 +16,7 @@ from .views_public import (
 from .views_records import (
     action_create_view,
     action_delete_view,
+    action_update_view,
     my_profile_view,
     my_recommendations_view,
     my_records_view,
@@ -38,6 +39,7 @@ from .views_technician import (
 __all__ = [
     'action_create_view',
     'action_delete_view',
+    'action_update_view',
     'dashboard_view',
     'export_actions_view',
     'export_records_view',

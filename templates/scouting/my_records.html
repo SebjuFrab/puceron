@@ -299,6 +299,7 @@
     </div>
 
     <div class="action-card__actions d-flex gap-2">
+      <a class="btn btn-outline-primary btn-sm" href="{% url 'action_update' action.pk %}?next={{ request.get_full_path|urlencode }}">Modifier</a>
       <form method="post" action="{% url 'action_delete' action.pk %}" class="d-flex flex-fill js-confirm-form" data-confirm-title="Supprimer l'action" data-confirm-body="Supprimer cette action ?">
         {% csrf_token %}
         <button type="submit" class="btn btn-outline-danger btn-sm w-100">Supprimer</button>
@@ -342,7 +343,8 @@
         <td>{{ action.molecule.name|default:'-' }}</td>
         <td>{{ action.auxiliary_taxon.name|default:'-' }}</td>
         <td>{{ action.notes|default:'-' }}</td>
-        <td>
+        <td class="d-flex gap-1 flex-wrap">
+          <a class="btn btn-outline-primary btn-sm" href="{% url 'action_update' action.pk %}?next={{ request.get_full_path|urlencode }}">Modifier</a>
           <form method="post" action="{% url 'action_delete' action.pk %}" class="d-inline js-confirm-form" data-confirm-title="Supprimer l'action" data-confirm-body="Supprimer cette action ?">
             {% csrf_token %}
             <button type="submit" class="btn btn-outline-danger btn-sm">Supprimer</button>

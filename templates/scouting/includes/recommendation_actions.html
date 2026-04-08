@@ -1,14 +1,14 @@
-<div class="d-flex gap-2 flex-wrap mt-2">
+<div class="d-flex gap-2 flex-wrap mt-2 recommendation-actions">
   {% for lever in recommendation.levers %}
     <a
-      class="btn btn-sm btn-success"
+      class="btn btn-sm btn-success flex-fill"
       href="{% url 'action_create' %}?plant_series={{ plant_series_id }}&lever={{ lever.id }}&recommendation_record={{ record.id }}"
     >
       {{ lever.title }}
     </a>
   {% endfor %}
   <button
-    class="btn btn-sm btn-outline-danger"
+    class="btn btn-sm btn-outline-danger flex-fill"
     type="button"
     data-bs-toggle="collapse"
     data-bs-target="#dismissRecommendation{{ record.id }}"
@@ -39,14 +39,14 @@
         name="dismiss_note"
         class="form-control form-control-sm js-dismiss-note d-none"
         rows="2"
-        placeholder="Precisez si besoin"
+        placeholder="Précisez si besoin"
       ></textarea>
     </div>
-    <div class="d-flex gap-2">
-      <button type="submit" class="btn btn-sm btn-outline-danger">Confirmer</button>
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="submit" class="btn btn-sm btn-outline-danger flex-fill">Confirmer</button>
       <button
         type="button"
-        class="btn btn-sm btn-outline-secondary"
+        class="btn btn-sm btn-outline-secondary flex-fill"
         data-bs-toggle="collapse"
         data-bs-target="#dismissRecommendation{{ record.id }}"
         aria-expanded="false"

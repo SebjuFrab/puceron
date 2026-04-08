@@ -344,10 +344,23 @@
   } catch (e) {}
 })();
 
+const isLocalDevHost = ['127.0.0.1', 'localhost'].includes(window.location.hostname);
+
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register("{% url 'service_worker' %}").catch(function() {});
-  });
+  if (isLocalDevHost) {
+    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+      registrations.forEach(function(registration) { registration.unregister(); });
+    }).catch(function() {});
+    if ('caches' in window) {
+      caches.keys().then(function(keys) {
+        keys.forEach(function(key) { caches.delete(key); });
+      }).catch(function() {});
+    }
+  } else {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register("{% url 'service_worker' %}").catch(function() {});
+    });
+  }
 }
 
 function syncDismissNoteVisibility(selectEl) {

@@ -1,13 +1,218 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 {% block content %}
+<style>
+  .series-card {
+    border: 1px solid #d8e9df;
+    border-radius: 1rem;
+    box-shadow: 0 0.35rem 1rem rgba(20, 80, 52, 0.08);
+  }
+  .series-card__media {
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: 0.9rem;
+    border: 1px solid #d4d4d4;
+    background: #fff;
+  }
+  .series-card__stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .series-card__stat {
+    border-radius: 0.85rem;
+    background: #f7fbf8;
+    padding: 0.65rem 0.8rem;
+  }
+  .series-card__label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #5b6f67;
+    margin-bottom: 0.2rem;
+  }
+  .series-card__value {
+    display: block;
+    color: #163f2d;
+    font-weight: 600;
+    word-break: break-word;
+  }
+  .series-card__actions .btn,
+  .series-form-actions .btn {
+    flex: 1 1 0;
+  }
+  .series-reco-box {
+    border-radius: 0.95rem;
+    background: #fcfefc;
+    border: 1px solid #d8e9df;
+    padding: 0.85rem;
+  }
+  @media (min-width: 768px) {
+    .series-form-actions .btn {
+      flex: 0 0 auto;
+    }
+  }
+</style>
+
 <div class="row g-3">
   <div class="col-12">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h2 class="h6">Séries existantes</h2>
-        <div class="table-responsive">
+        <h2 class="h6 mb-3">Séries existantes</h2>
+
+        <div class="d-lg-none">
+          {% for s in series_list %}
+          <article class="series-card bg-white p-3 mb-3">
+            <div class="d-flex gap-3 align-items-start mb-3">
+              {% if s.photo %}
+                <img src="{{ s.photo.url }}" alt="{{ s.name }}" class="series-card__media">
+              {% else %}
+                <div class="series-card__media d-flex align-items-center justify-content-center text-muted">-</div>
+              {% endif %}
+              <div class="flex-grow-1">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                  <div>
+                    <h3 class="h6 mb-1"><a class="text-decoration-none" href="{% url 'my_series' %}?edit={{ s.id }}">{{ s.name }}</a></h3>
+                    <div class="small text-muted">{{ s.crop.name }} | {{ s.conduct_type.name }} | {{ s.variety.name }}</div>
+                    {% if s.greenhouse %}
+                    <div class="small text-muted mt-1">Serre : {{ s.greenhouse }}</div>
+                    {% endif %}
+                  </div>
+                  {% if s.is_active %}
+                    <span class="badge text-bg-success">Active</span>
+                  {% else %}
+                    <span class="badge text-bg-secondary">Archivée</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <div class="series-card__stats mb-3">
+              <div class="series-card__stat">
+                <span class="series-card__label">Année</span>
+                <span class="series-card__value">{{ s.year }}</span>
+              </div>
+              <div class="series-card__stat">
+                <span class="series-card__label">Sem. plantation</span>
+                <span class="series-card__value">{% if s.planting_week %}S{{ s.planting_week }}{% else %}-{% endif %}</span>
+              </div>
+              <div class="series-card__stat">
+                <span class="series-card__label">Mode</span>
+                <span class="series-card__value">{{ s.get_organic_mode_display }}</span>
+              </div>
+              <div class="series-card__stat">
+                <span class="series-card__label">Plants / feuilles</span>
+                <span class="series-card__value">{{ s.plants_count }} / {{ s.leaves_per_plant }}</span>
+              </div>
+            </div>
+
+            <div class="series-reco-box mb-3">
+              <div class="small text-uppercase text-muted fw-semibold mb-2">Dernière préconisation</div>
+              {% if s.latest_recommendation %}
+                {% if s.latest_recommendation.rule %}
+                  <div class="fw-semibold mb-1">{{ s.latest_recommendation.rule.title }}</div>
+                  <div class="small text-muted mb-2">{{ s.latest_recommendation.rule.description }}</div>
+                  <div class="small text-uppercase text-muted fw-semibold mb-2">Scores obtenus</div>
+                  {% include 'scouting/includes/recommendation_scores.html' with indicators=s.latest_recommendation.indicators wrapper_class='d-flex gap-1 flex-wrap mb-2' chip_class='badge rounded-pill text-bg-light border' %}
+                  {% if s.latest_recommendation.is_open and s.latest_recommendation.levers %}
+                    <div class="d-flex gap-1 flex-wrap">
+                      {% for lever in s.latest_recommendation.levers %}
+                        <a class="btn btn-sm btn-outline-success" href="{% url 'action_create' %}?plant_series={{ s.id }}&lever={{ lever.id }}&recommendation_record={{ s.latest_record.id }}">{{ lever.title }}</a>
+                      {% endfor %}
+                    </div>
+                  {% elif s.latest_recommendation.response %}
+                    <div class="small {% if s.latest_recommendation.response.status == 'dismissed' %}text-secondary{% else %}text-success{% endif %}">
+                      {{ s.latest_recommendation.response.get_status_display }}
+                      {% if s.latest_recommendation.response.dismiss_reason %}
+                        : {{ s.latest_recommendation.response.dismiss_reason.label }}
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                {% else %}
+                  <div class="small text-uppercase text-muted fw-semibold mb-2">Scores obtenus</div>
+                  {% include 'scouting/includes/recommendation_scores.html' with indicators=s.latest_recommendation.indicators wrapper_class='d-flex gap-1 flex-wrap mb-2' chip_class='badge rounded-pill text-bg-light border' %}
+                  <div class="small text-warning">{{ s.latest_recommendation.message }}</div>
+                {% endif %}
+              {% else %}
+                <div class="small text-muted">Aucun comptage pour cette série.</div>
+              {% endif %}
+            </div>
+
+            <div class="series-card__actions d-flex gap-2 flex-wrap">
+              <a class="btn btn-outline-primary btn-sm" href="{% url 'my_series' %}?edit={{ s.id }}">Modifier</a>
+              {% if s.is_active %}
+                <form
+                  method="post"
+                  class="d-flex flex-fill js-app-confirm"
+                  data-confirm-title="Archiver la série"
+                  data-confirm-subtitle="La série restera dans l’historique mais sortira du suivi actif."
+                  data-confirm-message="Archiver cette série ?"
+                  data-confirm-confirm-label="Archiver"
+                  data-confirm-confirm-class="btn-warning"
+                >
+                  {% csrf_token %}
+                  <input type="hidden" name="action_kind" value="archive">
+                  <input type="hidden" name="action_series_id" value="{{ s.id }}">
+                  <button class="btn btn-outline-warning btn-sm w-100" type="submit">Archiver</button>
+                </form>
+              {% else %}
+                <form
+                  method="post"
+                  class="d-flex flex-fill js-app-confirm"
+                  data-confirm-title="Réactiver la série"
+                  data-confirm-subtitle="La série redeviendra disponible dans les listes actives."
+                  data-confirm-message="Réactiver cette série ?"
+                  data-confirm-confirm-label="Réactiver"
+                  data-confirm-confirm-class="btn-success"
+                >
+                  {% csrf_token %}
+                  <input type="hidden" name="action_kind" value="reactivate">
+                  <input type="hidden" name="action_series_id" value="{{ s.id }}">
+                  <button class="btn btn-outline-success btn-sm w-100" type="submit">Réactiver</button>
+                </form>
+              {% endif %}
+              <form
+                method="post"
+                class="d-flex flex-fill js-app-confirm"
+                data-confirm-title="Supprimer la série"
+                data-confirm-subtitle="Cette action est définitive."
+                data-confirm-message="Supprimer cette série ?"
+                data-confirm-confirm-label="Supprimer"
+                data-confirm-confirm-class="btn-danger"
+              >
+                {% csrf_token %}
+                <input type="hidden" name="action_kind" value="delete">
+                <input type="hidden" name="action_series_id" value="{{ s.id }}">
+                <button class="btn btn-outline-danger btn-sm w-100" type="submit">Supprimer</button>
+              </form>
+            </div>
+          </article>
+          {% empty %}
+          <div class="alert alert-light border">Aucune série.</div>
+          {% endfor %}
+        </div>
+
+        <div class="table-responsive d-none d-lg-block">
           <table class="table table-sm align-middle">
-            <thead><tr><th>Photo</th><th>Nom</th><th>Serre</th><th>Année</th><th>Sem. plantation</th><th>Culture</th><th>Conduite</th><th>Mode</th><th>Variété</th><th>Plants</th><th>Feuilles</th><th>Dernière préconisation</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Photo</th>
+                <th>Nom</th>
+                <th>Serre</th>
+                <th>Année</th>
+                <th>Sem. plantation</th>
+                <th>Culture</th>
+                <th>Conduite</th>
+                <th>Mode</th>
+                <th>Variété</th>
+                <th>Plants</th>
+                <th>Feuilles</th>
+                <th>Dernière préconisation</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
             <tbody>
               {% for s in series_list %}
               <tr>
@@ -142,7 +347,7 @@
           <div class="col-6"><label class="form-label">Nb feuilles/plant</label>{{ form.leaves_per_plant }}</div>
           <div class="col-12 form-check mt-2">{{ form.is_active }} <label class="form-check-label">Série active</label></div>
           <div class="col-12 text-danger small">{{ form.errors }}</div>
-          <div class="col-12 d-flex gap-2">
+          <div class="col-12 d-flex flex-column flex-md-row gap-2 series-form-actions">
             <button class="btn btn-success" type="submit">{% if editing_instance %}Modifier ma série{% else %}Ajouter la série{% endif %}</button>
             <a class="btn btn-outline-secondary" href="{% url 'my_series' %}">Nouveau</a>
           </div>

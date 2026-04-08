@@ -72,7 +72,7 @@ def manifest_view(request):
 
 def service_worker_view(request):
     js = """
-const CACHE_NAME = 'puceron-v1';
+const CACHE_NAME = 'puceron-v2';
 const URLS = ['/', '/offline/', '/accounts/login/'];
 
 self.addEventListener('install', event => {

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% block title %}{% if form_mode == 'update' %}Modifier l'action{% else %}Saisie action{% endif %} | PUCERON{% endblock %}
 {% block content %}
 <style>
   .action-card { border-radius: 14px; border: 1px solid #d8e6de; }
@@ -17,7 +18,7 @@
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
       <div>
-        <h1 class="h4 mb-1">Saisie action préventive / curative</h1>
+        <h1 class="h4 mb-1">{% if form_mode == 'update' %}Modifier l'action préventive / curative{% else %}Saisie action préventive / curative{% endif %}</h1>
         <div class="text-muted small">
           <b>Série :</b> {{ selected_series.name }} |
           {{ selected_series.crop.name }} |
@@ -29,11 +30,12 @@
           <div class="text-muted small"><b>Saisie pour producteur :</b> {{ target_user.get_full_name|default:target_user.username }}</div>
         {% endif %}
       </div>
-      <span class="badge-step">Etape action</span>
+      <span class="badge-step">{% if form_mode == 'update' %}Modification{% else %}Étape action{% endif %}</span>
     </div>
 
     <form method="post" class="row g-2">
       {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next_url }}">
       {% if selected_lever %}
         <input type="hidden" name="decision_lever" value="{{ selected_lever.id }}">
       {% endif %}
@@ -83,8 +85,8 @@
       {% endif %}
 
       <div class="col-12 d-flex gap-2">
-        <a href="{% url 'record_create' %}?plant_series={{ selected_series.id }}" class="btn btn-outline-secondary">Retour</a>
-        <button type="submit" class="btn btn-success">Enregistrer l'action</button>
+        <a href="{{ next_url }}" class="btn btn-outline-secondary">Retour</a>
+        <button type="submit" class="btn btn-success">{% if form_mode == 'update' %}Modifier l'action{% else %}Enregistrer l'action{% endif %}</button>
       </div>
     </form>
   </div>

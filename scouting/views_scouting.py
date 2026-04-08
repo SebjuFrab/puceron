@@ -16,6 +16,7 @@ from .models import (
     DecisionLever,
     LeafAuxiliaryObservation,
     LeafObservation,
+    PlantAction,
     ScoutingRecord,
     UserProfile,
 )
@@ -36,6 +37,7 @@ from .view_recommendation_support import (
     _dismiss_reasons_queryset,
     _mark_recommendation_followed,
     _recommendation_record_queryset_for_user,
+    _sanitize_next_url,
 )
 
 
@@ -505,6 +507,84 @@ def action_create_view(request):
             'action_types': action_types,
             'selected_lever': selected_lever,
             'recommendation_record': recommendation_record,
+            'form_mode': 'create',
+            'next_url': reverse('record_create') + f'?plant_series={selected_series.id}',
+        },
+    )
+
+
+@login_required
+def action_update_view(request, action_id):
+    queryset = PlantAction.objects.select_related('plant_series', 'user', 'decision_lever')
+    manager_user = _manager_user(request)
+    manager_profile = _get_profile(manager_user)
+    effective_user = _effective_user(request)
+    acting_as_producer = _is_acting_as_producer(request)
+    editor_is_technician = (not acting_as_producer) and (manager_profile.role == UserProfile.ROLE_TECHNICIAN)
+
+    if manager_user.is_superuser and not acting_as_producer:
+        action = get_object_or_404(queryset, id=action_id)
+    elif editor_is_technician and not acting_as_producer:
+        action = get_object_or_404(queryset.filter(_technician_visibility_q(manager_user)), id=action_id)
+    else:
+        action = get_object_or_404(queryset, id=action_id, user=effective_user)
+
+    if not action.plant_series:
+        messages.error(request, 'Cette action ne peut pas être modifiée (série manquante).')
+        return redirect('my_records')
+
+    selected_series = action.plant_series
+    series_qs = _series_queryset_for_user(effective_user if acting_as_producer else manager_user)
+    next_url = _sanitize_next_url(
+        request.POST.get('next') if request.method == 'POST' else request.GET.get('next'),
+        reverse('my_records'),
+    )
+    selected_lever = action.decision_lever
+
+    if request.method == 'POST':
+        post_data = request.POST.copy()
+        post_data['plant_series'] = str(selected_series.id)
+        form = PlantActionForm(
+            post_data,
+            instance=action,
+            series_queryset=series_qs,
+            selected_series=selected_series,
+        )
+        if form.is_valid():
+            updated = form.save(commit=False)
+            owner_profile = _get_profile(selected_series.user)
+            updated.user = action.user
+            updated.entered_by = action.entered_by or request.user
+            updated.plant_series = selected_series
+            updated.department = owner_profile.department or _effective_profile(request).department or manager_profile.department
+            updated.crop_ref = selected_series.crop
+            updated.conduct_type_ref = selected_series.conduct_type
+            updated.variety_ref = selected_series.variety
+            updated.decision_lever = selected_lever
+            updated.save()
+            messages.success(request, 'Action modifiée.')
+            return redirect(next_url)
+    else:
+        form = PlantActionForm(
+            instance=action,
+            series_queryset=series_qs,
+            selected_series=selected_series,
+        )
+
+    action_types = list(ActionType.objects.filter(is_active=True).values('id', 'category'))
+    return render(
+        request,
+        'scouting/action_form.html',
+        {
+            'form': form,
+            'selected_series': selected_series,
+            'is_technician': editor_is_technician,
+            'target_user': selected_series.user,
+            'action_types': action_types,
+            'selected_lever': selected_lever,
+            'recommendation_record': None,
+            'form_mode': 'update',
+            'next_url': next_url,
         },
     )
 
