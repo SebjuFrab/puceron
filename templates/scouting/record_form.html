@@ -1097,6 +1097,17 @@ function renderLeaf(plant, pos) {
   });
 }
 
+function commitAuxModalState() {
+  const plant = document.getElementById('auxPlant').value;
+  const pos = document.getElementById('auxPos').value;
+  if (!plant || !pos) return;
+  const key = leafKey(plant, pos);
+  auxData[key] = cloneAuxLeafState(auxModalState);
+  renderLeaf(plant, pos);
+  markDirty();
+  saveDraftDebounced();
+}
+
 function openAuxModal(plant, pos) {
   document.getElementById('auxPlant').value = plant;
   document.getElementById('auxPos').value = pos;
@@ -1155,15 +1166,9 @@ document.querySelectorAll('.aux-summary').forEach(node => node.addEventListener(
 }));
 
 saveAuxBtn.addEventListener('click', () => {
-  const plant = document.getElementById('auxPlant').value;
-  const pos = document.getElementById('auxPos').value;
-  const key = leafKey(plant, pos);
-  auxData[key] = cloneAuxLeafState(auxModalState);
-  renderLeaf(plant, pos);
+  commitAuxModalState();
   closeQuickAuxEditor();
   auxModal.hide();
-  markDirty();
-  saveDraftDebounced();
 });
 
 resetAuxBtn?.addEventListener('click', () => {
@@ -1234,6 +1239,7 @@ auxQuickCountInput?.addEventListener('keydown', event => {
   }
 });
 document.getElementById('auxModal')?.addEventListener('hidden.bs.modal', () => {
+  commitAuxModalState();
   auxModalState = {};
   closeQuickAuxEditor();
 });
