@@ -485,6 +485,13 @@
         <input type="hidden" id="auxPlant">
         <input type="hidden" id="auxPos">
         <div class="taxon-help">Touchez une carte pour ajouter 1 individu. Appui long pour saisir directement un nombre.</div>
+        <div id="auxQuickEditor" class="aux-quick-editor d-none">
+          <div id="auxQuickEditorLabel" class="aux-quick-editor-label"></div>
+          <div class="d-flex gap-2 align-items-center">
+            <input id="auxQuickCount" type="number" min="0" inputmode="numeric" class="form-control">
+            <button type="button" class="btn btn-success btn-sm" id="auxQuickApplyBtn">OK</button>
+          </div>
+        </div>
         <div class="mb-2">
           <div id="taxonGrid" class="taxon-grid">
             {% for taxon in auxiliary_taxa %}
@@ -507,13 +514,6 @@
                 <button type="button" class="taxon-minus-btn" aria-label="Retirer un individu">−</button>
               </div>
             {% endfor %}
-          </div>
-        </div>
-        <div id="auxQuickEditor" class="aux-quick-editor d-none">
-          <div id="auxQuickEditorLabel" class="aux-quick-editor-label"></div>
-          <div class="d-flex gap-2 align-items-center">
-            <input id="auxQuickCount" type="number" min="0" inputmode="numeric" class="form-control">
-            <button type="button" class="btn btn-success btn-sm" id="auxQuickApplyBtn">OK</button>
           </div>
         </div>
       </div>
