@@ -181,6 +181,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'landing'
+AUTHENTICATION_BACKENDS = [
+    'scouting.auth_backends.UsernameOrEmailBackend',
+]
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 WAGTAIL_SITE_NAME = 'PUCERON CMS'
 WAGTAILADMIN_BASE_URL = os.environ.get('DJANGO_WAGTAILADMIN_BASE_URL', 'http://127.0.0.1:8000/cms')

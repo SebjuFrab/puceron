@@ -1,4 +1,4 @@
-from django import forms
+﻿from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 
@@ -57,7 +57,7 @@ class ScoutingRecordForm(forms.ModelForm):
 
 class UserProfileForm(forms.ModelForm):
     email = forms.EmailField(required=False, label='Email')
-    first_name = forms.CharField(required=False, max_length=150, label='Prénom')
+    first_name = forms.CharField(required=False, max_length=150, label='PrÃ©nom')
     last_name = forms.CharField(required=False, max_length=150, label='Nom')
 
     class Meta:
@@ -84,7 +84,7 @@ class UserProfileForm(forms.ModelForm):
             'street_address': 'Adresse',
             'postal_code': 'Code postal',
             'city': 'Commune',
-            'department': 'Département',
+            'department': 'DÃ©partement',
             'latitude': 'Latitude',
             'longitude': 'Longitude',
         }
@@ -94,6 +94,7 @@ class UserProfileForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs['class'] = 'form-control'
+        self.fields['email'].widget.attrs['class'] = 'form-control'
         self.fields['phone'].widget.attrs['type'] = 'tel'
         self.fields['email'].widget.attrs['class'] = 'form-control'
         self.fields['email'].initial = self.user.email if self.user else ''
@@ -106,6 +107,17 @@ class UserProfileForm(forms.ModelForm):
             self.fields['street_address'].initial = self.instance.farm_address
         if self.instance and self.instance.role == UserProfile.ROLE_PRODUCER and self.instance.assigned_technician_id:
             self.fields['department'].disabled = True
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if not email:
+            return ''
+        qs = User.objects.filter(email__iexact=email)
+        if self.user is not None:
+            qs = qs.exclude(id=self.user.id)
+        if qs.exists():
+            raise forms.ValidationError('Cette adresse mail existe deja.')
+        return email
 
     def save(self, commit=True):
         profile = super().save(commit=False)
@@ -124,7 +136,8 @@ class UserProfileForm(forms.ModelForm):
 
 
 class ProducerAccountCreationForm(UserCreationForm):
-    technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien référent')
+    email = forms.EmailField(required=False, label='Email')
+    technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien rÃ©fÃ©rent')
     farm_name = forms.CharField(max_length=150, label='Nom de ferme')
     phone = forms.CharField(required=False, max_length=30, label='Mobile')
     street_address = forms.CharField(max_length=255, label='Adresse')
@@ -146,6 +159,7 @@ class ProducerAccountCreationForm(UserCreationForm):
         for field in self.fields.values():
             if not isinstance(field.widget, forms.HiddenInput):
                 field.widget.attrs['class'] = 'form-control'
+        self.fields['email'].widget.attrs['class'] = 'form-control'
         self.fields['phone'].widget.attrs['type'] = 'tel'
         technician_qs = User.objects.filter(profile__role=UserProfile.ROLE_TECHNICIAN).order_by(
             'first_name',
@@ -161,6 +175,14 @@ class ProducerAccountCreationForm(UserCreationForm):
             self.fields['technician'].widget = forms.HiddenInput()
             self.technician_display_name = display_user_name(self.creator)
 
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if not email:
+            return ''
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('Cette adresse mail existe deja.')
+        return email
+
     def clean_technician(self):
         technician = self.cleaned_data['technician']
         if not self.creator.is_superuser and technician != self.creator:
@@ -175,11 +197,14 @@ class ProducerAccountCreationForm(UserCreationForm):
             if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
                 self.add_error('technician', 'Le rattachement doit pointer vers un technicien.')
             if not technician_profile.department:
-                self.add_error('technician', 'Le technicien doit avoir un département renseigné.')
+                self.add_error('technician', 'Le technicien doit avoir un dÃ©partement renseignÃ©.')
         return cleaned
 
     def save(self, commit=True):
         user = super().save(commit=commit)
+        user.email = self.cleaned_data.get('email', '')
+        if commit:
+            user.save(update_fields=['email'])
         technician = self.cleaned_data['technician']
         technician_profile = UserProfile.objects.get_or_create(user=technician)[0]
         profile, _ = UserProfile.objects.get_or_create(user=user)
@@ -201,9 +226,10 @@ class ProducerAccountCreationForm(UserCreationForm):
 
 class ProducerProfileUpdateForm(forms.ModelForm):
     username = forms.CharField(max_length=150, label='Identifiant')
-    first_name = forms.CharField(max_length=150, required=False, label='Prénom')
+    email = forms.EmailField(required=False, label='Email')
+    first_name = forms.CharField(max_length=150, required=False, label='PrÃ©nom')
     last_name = forms.CharField(max_length=150, required=False, label='Nom')
-    technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien référent')
+    technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien rÃ©fÃ©rent')
 
     class Meta:
         model = UserProfile
@@ -241,6 +267,7 @@ class ProducerProfileUpdateForm(forms.ModelForm):
         for field in self.fields.values():
             if not isinstance(field.widget, forms.HiddenInput):
                 field.widget.attrs['class'] = 'form-control'
+        self.fields['email'].widget.attrs['class'] = 'form-control'
         self.fields['phone'].widget.attrs['type'] = 'tel'
         technician_qs = User.objects.filter(profile__role=UserProfile.ROLE_TECHNICIAN).order_by(
             'first_name',
@@ -257,6 +284,7 @@ class ProducerProfileUpdateForm(forms.ModelForm):
 
         profile = self.instance
         self.fields['username'].initial = self.producer_user.username
+        self.fields['email'].initial = self.producer_user.email
         self.fields['first_name'].initial = self.producer_user.first_name
         self.fields['last_name'].initial = self.producer_user.last_name
         self.fields['technician'].initial = profile.assigned_technician or (
@@ -276,6 +304,15 @@ class ProducerProfileUpdateForm(forms.ModelForm):
             raise forms.ValidationError('Cet identifiant existe deja.')
         return username
 
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if not email:
+            return ''
+        exists = User.objects.exclude(id=self.producer_user.id).filter(email__iexact=email).exists()
+        if exists:
+            raise forms.ValidationError('Cette adresse mail existe deja.')
+        return email
+
     def clean_technician(self):
         technician = self.cleaned_data['technician']
         if not self.editor.is_superuser and technician != self.editor:
@@ -290,12 +327,13 @@ class ProducerProfileUpdateForm(forms.ModelForm):
             if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
                 self.add_error('technician', 'Le rattachement doit pointer vers un technicien.')
             if not technician_profile.department:
-                self.add_error('technician', 'Le technicien doit avoir un département renseigné.')
+                self.add_error('technician', 'Le technicien doit avoir un dÃ©partement renseignÃ©.')
         return cleaned
 
     def save(self, commit=True):
         user = self.producer_user
         user.username = self.cleaned_data['username']
+        user.email = self.cleaned_data.get('email', '')
         user.first_name = self.cleaned_data.get('first_name', '')
         user.last_name = self.cleaned_data.get('last_name', '')
         if commit:
@@ -336,7 +374,7 @@ class ProducerImportForm(forms.Form):
 
 
 class PlantSeriesForm(forms.ModelForm):
-    new_variety_name = forms.CharField(required=False, label='Nouvelle variété (si absente)')
+    new_variety_name = forms.CharField(required=False, label='Nouvelle variÃ©tÃ© (si absente)')
 
     class Meta:
         model = PlantSeries
@@ -355,17 +393,17 @@ class PlantSeriesForm(forms.ModelForm):
             'is_active',
         ]
         labels = {
-            'name': 'Nom de la série',
+            'name': 'Nom de la sÃ©rie',
             'crop': 'Culture',
             'conduct_type': 'Conduite',
             'organic_mode': 'Mode de conduite',
-            'variety': 'Variété',
+            'variety': 'VariÃ©tÃ©',
             'greenhouse': 'Serre',
-            'year': 'Année',
-            'planting_week': 'Numéro de la semaine de plantation',
+            'year': 'AnnÃ©e',
+            'planting_week': 'NumÃ©ro de la semaine de plantation',
             'plants_count': 'Nb plants',
             'leaves_per_plant': 'Nb feuilles / plant',
-            'is_active': 'Série active',
+            'is_active': 'SÃ©rie active',
         }
 
     def __init__(self, *args, **kwargs):
@@ -420,9 +458,9 @@ class PlantActionForm(forms.ModelForm):
         labels = {
             'action_date': "Date d'action",
             'action_type': "Type d'action",
-            'scope': 'Portée',
+            'scope': 'PortÃ©e',
             'auxiliary_taxon': 'Auxiliaire lache',
-            'notes': 'Détails',
+            'notes': 'DÃ©tails',
         }
 
     def __init__(self, *args, **kwargs):
@@ -484,7 +522,7 @@ class RecommendationDismissForm(forms.Form):
     dismiss_reason = forms.ModelChoiceField(
         queryset=RecommendationDismissReason.objects.none(),
         required=False,
-        empty_label='Pourquoi ne pas suivre é (facultatif)',
+        empty_label='Pourquoi ne pas suivre Ã© (facultatif)',
         label='Motif',
     )
     dismiss_note = forms.CharField(
@@ -501,3 +539,5 @@ class RecommendationDismissForm(forms.Form):
         )
         self.fields['dismiss_reason'].widget.attrs['class'] = 'form-select form-select-sm js-dismiss-reason'
         self.fields['dismiss_note'].widget.attrs['class'] = 'form-control form-control-sm js-dismiss-note d-none'
+
+
