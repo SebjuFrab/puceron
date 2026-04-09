@@ -31,6 +31,12 @@ CROP_CHOICES = [
 AUXILIARY_MODE_CHOICES = [
     ('total', 'Abondance totale'),
     ('detailed', 'Detail par type'),
+    ('quick', 'Saisie rapide'),
+]
+
+ENTRY_MODE_CHOICES = [
+    ('detailed', 'Comptage detaille'),
+    ('quick', 'Comptage rapide'),
 ]
 
 # Legacy list kept for backward compatibility with existing table AuxiliaryCount.
@@ -540,6 +546,15 @@ class ScoutingRecord(models.Model):
     scouting_date = models.DateField(default=timezone.localdate, verbose_name='Date observation')
     year = models.PositiveSmallIntegerField(verbose_name='Annee')
     week = models.PositiveSmallIntegerField(verbose_name='Semaine')
+    entry_mode = models.CharField(
+        max_length=10,
+        choices=ENTRY_MODE_CHOICES,
+        default='detailed',
+        verbose_name='Mode de saisie',
+    )
+    observed_plants_count = models.PositiveSmallIntegerField(default=10, verbose_name='Plants observes')
+    observed_leaves_count = models.PositiveSmallIntegerField(default=30, verbose_name='Feuilles observees')
+    aphid_infested_leaves_count = models.PositiveSmallIntegerField(default=0, verbose_name='Feuilles infestees de pucerons')
     aphid_infested_percent = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='% feuilles infestees')
     primary_aphid_species = models.ForeignKey(
         'AphidSpecies',
@@ -570,7 +585,10 @@ class ScoutingRecord(models.Model):
 
     @property
     def auxiliaries_per_plant(self):
-        plants_count = self.plant_series.plants_count if self.plant_series_id and self.plant_series else 10
+        if self.entry_mode == 'quick' and self.observed_plants_count:
+            plants_count = self.observed_plants_count
+        else:
+            plants_count = self.plant_series.plants_count if self.plant_series_id and self.plant_series else 10
         plants_count = plants_count or 10
         return self.auxiliary_total / plants_count
 
@@ -588,8 +606,23 @@ class ScoutingRecord(models.Model):
             self.aphid_infested_percent = 0
             self.auxiliary_total = 0
             self.auxiliary_mode = 'detailed'
+            self.entry_mode = 'detailed'
+            self.observed_plants_count = self.plant_series.plants_count if self.plant_series_id and self.plant_series else 10
+            self.observed_leaves_count = 0
+            self.aphid_infested_leaves_count = 0
             self.primary_aphid_species = None
-            self.save(update_fields=['aphid_infested_percent', 'auxiliary_total', 'auxiliary_mode', 'primary_aphid_species'])
+            self.save(
+                update_fields=[
+                    'aphid_infested_percent',
+                    'auxiliary_total',
+                    'auxiliary_mode',
+                    'entry_mode',
+                    'observed_plants_count',
+                    'observed_leaves_count',
+                    'aphid_infested_leaves_count',
+                    'primary_aphid_species',
+                ]
+            )
             return
 
         infested_count = sum(1 for leaf in leaves if leaf.aphid_present)
@@ -601,9 +634,14 @@ class ScoutingRecord(models.Model):
         )
         if total_aux == 0:
             total_aux = sum(leaf.total_auxiliaries for leaf in leaves)
+        observed_plants = max((leaf.plant_number for leaf in leaves), default=0)
         self.aphid_infested_percent = round((infested_count / len(leaves)) * 100, 2)
         self.auxiliary_total = total_aux
         self.auxiliary_mode = 'detailed'
+        self.entry_mode = 'detailed'
+        self.observed_plants_count = observed_plants or (self.plant_series.plants_count if self.plant_series_id and self.plant_series else 10)
+        self.observed_leaves_count = len(leaves)
+        self.aphid_infested_leaves_count = infested_count
         observed_species_ids = self.observed_aphid_species_ids()
         if len(observed_species_ids) == 1:
             self.primary_aphid_species_id = observed_species_ids[0]
@@ -616,11 +654,17 @@ class ScoutingRecord(models.Model):
                 'aphid_infested_percent',
                 'auxiliary_total',
                 'auxiliary_mode',
+                'entry_mode',
+                'observed_plants_count',
+                'observed_leaves_count',
+                'aphid_infested_leaves_count',
                 'primary_aphid_species',
             ]
         )
 
     def observed_aphid_species_ids(self):
+        if self.entry_mode == 'quick':
+            return list(self.quick_aphid_species.values_list('species_id', flat=True).distinct())
         return list(
             self.leaf_observations.filter(aphid_present=True, aphid_species__isnull=False)
             .values_list('aphid_species_id', flat=True)
@@ -630,20 +674,103 @@ class ScoutingRecord(models.Model):
     def species_means_per_plant(self):
         taxa = list(AuxiliaryTaxon.objects.order_by('display_order', 'name'))
         totals = {taxon.id: 0 for taxon in taxa}
-        rows = (
-            LeafAuxiliaryObservation.objects.filter(leaf_observation__record=self)
-            .values('taxon_id')
-            .annotate(total=Sum('count'))
-        )
+        if self.entry_mode == 'quick':
+            rows = self.quick_auxiliary_counts.values('taxon_id').annotate(total=Sum('count'))
+            divisor = self.observed_plants_count or 10
+        else:
+            rows = (
+                LeafAuxiliaryObservation.objects.filter(leaf_observation__record=self)
+                .values('taxon_id')
+                .annotate(total=Sum('count'))
+            )
+            if not rows:
+                for key, _ in AUXILIARY_SPECIES:
+                    legacy_total = sum(getattr(leaf, key) for leaf in self.leaf_observations.all())
+                    taxon = next((item for item in taxa if item.code == key), None)
+                    if taxon:
+                        totals[taxon.id] = legacy_total
+            divisor = self.plant_series.plants_count if self.plant_series_id and self.plant_series else 10
         for row in rows:
             totals[row['taxon_id']] = row['total'] or 0
-        if not rows:
-            for key, _ in AUXILIARY_SPECIES:
-                legacy_total = sum(getattr(leaf, key) for leaf in self.leaf_observations.all())
-                taxon = next((item for item in taxa if item.code == key), None)
-                if taxon:
-                    totals[taxon.id] = legacy_total
-        return {taxon.id: round(totals[taxon.id] / 10.0, 2) for taxon in taxa}
+        divisor = divisor or 10
+        return {taxon.id: round(totals[taxon.id] / float(divisor), 2) for taxon in taxa}
+
+
+class QuickRecordAphidSpecies(models.Model):
+    record = models.ForeignKey(
+        ScoutingRecord,
+        on_delete=models.CASCADE,
+        related_name='quick_aphid_species',
+        verbose_name='Comptage',
+    )
+    species = models.ForeignKey(
+        'AphidSpecies',
+        on_delete=models.CASCADE,
+        related_name='quick_records',
+        verbose_name='Espece de puceron',
+    )
+
+    class Meta:
+        verbose_name = 'Espece de puceron observee (rapide)'
+        verbose_name_plural = 'Especes de pucerons observees (rapide)'
+        constraints = [
+            models.UniqueConstraint(fields=['record', 'species'], name='unique_quick_aphid_species_per_record')
+        ]
+
+    def __str__(self):
+        return f'{self.record_id} - {self.species}'
+
+
+class QuickRecordAuxiliaryCount(models.Model):
+    record = models.ForeignKey(
+        ScoutingRecord,
+        on_delete=models.CASCADE,
+        related_name='quick_auxiliary_counts',
+        verbose_name='Comptage',
+    )
+    taxon = models.ForeignKey(
+        'AuxiliaryTaxon',
+        on_delete=models.CASCADE,
+        related_name='quick_record_counts',
+        verbose_name='Auxiliaire',
+    )
+    count = models.PositiveSmallIntegerField(default=0, verbose_name='Nombre')
+
+    class Meta:
+        verbose_name = "Compte d'auxiliaire (rapide)"
+        verbose_name_plural = "Comptes d'auxiliaires (rapide)"
+        constraints = [
+            models.UniqueConstraint(fields=['record', 'taxon'], name='unique_quick_aux_count_per_record_and_taxon')
+        ]
+
+    def __str__(self):
+        return f'{self.taxon.name}: {self.count}'
+
+
+class QuickRecordOtherPestCount(models.Model):
+    record = models.ForeignKey(
+        ScoutingRecord,
+        on_delete=models.CASCADE,
+        related_name='quick_other_pest_counts',
+        verbose_name='Comptage',
+    )
+    taxon = models.ForeignKey(
+        'OtherPestTaxon',
+        on_delete=models.CASCADE,
+        related_name='quick_record_counts',
+        verbose_name='Autre ravageur',
+    )
+    infested_leaves_count = models.PositiveSmallIntegerField(default=0, verbose_name='Feuilles infestees')
+
+    class Meta:
+        verbose_name = "Observation d'autre ravageur (rapide)"
+        verbose_name_plural = "Observations d'autres ravageurs (rapide)"
+        constraints = [
+            models.UniqueConstraint(fields=['record', 'taxon'], name='unique_quick_pest_count_per_record_and_taxon')
+        ]
+
+    def __str__(self):
+        return f'{self.taxon.name}: {self.infested_leaves_count}'
 
 
 class AuxiliaryTaxon(models.Model):

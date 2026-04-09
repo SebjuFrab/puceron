@@ -20,6 +20,9 @@ from .models import (
     LeafOtherPestObservation,
     PlantSeries,
     PlantAction,
+    QuickRecordAphidSpecies,
+    QuickRecordAuxiliaryCount,
+    QuickRecordOtherPestCount,
     RecommendationDismissReason,
     ScoutingRecord,
     UserProfile,
@@ -324,6 +327,21 @@ class LeafOtherPestObservationInline(admin.TabularInline):
     extra = 0
 
 
+class QuickRecordAphidSpeciesInline(admin.TabularInline):
+    model = QuickRecordAphidSpecies
+    extra = 0
+
+
+class QuickRecordAuxiliaryCountInline(admin.TabularInline):
+    model = QuickRecordAuxiliaryCount
+    extra = 0
+
+
+class QuickRecordOtherPestCountInline(admin.TabularInline):
+    model = QuickRecordOtherPestCount
+    extra = 0
+
+
 @admin.register(AuxiliaryTaxon)
 class AuxiliaryTaxonAdmin(admin.ModelAdmin):
     list_display = ('photo_preview', 'name', 'code', 'display_order', 'is_releasable', 'is_active')
@@ -411,9 +429,15 @@ class ScoutingRecordAdmin(admin.ModelAdmin):
         'aphid_infested_percent',
         'auxiliary_total',
     )
-    list_filter = ('department', 'crop', 'year', 'week', 'primary_aphid_species')
+    list_filter = ('department', 'crop', 'year', 'week', 'entry_mode', 'primary_aphid_species')
     search_fields = ('user__username',)
-    inlines = [LeafObservationInline, AuxiliaryCountInline]
+    inlines = [
+        LeafObservationInline,
+        AuxiliaryCountInline,
+        QuickRecordAphidSpeciesInline,
+        QuickRecordAuxiliaryCountInline,
+        QuickRecordOtherPestCountInline,
+    ]
 
 
 @admin.register(ActionType)

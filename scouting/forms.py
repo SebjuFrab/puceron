@@ -4,10 +4,12 @@ from django.contrib.auth.forms import UserCreationForm
 
 from .models import (
     ActionType,
+    AphidSpecies,
     AuxiliaryTaxon,
     ConductType,
     Crop,
     Molecule,
+    OtherPestTaxon,
     PlantAction,
     PlantSeries,
     RecommendationDismissReason,
@@ -53,6 +55,62 @@ class ScoutingRecordForm(forms.ModelForm):
         self.fields['crop'].widget.attrs['class'] = 'form-select'
         self.fields['crop'].required = False
         self.fields['crop'].widget = forms.HiddenInput()
+
+
+class QuickScoutingRecordForm(forms.ModelForm):
+    class Meta:
+        model = ScoutingRecord
+        fields = [
+            'plant_series',
+            'crop',
+            'scouting_date',
+            'observed_plants_count',
+            'observed_leaves_count',
+            'aphid_infested_leaves_count',
+            'comment',
+        ]
+        widgets = {
+            'scouting_date': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+            'comment': forms.Textarea(attrs={'rows': 3}),
+        }
+        labels = {
+            'scouting_date': 'Date observation',
+            'observed_plants_count': 'Plants observes',
+            'observed_leaves_count': 'Feuilles observees',
+            'aphid_infested_leaves_count': 'Feuilles infestees de pucerons',
+        }
+
+    def __init__(self, *args, **kwargs):
+        series_queryset = kwargs.pop('series_queryset', PlantSeries.objects.none())
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-control'
+        self.fields['scouting_date'].input_formats = ['%Y-%m-%d']
+        self.fields['plant_series'].queryset = series_queryset
+        self.fields['plant_series'].widget = forms.HiddenInput()
+        self.fields['crop'].required = False
+        self.fields['crop'].widget = forms.HiddenInput()
+        for field_name in ('observed_plants_count', 'observed_leaves_count', 'aphid_infested_leaves_count'):
+            self.fields[field_name].widget.attrs.update({'min': 0, 'step': 1})
+        self.fields['observed_plants_count'].widget.attrs['form'] = 'quick-record-form'
+        self.fields['observed_leaves_count'].widget.attrs['form'] = 'quick-record-form'
+        self.fields['aphid_infested_leaves_count'].widget.attrs['form'] = 'quick-record-form'
+
+    def clean(self):
+        cleaned = super().clean()
+        observed_plants = cleaned.get('observed_plants_count') or 0
+        observed_leaves = cleaned.get('observed_leaves_count') or 0
+        aphid_infested = cleaned.get('aphid_infested_leaves_count') or 0
+        if observed_plants <= 0:
+            self.add_error('observed_plants_count', 'Renseignez au moins 1 plant observe.')
+        if observed_leaves <= 0:
+            self.add_error('observed_leaves_count', 'Renseignez au moins 1 feuille observee.')
+        if aphid_infested > observed_leaves:
+            self.add_error(
+                'aphid_infested_leaves_count',
+                "Le nombre de feuilles infestees de pucerons ne peut pas depasser les feuilles observees.",
+            )
+        return cleaned
 
 
 class UserProfileForm(forms.ModelForm):

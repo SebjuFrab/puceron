@@ -42,11 +42,45 @@
     color: #114f32;
     margin: 0;
   }
+  .panel-title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+  }
+  .panel-title-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.28rem 0.68rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+  }
+  .panel-title-badge--aphid {
+    background: #e8f1ff;
+    color: #0d6efd;
+    border: 1px solid #bfdbfe;
+  }
+  .panel-title-badge--aux {
+    background: #fff4db;
+    color: #c77900;
+    border: 1px solid #ffd88a;
+  }
+  .panel-title-badge--pest {
+    background: #fff1f3;
+    color: #dc3545;
+    border: 1px solid #fecdd3;
+  }
   .panel-subtitle {
     margin: 4px 0 0;
     color: #5a7668;
     font-size: 0.9rem;
   }
+  .chart-card--aphid { border-top: 4px solid #0d6efd; }
+  .chart-card--aux { border-top: 4px solid #f59f00; }
+  .chart-card--pest { border-top: 4px solid #dc3545; }
   .filters-group,
   .series-selector-list,
   .comparison-meta {
@@ -382,11 +416,14 @@
   </div>
 
   <div class="right-stack">
-    <section class="card chart-card">
+    <section class="card chart-card chart-card--aphid">
       <div class="card-body p-4">
         <div class="panel-head">
           <div>
-            <h2 class="panel-title">Taux d'infestation</h2>
+            <div class="panel-title-group">
+              <span class="panel-title-badge panel-title-badge--aphid">puceron</span>
+              <h2 class="panel-title">Taux d'infestation</h2>
+            </div>
             <p class="panel-subtitle">Une courbe par série visible.</p>
           </div>
         </div>
@@ -398,11 +435,14 @@
       </div>
     </section>
 
-    <section class="card chart-card">
+    <section class="card chart-card chart-card--aux">
       <div class="card-body p-4">
         <div class="panel-head">
           <div>
-            <h2 class="panel-title">Auxiliaires / plant</h2>
+            <div class="panel-title-group">
+              <span class="panel-title-badge panel-title-badge--aux">auxiliaire</span>
+              <h2 class="panel-title">Auxiliaires / plant</h2>
+            </div>
             <p class="panel-subtitle">Les séries visibles sont conservées avec le même code couleur.</p>
           </div>
         </div>
@@ -414,11 +454,14 @@
       </div>
     </section>
 
-    <section class="card chart-card">
+    <section class="card chart-card chart-card--pest">
       <div class="card-body p-4">
         <div class="panel-head">
           <div>
-            <h2 class="panel-title">Autres ravageurs</h2>
+            <div class="panel-title-group">
+              <span class="panel-title-badge panel-title-badge--pest">ravageur</span>
+              <h2 class="panel-title">Autres ravageurs</h2>
+            </div>
             <p class="panel-subtitle">% de feuilles touchées par ravageur.</p>
           </div>
         </div>

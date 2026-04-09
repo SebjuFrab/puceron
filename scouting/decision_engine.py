@@ -15,14 +15,19 @@ def _safe_decimal(value):
 
 
 def compute_record_indicators(record):
-    leaves = list(record.leaf_observations.all())
-    observed_leaves_count = len(leaves)
-    infested_leaves_count = sum(1 for leaf in leaves if leaf.aphid_present)
-    plants_count = (
-        record.plant_series.plants_count
-        if record.plant_series_id and record.plant_series and record.plant_series.plants_count
-        else 10
-    )
+    if record.entry_mode == 'quick':
+        observed_leaves_count = record.observed_leaves_count or 0
+        infested_leaves_count = record.aphid_infested_leaves_count or 0
+        plants_count = record.observed_plants_count or 10
+    else:
+        leaves = list(record.leaf_observations.all())
+        observed_leaves_count = len(leaves)
+        infested_leaves_count = sum(1 for leaf in leaves if leaf.aphid_present)
+        plants_count = (
+            record.plant_series.plants_count
+            if record.plant_series_id and record.plant_series and record.plant_series.plants_count
+            else 10
+        )
     total_auxiliaries = record.auxiliary_total or 0
     crop = record.crop_ref or (record.plant_series.crop if record.plant_series_id and record.plant_series else None)
     metric_key = crop.decision_aux_metric if crop else 'per_plant'

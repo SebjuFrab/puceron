@@ -128,7 +128,14 @@ def my_records_view(request):
             'crop_ref',
             'primary_aphid_species',
         )
-        .prefetch_related('leaf_observations__aphid_species', 'leaf_observations__auxiliary_observations__taxon')
+        .prefetch_related(
+            'leaf_observations__aphid_species',
+            'leaf_observations__auxiliary_observations__taxon',
+            'leaf_observations__other_pest_observations__taxon',
+            'quick_aphid_species__species',
+            'quick_auxiliary_counts__taxon',
+            'quick_other_pest_counts__taxon',
+        )
     )
     base_actions = PlantAction.objects.select_related(
         'user',
@@ -297,14 +304,33 @@ def my_records_view(request):
             if rec.crop_ref_id and rec.crop_ref
             else (rec.plant_series.crop.name if rec.plant_series_id and rec.plant_series else rec.crop or '-')
         )
-        aphid_species = _unique_ordered_labels(
-            leaf.aphid_species for leaf in rec.leaf_observations.all() if leaf.aphid_present and leaf.aphid_species
-        )
-        auxiliaries = _unique_ordered_labels(
-            aux.taxon for leaf in rec.leaf_observations.all() for aux in leaf.auxiliary_observations.all() if aux.count > 0
-        )
+        if rec.entry_mode == 'quick':
+            aphid_species = _unique_ordered_labels(
+                row.species for row in rec.quick_aphid_species.all() if row.species_id
+            )
+            auxiliaries = _unique_ordered_labels(
+                row.taxon for row in rec.quick_auxiliary_counts.all() if row.count > 0
+            )
+            other_pests = _unique_ordered_labels(
+                row.taxon for row in rec.quick_other_pest_counts.all() if row.infested_leaves_count > 0
+            )
+        else:
+            aphid_species = _unique_ordered_labels(
+                leaf.aphid_species for leaf in rec.leaf_observations.all() if leaf.aphid_present and leaf.aphid_species
+            )
+            auxiliaries = _unique_ordered_labels(
+                aux.taxon for leaf in rec.leaf_observations.all() for aux in leaf.auxiliary_observations.all() if aux.count > 0
+            )
+            other_pests = _unique_ordered_labels(
+                pest.taxon
+                for leaf in rec.leaf_observations.all()
+                for pest in leaf.other_pest_observations.all()
+            )
+        rec.aphid_species_label = str(rec.primary_aphid_species) if rec.primary_aphid_species_id else '-'
+        rec.infestation_pct = float(rec.aphid_infested_percent or 0)
         rec.aphid_species_list = ', '.join(aphid_species) if aphid_species else '-'
         rec.auxiliary_species_list = ', '.join(auxiliaries) if auxiliaries else '-'
+        rec.other_pest_species_list = ', '.join(other_pests) if other_pests else '-'
     for action in actions:
         action.producer_label = action.user.profile.farm_name or display_user_name(action.user)
         action.crop_label = (

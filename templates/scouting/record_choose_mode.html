@@ -38,8 +38,13 @@
 
 <div class="mode-grid">
   <a class="mode-card" href="{% url 'record_create' %}?plant_series={{ selected_series.id }}&mode=count">
-    <h2 class="mode-title">Effectuer un comptage</h2>
-    <p class="mode-text">Saisir les observations feuille par feuille (pucerons et auxiliaires).</p>
+    <h2 class="mode-title">Effectuer un comptage detaille</h2>
+    <p class="mode-text">Saisir les observations feuille par feuille (pucerons, auxiliaires et ravageurs).</p>
+  </a>
+
+  <a class="mode-card" href="{% url 'record_create' %}?plant_series={{ selected_series.id }}&mode=quick">
+    <h2 class="mode-title">Effectuer un comptage rapide</h2>
+    <p class="mode-text">Saisir directement les feuilles observees, infestation, auxiliaires et autres ravageurs.</p>
   </a>
 
   <a class="mode-card" href="{% url 'action_create' %}?plant_series={{ selected_series.id }}">

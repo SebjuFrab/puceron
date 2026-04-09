@@ -9,6 +9,9 @@ from .models import (
     LeafObservation,
     OtherPestTaxon,
     PlantSeries,
+    QuickRecordAphidSpecies,
+    QuickRecordAuxiliaryCount,
+    QuickRecordOtherPestCount,
     ScoutingRecord,
     UserProfile,
     Variety,
@@ -40,8 +43,35 @@ class LeafObservationSerializer(serializers.ModelSerializer):
         fields = ['id', 'plant_number', 'leaf_position', 'aphid_present', 'auxiliary_observations', 'other_pest_observations']
 
 
+class QuickRecordAphidSpeciesSerializer(serializers.ModelSerializer):
+    species_name = serializers.StringRelatedField(source='species', read_only=True)
+
+    class Meta:
+        model = QuickRecordAphidSpecies
+        fields = ['id', 'species', 'species_name']
+
+
+class QuickRecordAuxiliaryCountSerializer(serializers.ModelSerializer):
+    taxon_name = serializers.CharField(source='taxon.name', read_only=True)
+
+    class Meta:
+        model = QuickRecordAuxiliaryCount
+        fields = ['id', 'taxon', 'taxon_name', 'count']
+
+
+class QuickRecordOtherPestCountSerializer(serializers.ModelSerializer):
+    taxon_name = serializers.CharField(source='taxon.name', read_only=True)
+
+    class Meta:
+        model = QuickRecordOtherPestCount
+        fields = ['id', 'taxon', 'taxon_name', 'infested_leaves_count']
+
+
 class ScoutingRecordSerializer(serializers.ModelSerializer):
     leaf_observations = LeafObservationSerializer(many=True, required=False)
+    quick_aphid_species = QuickRecordAphidSpeciesSerializer(many=True, read_only=True)
+    quick_auxiliary_counts = QuickRecordAuxiliaryCountSerializer(many=True, read_only=True)
+    quick_other_pest_counts = QuickRecordOtherPestCountSerializer(many=True, read_only=True)
     risk_level = serializers.CharField(read_only=True)
     auxiliaries_per_plant = serializers.FloatField(read_only=True)
 
@@ -58,12 +88,19 @@ class ScoutingRecordSerializer(serializers.ModelSerializer):
             'scouting_date',
             'year',
             'week',
+            'entry_mode',
+            'observed_plants_count',
+            'observed_leaves_count',
+            'aphid_infested_leaves_count',
             'aphid_infested_percent',
             'auxiliary_total',
             'comment',
             'risk_level',
             'auxiliaries_per_plant',
             'leaf_observations',
+            'quick_aphid_species',
+            'quick_auxiliary_counts',
+            'quick_other_pest_counts',
             'created_at',
         ]
         read_only_fields = [
@@ -74,8 +111,6 @@ class ScoutingRecordSerializer(serializers.ModelSerializer):
             'variety_ref',
             'year',
             'week',
-            'aphid_infested_percent',
-            'auxiliary_total',
             'created_at',
         ]
 

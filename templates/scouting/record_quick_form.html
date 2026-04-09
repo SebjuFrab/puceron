@@ -1,0 +1,1172 @@
+﻿{% extends 'base.html' %}
+{% block content %}
+<style>
+  :root {
+    --quick-aphid: #0d6efd;
+    --quick-aphid-soft: #e8f1ff;
+    --quick-aux: #f59f00;
+    --quick-aux-soft: #fff4db;
+    --quick-pest: #dc3545;
+    --quick-pest-soft: #fff1f3;
+  }
+  .quick-wrap { max-width: 980px; margin: 0 auto; }
+  .quick-card {
+    border: 1px solid #d8e9df;
+    border-radius: 1rem;
+    box-shadow: 0 0.35rem 1rem rgba(20, 80, 52, 0.08);
+    background: #fff;
+  }
+  .quick-meta { color: #486457; }
+  .quick-series-line {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #224735;
+    display: none;
+  }
+  .quick-mobile-toolbar {
+    display: block;
+  }
+  .quick-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+  }
+  .quick-stat-card {
+    border: 2px solid #d8e9df;
+    border-radius: 1rem;
+    padding: 0.85rem 0.95rem;
+    background: #fff;
+    min-height: 92px;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .quick-stat-card .form-control {
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1;
+    background: transparent;
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .quick-stat-card .form-control::-webkit-outer-spin-button,
+  .quick-stat-card .form-control::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .quick-stat-card .form-control:focus {
+    box-shadow: none;
+    background: transparent;
+  }
+  .quick-stat-card--plants {
+    border-color: #198754;
+    box-shadow: 0 0 0 0.15rem rgba(25, 135, 84, 0.10);
+  }
+  .quick-stat-card--leaves {
+    border-color: #212529;
+    box-shadow: 0 0 0 0.15rem rgba(33, 37, 41, 0.08);
+  }
+  .quick-stat-card--infestation {
+    border-color: #0f766e;
+    box-shadow: 0 0 0 0.15rem rgba(15, 118, 110, 0.10);
+    background: #f0fdfa;
+  }
+  .quick-stat-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 0.2rem;
+  }
+  .quick-stat-card--plants .quick-stat-value { color: #198754; }
+  .quick-stat-card--leaves .quick-stat-value { color: #212529; }
+  .quick-stat-card--infestation .quick-stat-value { color: #0f766e; }
+  .quick-stat-label {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: #466456;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+  .quick-mobile-button-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+    margin-bottom: 0.85rem;
+  }
+  .quick-mobile-action {
+    min-height: 48px;
+    border-radius: 0.95rem;
+    font-weight: 800;
+    padding: 0.6rem 0.3rem;
+  }
+  .quick-mobile-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    min-height: 1.7rem;
+    margin-bottom: 0.4rem;
+  }
+  .quick-section--aux,
+  .quick-section--pest {
+    display: none;
+  }
+  .quick-section-title { font-weight: 800; color: #0f5132; margin-bottom: 0.75rem; }
+  .quick-section-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-bottom: 0.35rem;
+  }
+  .quick-section-dot {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 999px;
+    display: inline-block;
+  }
+  .quick-section-dot--aphid { background: var(--quick-aphid); }
+  .quick-section-dot--aux { background: var(--quick-aux); }
+  .quick-section-dot--pest { background: var(--quick-pest); }
+  .quick-species-grid,
+  .quick-pest-grid,
+  .quick-aux-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+  }
+  .quick-card-select {
+    position: relative;
+    border: 2px solid #d8e9df;
+    border-radius: 1rem;
+    background: #fff;
+    padding: 0.7rem;
+    min-height: 136px;
+    cursor: pointer;
+    transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+  }
+  .quick-card-select.is-selected { border-color: #198754; box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.15); }
+  .quick-card-select.is-primary { border-color: #dc3545; box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.14); }
+  .quick-card-select:hover { transform: translateY(-1px); }
+  .quick-card-thumb {
+    width: 100%; height: 82px; border-radius: 0.75rem; background: #f7fbf8;
+    display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 0.6rem;
+    border: 1px solid #e6f0ea;
+  }
+  .quick-card-thumb img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+  .quick-card-thumb span { font-size: 1.8rem; font-weight: 800; color: #1f6b48; }
+  .quick-card-label { font-weight: 700; color: #163f2d; line-height: 1.2; }
+  .js-aphid-card .quick-card-thumb {
+    background: var(--quick-aphid-soft);
+    border-color: #cfe2ff;
+  }
+  .js-aphid-card .quick-card-thumb span { color: var(--quick-aphid); }
+  .js-aphid-card.is-selected {
+    border-color: var(--quick-aphid);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.16);
+  }
+  .js-aux-card .quick-card-thumb {
+    background: var(--quick-aux-soft);
+    border-color: #ffe3a3;
+  }
+  .js-aux-card .quick-card-thumb span { color: #d97706; }
+  .js-aux-card.is-selected {
+    border-color: var(--quick-aux);
+    box-shadow: 0 0 0 0.2rem rgba(245, 159, 0, 0.18);
+  }
+  .js-pest-card .quick-card-thumb {
+    background: #fff8f8;
+    border-color: #f8d7da;
+  }
+  .js-pest-card .quick-card-thumb span { color: var(--quick-pest); }
+  .js-pest-card.is-selected {
+    border-color: #f08a95;
+    box-shadow: 0 0 0 0.18rem rgba(220, 53, 69, 0.10);
+  }
+  .quick-help { color: #5c6f66; font-size: 0.95rem; }
+  .quick-summary {
+    display: flex; flex-wrap: wrap; gap: 0.45rem; min-height: 1.8rem;
+  }
+  .quick-chip {
+    display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid #badfca; border-radius: 999px;
+    background: #f7fbf8; color: #1a4a33; font-size: 0.9rem; padding: 0.25rem 0.65rem;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .quick-chip--aux {
+    border-color: #ffd88a;
+    background: #fff7e6;
+    color: #9a5200;
+  }
+  .quick-chip--pest {
+    border-color: #f3c3c9;
+    background: #fff8f8;
+    color: #a61e2d;
+  }
+  .quick-chip--primary {
+    border-color: #8fd3ac;
+    background: #eefaf2;
+    color: #1d6b42;
+    font-weight: 800;
+  }
+  .quick-pill-count {
+    position: absolute; top: 0.45rem; left: 0.45rem; min-width: 1.7rem; height: 1.7rem; border-radius: 999px;
+    background: #198754; color: #fff; display: none; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700;
+  }
+  .js-aux-card .quick-pill-count { background: var(--quick-aux); color: #513100; }
+  .js-pest-card .quick-pill-count { background: #e85d6a; color: #fff; }
+  .quick-pill-count.is-visible { display: inline-flex; }
+  .quick-minus {
+    position: absolute; right: 0.45rem; bottom: 0.45rem; width: 1.9rem; height: 1.9rem; border-radius: 999px;
+    border: 0; background: #dc3545; color: #fff; font-weight: 800; display: none; align-items: center; justify-content: center;
+  }
+  .js-aux-card .quick-minus { background: #c77900; }
+  .js-pest-card .quick-minus { background: #d95b66; }
+  .quick-minus.is-visible { display: inline-flex; }
+  .quick-modal-editor {
+    display: none; align-items: end; gap: 0.6rem; margin-bottom: 0.9rem; padding: 0.85rem; background: #f7fbf8;
+    border: 1px solid #d8e9df; border-radius: 0.9rem;
+  }
+  .quick-modal-editor.is-visible { display: flex; }
+  .quick-modal-editor label { font-size: 0.9rem; font-weight: 700; color: #24503b; margin-bottom: 0.25rem; }
+  .quick-modal-note {
+    margin-bottom: 0.9rem;
+    padding: 0.75rem 0.9rem;
+    border-radius: 0.85rem;
+    font-size: 0.92rem;
+    font-weight: 600;
+  }
+  .quick-modal-note--pest {
+    background: #fff8f8;
+    border: 1px solid #f3c3c9;
+    color: #a61e2d;
+  }
+  .quick-modal-note--aphid {
+    background: #eef5ff;
+    border: 1px solid #cfe2ff;
+    color: #0d4fbf;
+  }
+  .quick-primary-box { border: 1px dashed #efb3b8; border-radius: 0.9rem; padding: 0.85rem; background: #fff7f8; }
+  .quick-primary-box.has-error {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.18rem rgba(220, 53, 69, 0.12);
+  }
+  .quick-primary-error {
+    display: none;
+    margin-bottom: 0.8rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 0.8rem;
+    background: #fff1f3;
+    border: 1px solid #f3c3c9;
+    color: #a61e2d;
+    font-size: 0.92rem;
+    font-weight: 700;
+  }
+  .quick-primary-error.is-visible { display: block; }
+  .quick-trigger--aux {
+    border-color: var(--quick-aux);
+    color: #9a5200;
+    background: #fff7e6;
+  }
+  .quick-trigger--aux:hover,
+  .quick-trigger--aux:focus {
+    border-color: var(--quick-aux);
+    color: #9a5200;
+    background: #ffefc7;
+  }
+  .quick-trigger--pest {
+    border-color: var(--quick-pest);
+    color: #a61e2d;
+    background: #fff8f8;
+  }
+  .quick-trigger--pest:hover,
+  .quick-trigger--pest:focus {
+    border-color: var(--quick-pest);
+    color: #a61e2d;
+    background: #fff0f1;
+  }
+  .quick-pest-count-row {
+    display: grid; grid-template-columns: 1fr 120px; gap: 0.75rem; align-items: center; padding: 0.7rem 0.9rem;
+    border: 1px solid #e3efe7; border-radius: 0.85rem; background: #fff;
+  }
+  .quick-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .quick-actions .btn { flex: 1 1 220px; }
+  .quick-error-banner {
+    position: sticky;
+    top: 1rem;
+    z-index: 30;
+  }
+  @media (max-width: 767.98px) {
+    .quick-series-line {
+      display: block;
+    }
+    .quick-card.p-3.p-md-4.mb-3 {
+      padding: 1rem !important;
+    }
+    .quick-card.p-3.p-md-4 {
+      padding: 1rem !important;
+    }
+    .quick-wrap {
+      max-width: 100%;
+    }
+    .quick-stat-grid {
+      gap: 0.55rem;
+    }
+    .quick-stat-card {
+      padding: 0.75rem 0.65rem;
+      min-height: 88px;
+    }
+    .quick-stat-value,
+    .quick-stat-card .form-control {
+      font-size: 1.15rem;
+    }
+    .quick-stat-label {
+      font-size: 0.82rem;
+    }
+    .quick-species-grid,
+    .quick-pest-grid,
+    .quick-aux-grid { grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+    .quick-card-select { min-height: 124px; padding: 0.6rem; }
+    .quick-card-thumb { height: 72px; }
+    .quick-pest-count-row { grid-template-columns: 1fr; }
+    .quick-actions .btn { width: 100%; }
+    .quick-actions {
+      flex-direction: column;
+      align-items: center;
+      gap: 0.65rem;
+    }
+    .quick-actions .btn {
+      width: min(100%, 240px);
+      flex: 0 0 auto;
+    }
+  }
+  @media (max-width: 420px) {
+    .quick-card.p-3.p-md-4.mb-3 .d-flex.align-items-start.gap-3 {
+      gap: 0.75rem !important;
+    }
+    .quick-stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.45rem;
+    }
+    .quick-stat-card {
+      padding: 0.6rem 0.45rem;
+      min-height: 78px;
+      border-radius: 0.85rem;
+    }
+    .quick-stat-value,
+    .quick-stat-card .form-control {
+      font-size: 1rem;
+    }
+    .quick-stat-label {
+      font-size: 0.72rem;
+      line-height: 1.05;
+    }
+    .quick-stat-card--infestation {
+      grid-column: 1 / -1;
+      min-height: 70px;
+      text-align: center;
+      align-items: center;
+    }
+    .quick-mobile-button-row {
+      gap: 0.4rem;
+    }
+    .quick-mobile-action {
+      min-height: 42px;
+      padding: 0.45rem 0.15rem;
+      font-size: 0.86rem;
+      border-radius: 0.8rem;
+    }
+    .quick-chip {
+      font-size: 0.82rem;
+      padding: 0.22rem 0.55rem;
+    }
+  }
+</style>
+
+<div class="quick-wrap">
+  <div class="quick-card p-3 p-md-4 mb-3">
+    <div class="d-flex align-items-start gap-3">
+      {% if selected_series.photo %}
+        <img src="{{ selected_series.photo.url }}" alt="{{ selected_series.name }}" style="width:72px;height:72px;border-radius:0.9rem;object-fit:cover;">
+      {% else %}
+        <div class="d-flex align-items-center justify-content-center" style="width:72px;height:72px;border-radius:0.9rem;background:#f1fbf5;color:#0f5132;font-weight:800;font-size:1.8rem;">{{ selected_series.name|first|upper }}</div>
+      {% endif %}
+      <div class="w-100">
+        <h1 class="h4 mb-1">{{ selected_series.name }}</h1>
+        <div class="quick-meta">{{ selected_series.crop.name }} | {{ selected_series.conduct_type.name }} | {{ selected_series.variety.name }}</div>
+        {% if selected_series.greenhouse %}<div class="quick-meta">Serre : {{ selected_series.greenhouse }}</div>{% endif %}
+        {% if selected_series.planting_week %}<div class="quick-meta">Plantation S{{ selected_series.planting_week }}</div>{% endif %}
+        {% if is_technician %}<div class="quick-meta">Saisie pour producteur : <b>{{ target_user.get_full_name|default:target_user.username }}</b></div>{% endif %}
+      </div>
+    </div>
+    <div class="quick-mobile-toolbar mt-3">
+      <div class="quick-series-line mb-3">SÉRIE : {{ selected_series.name }}</div>
+      <div class="quick-stat-grid">
+        <div class="quick-stat-card quick-stat-card--plants">
+          {{ form.observed_plants_count }}
+          {{ form.observed_plants_count.errors }}
+          <div class="quick-stat-label">plants</div>
+        </div>
+        <div class="quick-stat-card quick-stat-card--leaves">
+          {{ form.observed_leaves_count }}
+          {{ form.observed_leaves_count.errors }}
+          <div class="quick-stat-label">feuilles</div>
+        </div>
+        <div class="quick-stat-card quick-stat-card--infestation">
+          <div class="quick-stat-value" id="quick-mobile-infestation-value">0 %</div>
+          <div class="quick-stat-label">d'infestation</div>
+        </div>
+      </div>
+      <div class="quick-mobile-button-row">
+        <button type="button" class="btn btn-outline-primary quick-mobile-action" id="quick-mobile-aphid-toggle" data-bs-toggle="modal" data-bs-target="#quickAphidModal">Puceron</button>
+        <button type="button" class="btn quick-trigger--aux quick-mobile-action" data-bs-toggle="modal" data-bs-target="#quickAuxModal">Auxiliaire</button>
+        <button type="button" class="btn quick-trigger--pest quick-mobile-action" data-bs-toggle="modal" data-bs-target="#quickPestModal">Ravageur</button>
+      </div>
+      <div class="quick-mobile-summary" id="quick-mobile-aphid-summary"></div>
+      <div class="quick-mobile-summary" id="quick-mobile-aux-summary"></div>
+      <div class="quick-mobile-summary" id="quick-mobile-pest-summary"></div>
+    </div>
+  </div>
+
+  <div class="quick-card p-3 p-md-4">
+    <h2 class="h4 mb-3">Comptage rapide</h2>
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+    <div id="quick-form-error" class="alert alert-danger quick-error-banner d-none"></div>
+    <form method="post" novalidate id="quick-record-form">
+      {% csrf_token %}
+      <input type="hidden" name="record_entry_mode" value="quick">
+      <input type="hidden" name="plant_series" value="{{ selected_series.id }}">
+      {{ form.crop }}
+      <input type="hidden" name="primary_aphid_species" id="primary-aphid-species-input" value="">
+
+      <section class="mb-4 quick-section--aux">
+        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
+          <div>
+            <div class="quick-section-heading mb-1">
+              <span class="quick-section-dot quick-section-dot--aux"></span>
+              <h3 class="quick-section-title mb-0">Auxiliaires</h3>
+            </div>
+            <p class="quick-help mb-0">Saisissez les individus observés tous plants confondus.</p>
+          </div>
+          <button type="button" class="btn quick-trigger--aux" data-bs-toggle="modal" data-bs-target="#quickAuxModal">Saisir les auxiliaires</button>
+        </div>
+        <div class="quick-summary" id="quick-aux-summary"></div>
+      </section>
+
+      <section class="mb-4 quick-section--pest">
+        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
+          <div>
+            <div class="quick-section-heading mb-1">
+              <span class="quick-section-dot quick-section-dot--pest"></span>
+              <h3 class="quick-section-title mb-0">Autres ravageurs</h3>
+            </div>
+            <p class="quick-help mb-0">Saisissez le nombre de feuilles infestées pour chaque ravageur observé.</p>
+          </div>
+          <button type="button" class="btn quick-trigger--pest" data-bs-toggle="modal" data-bs-target="#quickPestModal">Saisir les ravageurs</button>
+        </div>
+        <div class="quick-summary" id="quick-pest-summary"></div>
+      </section>
+
+      <div class="row g-3 mb-4">
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="{{ form.scouting_date.id_for_label }}">Date d'observation</label>
+          {{ form.scouting_date }}
+          {{ form.scouting_date.errors }}
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="{{ form.comment.id_for_label }}">Commentaire</label>
+          {{ form.comment }}
+          {{ form.comment.errors }}
+        </div>
+      </div>
+
+      <div class="quick-actions">
+        {% if form_mode == 'edit' %}
+          <a href="{% url 'my_records' %}" class="btn btn-outline-secondary">Retour aux saisies</a>
+          <button type="submit" class="btn btn-success">Enregistrer les modifications</button>
+        {% else %}
+          <a href="{% url 'record_create' %}?plant_series={{ selected_series.id }}" class="btn btn-outline-secondary">Retour au choix</a>
+          <button type="submit" class="btn btn-success">Enregistrer le comptage rapide</button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal fade" id="quickAphidModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5 mb-0">Saisir les pucerons</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.aphid_infested_leaves_count.id_for_label }}">Nombre de feuilles infestées</label>
+          {{ form.aphid_infested_leaves_count }}
+          {{ form.aphid_infested_leaves_count.errors }}
+        </div>
+        <div id="quick-aphid-limit-note" class="quick-modal-note quick-modal-note--aphid"></div>
+        <div class="quick-section-heading">
+          <span class="quick-section-dot quick-section-dot--aphid"></span>
+          <h3 class="quick-section-title mb-0">Espèces de pucerons présentes</h3>
+        </div>
+        <p class="quick-help mb-3">Sélectionnez les espèces observées. Si plusieurs espèces sont présentes, choisissez ensuite la principale.</p>
+        <div class="quick-species-grid mb-3" id="quick-aphid-grid">
+          {% for species in aphid_species_options %}
+            <button type="button" class="quick-card-select js-aphid-card" data-species-id="{{ species.id }}">
+              <input type="hidden" name="quick_aphid_species_{{ species.id }}" value="0" form="quick-record-form">
+              <div class="quick-card-thumb">
+                {% if species.photoUrl %}<img src="{{ species.photoUrl }}" alt="{{ species.label }}">{% else %}<span>{{ species.label|first|upper }}</span>{% endif %}
+              </div>
+              <div class="quick-card-label">{{ species.label }}</div>
+            </button>
+          {% endfor %}
+        </div>
+        <div id="quick-primary-box" class="quick-primary-box d-none">
+          <div class="fw-bold text-danger mb-2">Espèce principale du comptage</div>
+          <div id="quick-primary-error" class="quick-primary-error" aria-live="polite"></div>
+          <div class="quick-species-grid" id="quick-primary-grid"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-success" data-bs-dismiss="modal">Valider</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="quickAuxModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5 mb-0">Choisir les auxiliaires</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">
+        <div id="quick-aux-editor" class="quick-modal-editor">
+          <div class="flex-grow-1">
+            <label for="quick-aux-editor-input">Saisie rapide</label>
+            <input id="quick-aux-editor-input" type="number" class="form-control" min="0" step="1">
+          </div>
+          <button type="button" class="btn btn-outline-secondary" id="quick-aux-editor-close">Fermer</button>
+        </div>
+        <div class="quick-aux-grid" id="quick-aux-grid">
+          {% for taxon in auxiliary_taxa_options %}
+            <button type="button" class="quick-card-select js-aux-card" data-taxon-id="{{ taxon.id }}">
+              <input type="hidden" name="quick_aux_{{ taxon.id }}" value="0" form="quick-record-form">
+              <span class="quick-pill-count" data-count-for="{{ taxon.id }}">0</span>
+              <div class="quick-card-thumb">
+                {% if taxon.photoUrl %}<img src="{{ taxon.photoUrl }}" alt="{{ taxon.label }}">{% else %}<span>{{ taxon.label|first|upper }}</span>{% endif %}
+              </div>
+              <div class="quick-card-label">{{ taxon.label }}</div>
+              <span class="quick-minus" data-minus-for="{{ taxon.id }}">−</span>
+            </button>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="quick-aux-reset">Réinitialiser</button>
+        <button type="button" class="btn btn-success" data-bs-dismiss="modal">Valider</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="quickPestModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5 mb-0">Choisir les autres ravageurs</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">
+        <div id="quick-pest-editor" class="quick-modal-editor">
+          <div class="flex-grow-1">
+            <label for="quick-pest-editor-input">Saisie rapide</label>
+            <input id="quick-pest-editor-input" type="number" class="form-control" min="0" step="1">
+          </div>
+          <button type="button" class="btn btn-outline-secondary" id="quick-pest-editor-close">Fermer</button>
+        </div>
+        <div id="quick-pest-limit-note" class="quick-modal-note quick-modal-note--pest"></div>
+        <div class="quick-pest-grid" id="quick-pest-grid">
+          {% for taxon in other_pest_taxa_options %}
+            <button type="button" class="quick-card-select js-pest-card" data-taxon-id="{{ taxon.id }}">
+              <input type="hidden" name="quick_pest_selected_{{ taxon.id }}" value="0" form="quick-record-form">
+              <input type="hidden" name="quick_pest_{{ taxon.id }}" value="0" form="quick-record-form">
+              <span class="quick-pill-count" data-pest-count-for="{{ taxon.id }}">0</span>
+              <div class="quick-card-thumb">
+                {% if taxon.photoUrl %}<img src="{{ taxon.photoUrl }}" alt="{{ taxon.label }}">{% else %}<span>{{ taxon.label|first|upper }}</span>{% endif %}
+              </div>
+              <div class="quick-card-label">{{ taxon.label }}</div>
+              <span class="quick-minus" data-pest-minus-for="{{ taxon.id }}">−</span>
+            </button>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="quick-pest-reset">Réinitialiser</button>
+        <button type="button" class="btn btn-success" data-bs-dismiss="modal">Valider</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ aphid_species_options|json_script:"quick-aphid-species-data" }}
+{{ other_pest_taxa_options|json_script:"quick-other-pest-data" }}
+{{ auxiliary_taxa_options|json_script:"quick-auxiliary-data" }}
+{{ quick_initial_data_json|json_script:"quick-record-initial-data" }}
+<script>
+(function() {
+  const form = document.getElementById('quick-record-form');
+  if (!form) return;
+
+  const aphidOptions = JSON.parse(document.getElementById('quick-aphid-species-data').textContent || '[]');
+  const pestOptions = JSON.parse(document.getElementById('quick-other-pest-data').textContent || '[]');
+  const auxOptions = JSON.parse(document.getElementById('quick-auxiliary-data').textContent || '[]');
+  const initialData = JSON.parse(document.getElementById('quick-record-initial-data').textContent || '{}');
+  const defaultAphidSpeciesId = '{{ default_aphid_species_id }}';
+
+  const aphidGrid = document.getElementById('quick-aphid-grid');
+  const primaryBox = document.getElementById('quick-primary-box');
+  const primaryGrid = document.getElementById('quick-primary-grid');
+  const primaryInput = document.getElementById('primary-aphid-species-input');
+  const primaryError = document.getElementById('quick-primary-error');
+  const aphidInfestedInput = document.getElementById('{{ form.aphid_infested_leaves_count.id_for_label }}');
+  const observedPlantsInput = document.getElementById('{{ form.observed_plants_count.id_for_label }}');
+  const observedLeavesInput = document.getElementById('{{ form.observed_leaves_count.id_for_label }}');
+  const mobileInfestationValue = document.getElementById('quick-mobile-infestation-value');
+  const errorBox = document.getElementById('quick-form-error');
+  const mobileAphidToggle = document.getElementById('quick-mobile-aphid-toggle');
+  const aphidModalElement = document.getElementById('quickAphidModal');
+  const aphidLimitNote = document.getElementById('quick-aphid-limit-note');
+  const mobileAphidSummary = document.getElementById('quick-mobile-aphid-summary');
+  const mobileAuxSummary = document.getElementById('quick-mobile-aux-summary');
+  const mobilePestSummary = document.getElementById('quick-mobile-pest-summary');
+
+  const auxSummary = document.getElementById('quick-aux-summary');
+  const auxEditor = document.getElementById('quick-aux-editor');
+  const auxEditorInput = document.getElementById('quick-aux-editor-input');
+  const auxEditorClose = document.getElementById('quick-aux-editor-close');
+  const auxGrid = document.getElementById('quick-aux-grid');
+  const auxResetButton = document.getElementById('quick-aux-reset');
+
+  const pestSummary = document.getElementById('quick-pest-summary');
+  const pestEditor = document.getElementById('quick-pest-editor');
+  const pestEditorInput = document.getElementById('quick-pest-editor-input');
+  const pestEditorClose = document.getElementById('quick-pest-editor-close');
+  const pestGrid = document.getElementById('quick-pest-grid');
+  const pestResetButton = document.getElementById('quick-pest-reset');
+  const pestLimitNote = document.getElementById('quick-pest-limit-note');
+
+  const state = {
+    aphidSpecies: new Set(initialData.aphidSpeciesIds || []),
+    primaryAphidSpecies: initialData.primaryAphidSpecies || '',
+    auxiliaryCounts: Object.assign({}, initialData.auxiliaryCounts || {}),
+    otherPestCounts: Object.assign({}, initialData.otherPestCounts || {}),
+    longPressTimer: null,
+    editingAuxTaxonId: null,
+    ignoreNextAuxClick: null,
+    editingPestTaxonId: null,
+    ignoreNextPestClick: null,
+  };
+
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.classList.remove('d-none');
+  }
+  function clearError() {
+    errorBox.textContent = '';
+    errorBox.classList.add('d-none');
+  }
+  function scrollToElementCentered(element, container = window) {
+    if (!element) return;
+    if (container && container !== window) {
+      const containerRect = container.getBoundingClientRect();
+      const rect = element.getBoundingClientRect();
+      const targetTop = container.scrollTop + (rect.top - containerRect.top) - (container.clientHeight / 2) + (rect.height / 2);
+      container.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' });
+      return;
+    }
+    const rect = element.getBoundingClientRect();
+    const targetTop = window.scrollY + rect.top - (window.innerHeight / 2) + (rect.height / 2);
+    window.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' });
+  }
+  function showBlockingError(message, target) {
+    showError(message);
+    scrollToElementCentered(target || errorBox);
+  }
+  function showAphidBlockingError(message, target) {
+    showError(message);
+    if (aphidModalElement && window.bootstrap && bootstrap.Modal) {
+      bootstrap.Modal.getOrCreateInstance(aphidModalElement).show();
+      window.setTimeout(() => {
+        const modalBody = aphidModalElement.querySelector('.modal-body');
+        if (target) scrollToElementCentered(target, modalBody || window);
+      }, 160);
+      return;
+    }
+    scrollToElementCentered(target || errorBox);
+  }
+  function clearPrimaryError() {
+    if (!primaryError) return;
+    primaryError.textContent = '';
+    primaryError.classList.remove('is-visible');
+    primaryBox?.classList.remove('has-error');
+  }
+  function showPrimaryError(message) {
+    if (!primaryError || !primaryBox) return;
+    primaryError.textContent = message;
+    primaryError.classList.add('is-visible');
+    primaryBox.classList.add('has-error');
+  }
+  function getObservedLeavesLimit() {
+    return Math.max(0, Number(observedLeavesInput.value || 0));
+  }
+  function clampAphidInfestedToObservedLeaves() {
+    const maxAllowed = getObservedLeavesLimit();
+    const current = Math.max(0, Number(aphidInfestedInput.value || 0));
+    if (current > maxAllowed) {
+      aphidInfestedInput.value = String(maxAllowed);
+    }
+  }
+  function renderAphidLimitNote() {
+    if (!aphidLimitNote) return;
+    const maxAllowed = getObservedLeavesLimit();
+    const suffix = maxAllowed > 1 ? 'feuilles observées' : 'feuille observée';
+    aphidLimitNote.textContent = `Nombre de feuilles infestées. Maximum autorisé : ${maxAllowed} ${suffix}.`;
+    aphidInfestedInput.max = String(maxAllowed);
+  }
+  function renderInfestationStat() {
+    if (!mobileInfestationValue) return;
+    const observedLeaves = Math.max(0, Number(observedLeavesInput.value || 0));
+    const infestedLeaves = Math.max(0, Number(aphidInfestedInput.value || 0));
+    const percent = observedLeaves > 0 ? Math.round((infestedLeaves / observedLeaves) * 100) : 0;
+    mobileInfestationValue.textContent = `${percent} %`;
+  }
+
+  function syncDefaultAphidSpecies() {
+    const infested = Number(aphidInfestedInput.value || 0);
+    if (infested > 0 && state.aphidSpecies.size === 0 && defaultAphidSpeciesId) {
+      state.aphidSpecies.add(String(defaultAphidSpeciesId));
+    }
+    if (infested <= 0) {
+      state.aphidSpecies.clear();
+      state.primaryAphidSpecies = '';
+    }
+  }
+  function renderAphidSummary() {
+    if (!mobileAphidSummary) return;
+    const selectedSpecies = aphidOptions.filter((item) => state.aphidSpecies.has(String(item.id)));
+    const chips = [];
+    const infested = Number(aphidInfestedInput.value || 0);
+    if (infested > 0) {
+      const suffix = infested > 1 ? 'feuilles infestées' : 'feuille infestée';
+      chips.push(`<span class="quick-chip">Puceron : ${infested} ${suffix}</span>`);
+    }
+    const primarySpecies = selectedSpecies.find((item) => String(item.id) === String(state.primaryAphidSpecies));
+    if (primarySpecies) {
+      chips.push(`<span class="quick-chip quick-chip--primary">Principale : ${primarySpecies.label}</span>`);
+    }
+    selectedSpecies.forEach((item) => {
+      if (primarySpecies && String(item.id) === String(primarySpecies.id)) return;
+      chips.push(`<span class="quick-chip">${item.label}</span>`);
+    });
+    mobileAphidSummary.innerHTML = chips.join('');
+    if (mobileAphidToggle) {
+      mobileAphidToggle.classList.toggle('btn-primary', infested > 0);
+      mobileAphidToggle.classList.toggle('btn-outline-primary', infested <= 0);
+    }
+  }
+
+  function renderAphidCards() {
+    aphidGrid.querySelectorAll('.js-aphid-card').forEach((card) => {
+      const speciesId = card.dataset.speciesId;
+      const selected = state.aphidSpecies.has(String(speciesId));
+      card.classList.toggle('is-selected', selected);
+      const hiddenInput = card.querySelector('input[type="hidden"]');
+      if (hiddenInput) hiddenInput.value = selected ? '1' : '0';
+    });
+
+    const selectedSpecies = aphidOptions.filter((item) => state.aphidSpecies.has(String(item.id)));
+    if (selectedSpecies.length <= 1) {
+      primaryBox.classList.add('d-none');
+      state.primaryAphidSpecies = selectedSpecies.length === 1 ? String(selectedSpecies[0].id) : '';
+      primaryInput.value = state.primaryAphidSpecies;
+      primaryGrid.innerHTML = '';
+      clearPrimaryError();
+      renderAphidSummary();
+      return;
+    }
+
+    primaryBox.classList.remove('d-none');
+    if (state.primaryAphidSpecies) {
+      clearPrimaryError();
+    }
+    primaryGrid.innerHTML = selectedSpecies.map((species) => {
+      const active = String(species.id) === String(state.primaryAphidSpecies);
+      return `
+        <button type="button" class="quick-card-select ${active ? 'is-primary' : ''} js-primary-aphid-card" data-species-id="${species.id}">
+          <div class="quick-card-thumb">${species.photoUrl ? `<img src="${species.photoUrl}" alt="${species.label}">` : `<span>${species.label.charAt(0).toUpperCase()}</span>`}</div>
+          <div class="quick-card-label">${species.label}</div>
+        </button>
+      `;
+    }).join('');
+    primaryInput.value = state.primaryAphidSpecies;
+    renderAphidSummary();
+  }
+
+  aphidGrid.addEventListener('click', (event) => {
+    const card = event.target.closest('.js-aphid-card');
+    if (!card) return;
+    const speciesId = String(card.dataset.speciesId);
+    const previousSpeciesIds = Array.from(state.aphidSpecies);
+    const hadAutoPrimary = previousSpeciesIds.length === 1 && state.primaryAphidSpecies === String(previousSpeciesIds[0]);
+
+    if (state.aphidSpecies.has(speciesId)) {
+      state.aphidSpecies.delete(speciesId);
+      if (state.primaryAphidSpecies === speciesId) state.primaryAphidSpecies = '';
+    } else {
+      state.aphidSpecies.add(speciesId);
+      if (state.aphidSpecies.size > 1 && hadAutoPrimary) {
+        state.primaryAphidSpecies = '';
+      }
+    }
+    clearError();
+    renderAphidCards();
+  });
+
+  primaryGrid.addEventListener('click', (event) => {
+    const card = event.target.closest('.js-primary-aphid-card');
+    if (!card) return;
+    state.primaryAphidSpecies = String(card.dataset.speciesId);
+    clearError();
+    clearPrimaryError();
+    renderAphidCards();
+  });
+
+  function getAuxCount(taxonId) {
+    return Number(state.auxiliaryCounts[String(taxonId)] || 0);
+  }
+  function setAuxCount(taxonId, value) {
+    const normalized = Math.max(0, Number(value || 0));
+    if (normalized > 0) {
+      state.auxiliaryCounts[String(taxonId)] = normalized;
+    } else {
+      delete state.auxiliaryCounts[String(taxonId)];
+    }
+    const input = auxGrid.querySelector(`input[name="quick_aux_${taxonId}"]`);
+    if (input) input.value = normalized;
+    renderAuxiliaryCards();
+    renderAuxiliarySummary();
+  }
+  function renderAuxiliaryCards() {
+    auxGrid.querySelectorAll('.js-aux-card').forEach((card) => {
+      const taxonId = card.dataset.taxonId;
+      const count = getAuxCount(taxonId);
+      const badge = card.querySelector(`[data-count-for="${taxonId}"]`);
+      const minus = card.querySelector(`[data-minus-for="${taxonId}"]`);
+      if (badge) {
+        badge.textContent = count;
+        badge.classList.toggle('is-visible', count > 0);
+      }
+      if (minus) minus.classList.toggle('is-visible', count > 0);
+      card.classList.toggle('is-selected', count > 0);
+    });
+  }
+  function renderAuxiliarySummary() {
+    const chips = auxOptions
+      .filter((item) => getAuxCount(item.id) > 0)
+      .map((item) => {
+        const count = getAuxCount(item.id);
+        const suffix = count > 1 ? 'individus' : 'individu';
+        return `<span class="quick-chip quick-chip--aux">${item.label} : ${count} ${suffix}</span>`;
+      });
+    auxSummary.innerHTML = chips.join('');
+    if (mobileAuxSummary) mobileAuxSummary.innerHTML = chips.join('');
+  }
+  function openAuxEditor(taxonId) {
+    state.editingAuxTaxonId = String(taxonId);
+    state.ignoreNextAuxClick = String(taxonId);
+    const item = auxOptions.find((row) => String(row.id) === String(taxonId));
+    auxEditor.classList.add('is-visible');
+    auxEditor.querySelector('label').textContent = `Saisie rapide : ${item ? item.label : ''}`;
+    auxEditorInput.value = getAuxCount(taxonId);
+    auxEditorInput.focus();
+    auxEditorInput.select();
+  }
+  function closeAuxEditor() {
+    state.editingAuxTaxonId = null;
+    auxEditor.classList.remove('is-visible');
+  }
+  function scheduleAuxLongPress(taxonId) {
+    clearTimeout(state.longPressTimer);
+    state.longPressTimer = window.setTimeout(() => openAuxEditor(taxonId), 420);
+  }
+  function clearAuxLongPress() {
+    clearTimeout(state.longPressTimer);
+    state.longPressTimer = null;
+  }
+
+  auxGrid.addEventListener('click', (event) => {
+    const minus = event.target.closest('.quick-minus');
+    if (minus) {
+      event.preventDefault();
+      event.stopPropagation();
+      const taxonId = minus.dataset.minusFor;
+      setAuxCount(taxonId, getAuxCount(taxonId) - 1);
+      return;
+    }
+    const card = event.target.closest('.js-aux-card');
+    if (!card) return;
+    const taxonId = card.dataset.taxonId;
+    if (state.ignoreNextAuxClick === String(taxonId)) {
+      state.ignoreNextAuxClick = null;
+      return;
+    }
+    setAuxCount(taxonId, getAuxCount(taxonId) + 1);
+  });
+  auxGrid.addEventListener('pointerdown', (event) => {
+    const card = event.target.closest('.js-aux-card');
+    if (!card || event.target.closest('.quick-minus')) return;
+    scheduleAuxLongPress(card.dataset.taxonId);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((eventName) => {
+    auxGrid.addEventListener(eventName, clearAuxLongPress);
+  });
+  auxEditorInput.addEventListener('change', () => {
+    if (state.editingAuxTaxonId) setAuxCount(state.editingAuxTaxonId, auxEditorInput.value);
+  });
+  auxEditorInput.addEventListener('keyup', (event) => {
+    if (event.key === 'Enter' && state.editingAuxTaxonId) {
+      setAuxCount(state.editingAuxTaxonId, auxEditorInput.value);
+      closeAuxEditor();
+    }
+  });
+  auxEditorClose.addEventListener('click', closeAuxEditor);
+  auxResetButton.addEventListener('click', () => {
+    state.auxiliaryCounts = {};
+    auxGrid.querySelectorAll('input[name^="quick_aux_"]').forEach((input) => { input.value = '0'; });
+    renderAuxiliaryCards();
+    renderAuxiliarySummary();
+    closeAuxEditor();
+  });
+
+  function getPestCount(taxonId) {
+    return Number(state.otherPestCounts[String(taxonId)] || 0);
+  }
+  function setPestCount(taxonId, value) {
+    const maxAllowed = getObservedLeavesLimit();
+    const normalized = Math.min(maxAllowed, Math.max(0, Number(value || 0)));
+    if (normalized > 0) {
+      state.otherPestCounts[String(taxonId)] = normalized;
+    } else {
+      delete state.otherPestCounts[String(taxonId)];
+    }
+    const selectedInput = pestGrid.querySelector(`input[name="quick_pest_selected_${taxonId}"]`);
+    const countInput = pestGrid.querySelector(`input[name="quick_pest_${taxonId}"]`);
+    if (selectedInput) selectedInput.value = normalized > 0 ? '1' : '0';
+    if (countInput) countInput.value = normalized;
+    renderPestCards();
+    renderPestSummary();
+  }
+  function clampPestCountsToObservedLeaves() {
+    const maxAllowed = getObservedLeavesLimit();
+    Object.keys(state.otherPestCounts).forEach((taxonId) => {
+      if (Number(state.otherPestCounts[taxonId] || 0) > maxAllowed) {
+        state.otherPestCounts[taxonId] = maxAllowed;
+      }
+      if (maxAllowed <= 0 || Number(state.otherPestCounts[taxonId] || 0) <= 0) {
+        delete state.otherPestCounts[taxonId];
+      }
+    });
+  }
+  function renderPestLimitNote() {
+    if (!pestLimitNote) return;
+    const maxAllowed = getObservedLeavesLimit();
+    const suffix = maxAllowed > 1 ? 'feuilles observées' : 'feuille observée';
+    pestLimitNote.textContent = `Nombre de feuilles infestées par ravageur. Maximum autorisé : ${maxAllowed} ${suffix}.`;
+    pestEditorInput.max = String(maxAllowed);
+  }
+  function renderPestCards() {
+    const maxAllowed = getObservedLeavesLimit();
+    pestGrid.querySelectorAll('.js-pest-card').forEach((card) => {
+      const taxonId = String(card.dataset.taxonId);
+      const count = getPestCount(taxonId);
+      const badge = card.querySelector(`[data-pest-count-for="${taxonId}"]`);
+      const minus = card.querySelector(`[data-pest-minus-for="${taxonId}"]`);
+      const selectedInput = card.querySelector(`input[name="quick_pest_selected_${taxonId}"]`);
+      const countInput = card.querySelector(`input[name="quick_pest_${taxonId}"]`);
+      if (badge) {
+        badge.textContent = count;
+        badge.classList.toggle('is-visible', count > 0);
+      }
+      if (minus) minus.classList.toggle('is-visible', count > 0);
+      if (selectedInput) selectedInput.value = count > 0 ? '1' : '0';
+      if (countInput) countInput.value = count;
+      card.classList.toggle('is-selected', count > 0);
+      card.classList.toggle('is-maxed', count >= maxAllowed && maxAllowed > 0);
+    });
+  }
+  function renderPestSummary() {
+    const chips = pestOptions
+      .filter((item) => getPestCount(item.id) > 0)
+      .map((item) => {
+        const count = getPestCount(item.id);
+        const suffix = count > 1 ? 'feuilles infestées' : 'feuille infestée';
+        return `<span class="quick-chip quick-chip--pest">${item.label} : ${count} ${suffix}</span>`;
+      });
+    pestSummary.innerHTML = chips.join('');
+    if (mobilePestSummary) mobilePestSummary.innerHTML = chips.join('');
+  }
+  function openPestEditor(taxonId) {
+    state.editingPestTaxonId = String(taxonId);
+    state.ignoreNextPestClick = String(taxonId);
+    const item = pestOptions.find((row) => String(row.id) === String(taxonId));
+    pestEditor.classList.add('is-visible');
+    pestEditor.querySelector('label').textContent = `Saisie rapide : ${item ? item.label : ''}`;
+    pestEditorInput.value = getPestCount(taxonId);
+    pestEditorInput.focus();
+    pestEditorInput.select();
+  }
+  function closePestEditor() {
+    state.editingPestTaxonId = null;
+    pestEditor.classList.remove('is-visible');
+  }
+  function schedulePestLongPress(taxonId) {
+    clearTimeout(state.longPressTimer);
+    state.longPressTimer = window.setTimeout(() => openPestEditor(taxonId), 420);
+  }
+  pestGrid.addEventListener('click', (event) => {
+    const minus = event.target.closest('.quick-minus');
+    if (minus) {
+      event.preventDefault();
+      event.stopPropagation();
+      const taxonId = minus.dataset.pestMinusFor;
+      if (taxonId) {
+        setPestCount(taxonId, getPestCount(taxonId) - 1);
+        return;
+      }
+    }
+    const card = event.target.closest('.js-pest-card');
+    if (!card) return;
+    const taxonId = String(card.dataset.taxonId);
+    if (state.ignoreNextPestClick === taxonId) {
+      state.ignoreNextPestClick = null;
+      return;
+    }
+    setPestCount(taxonId, getPestCount(taxonId) + 1);
+  });
+  pestGrid.addEventListener('pointerdown', (event) => {
+    const card = event.target.closest('.js-pest-card');
+    if (!card || event.target.closest('.quick-minus')) return;
+    schedulePestLongPress(card.dataset.taxonId);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((eventName) => {
+    pestGrid.addEventListener(eventName, clearAuxLongPress);
+  });
+  pestEditorInput.addEventListener('change', () => {
+    if (state.editingPestTaxonId) setPestCount(state.editingPestTaxonId, pestEditorInput.value);
+  });
+  pestEditorInput.addEventListener('keyup', (event) => {
+    if (event.key === 'Enter' && state.editingPestTaxonId) {
+      setPestCount(state.editingPestTaxonId, pestEditorInput.value);
+      closePestEditor();
+    }
+  });
+  pestEditorClose.addEventListener('click', closePestEditor);
+  pestResetButton.addEventListener('click', () => {
+    state.otherPestCounts = {};
+    pestGrid.querySelectorAll('input[name^="quick_pest_selected_"]').forEach((input) => { input.value = '0'; });
+    pestGrid.querySelectorAll('input[name^="quick_pest_"]').forEach((input) => { input.value = '0'; });
+    renderPestCards();
+    renderPestSummary();
+    closePestEditor();
+  });
+
+  observedPlantsInput?.addEventListener('input', clearError);
+  observedLeavesInput.addEventListener('input', clearError);
+  observedLeavesInput.addEventListener('input', () => {
+    clearError();
+    clampAphidInfestedToObservedLeaves();
+    renderAphidLimitNote();
+    renderInfestationStat();
+    syncDefaultAphidSpecies();
+    renderAphidCards();
+    clampPestCountsToObservedLeaves();
+    renderPestLimitNote();
+    renderPestCards();
+    renderPestSummary();
+  });
+  aphidInfestedInput.addEventListener('input', () => {
+    clearError();
+    clampAphidInfestedToObservedLeaves();
+    renderInfestationStat();
+    syncDefaultAphidSpecies();
+    renderAphidCards();
+  });
+  aphidModalElement?.addEventListener('shown.bs.modal', () => {
+    if (!aphidInfestedInput) return;
+    aphidInfestedInput.focus();
+    aphidInfestedInput.select();
+  });
+
+  form.addEventListener('submit', (event) => {
+    clearError();
+    syncDefaultAphidSpecies();
+    const observedLeaves = Number(observedLeavesInput.value || 0);
+    const aphidInfested = Number(aphidInfestedInput.value || 0);
+    if (aphidInfested > observedLeaves) {
+      event.preventDefault();
+      showAphidBlockingError('Le nombre de feuilles infestées de pucerons ne peut pas dépasser les feuilles observées.', aphidInfestedInput);
+      return;
+    }
+    if (aphidInfested > 0 && state.aphidSpecies.size > 1 && !state.primaryAphidSpecies) {
+      event.preventDefault();
+      showPrimaryError("Choisissez l'espèce principale avant de valider.");
+      showAphidBlockingError("Choisissez l'espèce principale du comptage.", primaryBox);
+      window.setTimeout(() => {
+        const firstPrimaryCard = primaryGrid.querySelector('.js-primary-aphid-card');
+        firstPrimaryCard?.focus();
+      }, 220);
+      return;
+    }
+    for (const [taxonId, count] of Object.entries(state.otherPestCounts)) {
+      if (Number(count || 0) > observedLeaves) {
+        event.preventDefault();
+        const taxon = pestOptions.find((item) => String(item.id) === String(taxonId));
+        const targetCard = pestGrid.querySelector(`.js-pest-card[data-taxon-id="${taxonId}"]`);
+        showBlockingError(`${taxon ? taxon.label : 'Ravageur'} : le nombre de feuilles infestées ne peut pas dépasser les feuilles observées.`, targetCard || pestSummary);
+        return;
+      }
+    }
+    primaryInput.value = state.primaryAphidSpecies || '';
+  });
+
+  syncDefaultAphidSpecies();
+  renderAphidLimitNote();
+  renderInfestationStat();
+  renderAphidCards();
+  renderAuxiliaryCards();
+  renderAuxiliarySummary();
+  renderPestLimitNote();
+  renderPestCards();
+  renderPestSummary();
+
+  const firstServerError = Array.from(form.querySelectorAll('.errorlist, .alert.alert-danger')).find((node) => !node.classList.contains('d-none'));
+  if (firstServerError) {
+    window.setTimeout(() => {
+      scrollToElementCentered(firstServerError.closest('.col-12, .col-6, .mb-4, .quick-primary-box, .quick-summary, .quick-pest-grid') || firstServerError);
+    }, 50);
+  }
+})();
+</script>
+{% endblock %}
+
+

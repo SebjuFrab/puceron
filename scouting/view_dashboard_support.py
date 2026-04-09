@@ -2,7 +2,14 @@ from collections import defaultdict
 
 from django.db.models import Count
 
-from .models import LeafObservation, LeafOtherPestObservation, PlantAction, PlantSeries, ScoutingRecord
+from .models import (
+    LeafObservation,
+    LeafOtherPestObservation,
+    PlantAction,
+    PlantSeries,
+    QuickRecordOtherPestCount,
+    ScoutingRecord,
+)
 from .utils import display_user_name
 from .view_access import _effective_profile, _effective_user, _manager_user, _parse_positive_int, _series_queryset_for_user
 
@@ -119,7 +126,20 @@ def _other_pest_chart_datasets(records, weeks):
         .annotate(touched=Count('leaf_observation_id', distinct=True))
         .order_by('taxon__display_order', 'taxon__name', 'taxon_id')
     )
-    if not rows:
+    quick_rows = list(
+        QuickRecordOtherPestCount.objects.filter(record_id__in=record_ids)
+        .values(
+            'record__plant_series_id',
+            'taxon_id',
+            'taxon__name',
+            'taxon__display_order',
+            'record__week',
+            'infested_leaves_count',
+            'record__observed_leaves_count',
+        )
+        .order_by('taxon__display_order', 'taxon__name', 'taxon_id')
+    )
+    if not rows and not quick_rows:
         return []
 
     values_by_series_and_taxon = defaultdict(lambda: defaultdict(dict))
@@ -130,6 +150,15 @@ def _other_pest_chart_datasets(records, weeks):
         week = row['leaf_observation__record__week']
         total_leaves = total_leaves_by_week.get((series_id, week)) or 0
         percentage = round((row['touched'] / total_leaves) * 100, 2) if total_leaves else 0
+        taxon_id = row['taxon_id']
+        values_by_series_and_taxon[series_id][taxon_id][week] = percentage
+        taxon_names[taxon_id] = row['taxon__name']
+        taxon_orders[taxon_id] = row['taxon__display_order'] or 0
+    for row in quick_rows:
+        series_id = row['record__plant_series_id']
+        week = row['record__week']
+        observed_leaves = row['record__observed_leaves_count'] or 0
+        percentage = round((row['infested_leaves_count'] / observed_leaves) * 100, 2) if observed_leaves else 0
         taxon_id = row['taxon_id']
         values_by_series_and_taxon[series_id][taxon_id][week] = percentage
         taxon_names[taxon_id] = row['taxon__name']
