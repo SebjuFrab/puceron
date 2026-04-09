@@ -1,4 +1,5 @@
 from collections import defaultdict
+from statistics import median
 
 from django.db.models import Count
 
@@ -86,6 +87,37 @@ def _series_chart_dataset(series, weeks, record_map, color):
         'borderColor': color,
         'backgroundColor': color,
     }
+
+
+def _reference_chart_dataset(weeks, values_by_week, label, color='#495057'):
+    return {
+        'id': f'reference-{label.lower().replace(" ", "-")}',
+        'label': label,
+        'data': [values_by_week.get(week) for week in weeks],
+        'borderColor': color,
+        'backgroundColor': color,
+        'borderDash': [8, 6],
+        'pointRadius': 5,
+        'pointHoverRadius': 7,
+        'pointStyle': 'rectRot',
+        'pointBackgroundColor': '#ffffff',
+        'pointBorderColor': color,
+        'pointBorderWidth': 3,
+        'borderWidth': 3,
+        'tension': 0.18,
+    }
+
+
+def _average(values):
+    if not values:
+        return None
+    return round(sum(values) / len(values), 2)
+
+
+def _median(values):
+    if not values:
+        return None
+    return round(float(median(values)), 2)
 
 
 def _contiguous_week_range(observed_weeks):
@@ -193,6 +225,59 @@ def _other_pest_chart_datasets(records, weeks):
     return datasets
 
 
+def _reference_other_pest_datasets(raw_datasets, weeks, label):
+    if not raw_datasets or not weeks or not label:
+        return []
+
+    values_by_taxon = defaultdict(lambda: defaultdict(list))
+    meta_by_taxon = {}
+    for dataset in raw_datasets:
+        taxon_id = dataset.get('taxonId')
+        if not taxon_id:
+            continue
+        meta_by_taxon.setdefault(
+            taxon_id,
+            {
+                'name': dataset.get('label', f'Ravageur {taxon_id}'),
+                'color': dataset.get('borderColor', '#495057'),
+            },
+        )
+        for index, week in enumerate(weeks):
+            if index >= len(dataset.get('data', [])):
+                continue
+            value = dataset['data'][index]
+            if value is None:
+                continue
+            values_by_taxon[taxon_id][week].append(value)
+
+    aggregator = _average if label == 'Moyenne du groupe' else _median
+    datasets = []
+    for taxon_id, week_values in values_by_taxon.items():
+        taxon_meta = meta_by_taxon.get(taxon_id, {})
+        datasets.append(
+            {
+                'id': f'other-pest-reference-{taxon_id}',
+                'seriesId': 'reference',
+                'taxonId': taxon_id,
+                'label': f"{taxon_meta.get('name', f'Ravageur {taxon_id}')} ({label})",
+                'data': [aggregator(week_values.get(week, [])) for week in weeks],
+                'borderColor': taxon_meta.get('color', '#495057'),
+                'backgroundColor': taxon_meta.get('color', '#495057'),
+                'borderDash': [8, 6],
+                'pointRadius': 5,
+                'pointHoverRadius': 7,
+                'pointStyle': 'rectRot',
+                'pointBackgroundColor': '#ffffff',
+                'pointBorderColor': taxon_meta.get('color', '#495057'),
+                'pointBorderWidth': 3,
+                'borderWidth': 3,
+                'tension': 0.18,
+                'isReference': True,
+            }
+        )
+    return datasets
+
+
 
 def _producer_dashboard_context(request):
     effective_user = _effective_user(request)
@@ -214,6 +299,14 @@ def _producer_dashboard_context(request):
             'available_years': [],
             'crop_options': [],
             'show_all_series_default': True,
+            'comparison_mode': 'median',
+            'available_comparison_departments': [],
+            'available_comparison_technicians': [],
+            'available_comparison_varieties': [],
+            'selected_comparison_department': '',
+            'selected_comparison_technician_id': None,
+            'selected_comparison_variety_id': None,
+            'comparison_match_count': 0,
         }
 
     crop_map = {}
@@ -252,14 +345,109 @@ def _producer_dashboard_context(request):
     displayed_series = [series for series in year_series if series.id in selected_series_ids]
     displayed_series_ids = {series.id for series in displayed_series}
 
+    comparison_mode = request.GET.get('comparison_mode')
+    if comparison_mode not in {'none', 'average', 'median'}:
+        comparison_mode = 'median'
+
+    comparison_base_series = list(
+        PlantSeries.objects.filter(
+            is_active=True,
+            crop_id=selected_crop_id,
+            year=selected_year,
+        )
+        .select_related('variety', 'user', 'user__profile', 'user__profile__assigned_technician')
+        .order_by('name')
+    )
+
+    available_comparison_departments = sorted(
+        {
+            series.user.profile.department
+            for series in comparison_base_series
+            if getattr(series.user, 'profile', None) and series.user.profile.department
+        }
+    )
+    selected_comparison_department = (request.GET.get('comparison_department') or '').strip()
+    if selected_comparison_department not in available_comparison_departments:
+        selected_comparison_department = ''
+    comparison_department_series = [
+        series
+        for series in comparison_base_series
+        if not selected_comparison_department or series.user.profile.department == selected_comparison_department
+    ]
+
+    available_comparison_technicians_map = {}
+    for series in comparison_department_series:
+        technician = series.user.profile.assigned_technician
+        if technician:
+            available_comparison_technicians_map[technician.id] = display_user_name(technician)
+    available_comparison_technicians = [
+        {'id': technician_id, 'name': technician_name}
+        for technician_id, technician_name in sorted(
+            available_comparison_technicians_map.items(),
+            key=lambda item: item[1].lower(),
+        )
+    ]
+    allowed_comparison_technician_ids = {item['id'] for item in available_comparison_technicians}
+    selected_comparison_technician_id = _parse_positive_int(request.GET.get('comparison_technician'))
+    if selected_comparison_technician_id not in allowed_comparison_technician_ids:
+        selected_comparison_technician_id = None
+    comparison_technician_series = [
+        series
+        for series in comparison_department_series
+        if not selected_comparison_technician_id or series.user.profile.assigned_technician_id == selected_comparison_technician_id
+    ]
+
+    available_comparison_varieties_map = {}
+    for series in comparison_technician_series:
+        available_comparison_varieties_map[series.variety_id] = series.variety.name
+    available_comparison_varieties = [
+        {'id': variety_id, 'name': variety_name}
+        for variety_id, variety_name in sorted(
+            available_comparison_varieties_map.items(),
+            key=lambda item: item[1].lower(),
+        )
+    ]
+    allowed_comparison_variety_ids = {item['id'] for item in available_comparison_varieties}
+    selected_comparison_variety_id = _parse_positive_int(request.GET.get('comparison_variety'))
+    if selected_comparison_variety_id not in allowed_comparison_variety_ids:
+        selected_comparison_variety_id = None
+    comparison_filtered_series = [
+        series
+        for series in comparison_technician_series
+        if not selected_comparison_variety_id or series.variety_id == selected_comparison_variety_id
+    ]
+    comparison_filtered_series_ids = {series.id for series in comparison_filtered_series}
+
     records = list(
         effective_user.records.filter(plant_series_id__in=allowed_series_ids, year=selected_year)
         .select_related('plant_series', 'crop_ref')
         .prefetch_related('leaf_observations')
         .order_by('week', 'scouting_date', 'id')
     )
+
+    comparison_records = []
+    if comparison_mode != 'none' and comparison_filtered_series_ids:
+        comparison_records = list(
+            ScoutingRecord.objects.filter(
+                plant_series_id__in=comparison_filtered_series_ids,
+                year=selected_year,
+            )
+            .select_related('plant_series', 'crop_ref', 'user', 'user__profile')
+            .order_by('week', 'scouting_date', 'id')
+        )
+
     weeks = _contiguous_week_range(
-        {record.week for record in records if record.week and record.plant_series_id in displayed_series_ids}
+        {
+            record.week
+            for record in records
+            if record.week and record.plant_series_id in displayed_series_ids
+        }
+        |
+        {
+            record.week
+            for record in comparison_records
+            if record.week
+        }
     )
 
     aphid_by_series = defaultdict(dict)
@@ -278,6 +466,35 @@ def _producer_dashboard_context(request):
         aux_datasets.append(_series_chart_dataset(series, weeks, aux_by_series.get(series.id, {}), color))
         series.chart_color = color
         series.latest_record = last_record_by_series.get(series.id)
+
+    comparison_aphid_by_week = defaultdict(list)
+    comparison_aux_by_week = defaultdict(list)
+    for record in comparison_records:
+        if not record.week:
+            continue
+        comparison_aphid_by_week[record.week].append(round(float(record.aphid_infested_percent), 2))
+        comparison_aux_by_week[record.week].append(round(float(record.auxiliaries_per_plant), 2))
+
+    comparison_aggregator = _average if comparison_mode == 'average' else _median
+    comparison_label = {
+        'average': 'Moyenne du groupe',
+        'median': 'Mediane du groupe',
+    }.get(comparison_mode)
+    if comparison_label and comparison_records:
+        aphid_reference_map = {
+            week: comparison_aggregator(values)
+            for week, values in comparison_aphid_by_week.items()
+            if values
+        }
+        aux_reference_map = {
+            week: comparison_aggregator(values)
+            for week, values in comparison_aux_by_week.items()
+            if values
+        }
+        if aphid_reference_map:
+            aphid_datasets.append(_reference_chart_dataset(weeks, aphid_reference_map, comparison_label))
+        if aux_reference_map:
+            aux_datasets.append(_reference_chart_dataset(weeks, aux_reference_map, comparison_label))
 
     action_cards = []
     actions = list(
@@ -309,6 +526,11 @@ def _producer_dashboard_context(request):
 
     displayed_records = [record for record in records if record.plant_series_id in displayed_series_ids]
     other_pest_datasets = _other_pest_chart_datasets(displayed_records, weeks)
+    if comparison_label and comparison_records:
+        comparison_other_pest_source = _other_pest_chart_datasets(comparison_records, weeks)
+        other_pest_datasets.extend(
+            _reference_other_pest_datasets(comparison_other_pest_source, weeks, comparison_label)
+        )
     latest_weeks = sorted({record.week for record in displayed_records if record.week}, reverse=True)
     latest_week = latest_weeks[0] if latest_weeks else None
 
@@ -334,6 +556,15 @@ def _producer_dashboard_context(request):
         'show_all_series_default': not submitted_series_filter,
         'selected_series_ids': selected_series_ids,
         'profile': profile,
+        'comparison_mode': comparison_mode,
+        'comparison_mode_label': comparison_label,
+        'available_comparison_departments': available_comparison_departments,
+        'available_comparison_technicians': available_comparison_technicians,
+        'available_comparison_varieties': available_comparison_varieties,
+        'selected_comparison_department': selected_comparison_department,
+        'selected_comparison_technician_id': selected_comparison_technician_id,
+        'selected_comparison_variety_id': selected_comparison_variety_id,
+        'comparison_match_count': len(comparison_filtered_series),
     }
 
 

@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block head_extras %}
 <style>
   .compare-shell {
@@ -250,7 +250,7 @@
 {% if not series_list %}
   <div class="alert alert-warning mb-0">Aucune série active pour afficher l’analyse. Créez d'abord une série dans <a href="{% url 'my_series' %}">Mes séries</a>.</div>
 {% else %}
-<form method="get" class="compare-shell">
+<form method="get" class="compare-shell" id="producer-dashboard-form">
   <div class="charts-stack">
     <section class="card hero-card">
       <div class="card-body p-4">
@@ -282,10 +282,76 @@
               {% endfor %}
             </select>
           </div>
-          <div class="col-12 col-md-6 d-grid">
-            <button class="btn btn-success" type="submit">Appliquer</button>
+        </div>
+
+        <hr class="my-4">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">R&eacute;f&eacute;rence du groupe</h2>
+            <p class="panel-subtitle">M&ecirc;me culture, m&ecirc;me ann&eacute;e. Les filtres se combinent en ET, avec vos s&eacute;ries incluses.</p>
           </div>
         </div>
+        <div class="row g-3 align-items-end">
+          <div class="col-12 col-md-6">
+            <label class="form-label">R&eacute;f&eacute;rence</label>
+            <select class="form-select" name="comparison_mode">
+              <option value="none" {% if comparison_mode == 'none' %}selected{% endif %}>Aucune</option>
+              <option value="average" {% if comparison_mode == 'average' %}selected{% endif %}>Moyenne</option>
+              <option value="median" {% if comparison_mode == 'median' %}selected{% endif %}>M&eacute;diane</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">D&eacute;partement</label>
+            <select class="form-select" name="comparison_department">
+              <option value="">Tous</option>
+              {% for department in available_comparison_departments %}
+                <option value="{{ department }}" {% if selected_comparison_department == department %}selected{% endif %}>{{ department }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Technicien r&eacute;f&eacute;rent</label>
+            <select class="form-select" name="comparison_technician">
+              <option value="">Tous</option>
+              {% for technician in available_comparison_technicians %}
+                <option value="{{ technician.id }}" {% if selected_comparison_technician_id == technician.id %}selected{% endif %}>{{ technician.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Vari&eacute;t&eacute;</label>
+            <select class="form-select" name="comparison_variety">
+              <option value="">Toutes</option>
+              {% for variety in available_comparison_varieties %}
+                <option value="{{ variety.id }}" {% if selected_comparison_variety_id == variety.id %}selected{% endif %}>{{ variety.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        {% if comparison_mode != 'none' %}
+          <div class="comparison-meta mt-3">
+            <span class="compare-pill">{{ comparison_match_count }} s&eacute;rie(s) dans le groupe</span>
+            <span class="compare-pill">{{ comparison_mode_label }}</span>
+            <span class="compare-pill">Vos s&eacute;ries incluses</span>
+            {% if selected_comparison_department %}
+              <span class="compare-pill">D&eacute;pt {{ selected_comparison_department }}</span>
+            {% endif %}
+            {% if selected_comparison_technician_id %}
+              {% for technician in available_comparison_technicians %}
+                {% if technician.id == selected_comparison_technician_id %}
+                  <span class="compare-pill">{{ technician.name }}</span>
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            {% if selected_comparison_variety_id %}
+              {% for variety in available_comparison_varieties %}
+                {% if variety.id == selected_comparison_variety_id %}
+                  <span class="compare-pill">{{ variety.name }}</span>
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+          </div>
+        {% endif %}
 
         <hr class="my-4">
         <div class="panel-head">
@@ -321,7 +387,6 @@
           {% endfor %}
         </div>
         <div class="d-flex gap-2 flex-wrap mt-3">
-          <button class="btn btn-success" type="submit">Mettre a jour le graphique</button>
           <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}?crop={{ selected_crop.id }}&year={{ selected_year }}">Tout réafficher</a>
         </div>
       </div>
@@ -482,6 +547,56 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+function setupAutoDashboardSubmit(formId) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+  const scrollStorageKey = `${formId}-scroll-top`;
+  const restoreScrollPosition = () => {
+    let rawTop = null;
+    try {
+      rawTop = sessionStorage.getItem(scrollStorageKey);
+    } catch (error) {
+      rawTop = null;
+    }
+    if (!rawTop) return;
+    const top = parseInt(rawTop, 10);
+    if (!Number.isFinite(top)) return;
+    const applyScroll = () => window.scrollTo(0, top);
+    applyScroll();
+    window.requestAnimationFrame(applyScroll);
+    window.setTimeout(applyScroll, 60);
+    window.setTimeout(applyScroll, 180);
+    try {
+      sessionStorage.removeItem(scrollStorageKey);
+    } catch (error) {
+      // ignore sessionStorage failures
+    }
+  };
+  let submitTimer = null;
+  const scheduleSubmit = () => {
+    window.clearTimeout(submitTimer);
+    submitTimer = window.setTimeout(() => {
+      try {
+        sessionStorage.setItem(scrollStorageKey, String(window.scrollY || window.pageYOffset || 0));
+      } catch (error) {
+        // ignore sessionStorage failures
+      }
+      if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
+      } else {
+        form.submit();
+      }
+    }, 120);
+  };
+  form.querySelectorAll('select, input[type="radio"], input[type="checkbox"]').forEach(field => {
+    field.addEventListener('change', scheduleSubmit);
+  });
+  restoreScrollPosition();
+}
+
+setupAutoDashboardSubmit('producer-dashboard-form');
+</script>
 {% if displayed_series and chart_labels %}
 {{ chart_labels|json_script:"compare-labels-data" }}
 {{ aphid_datasets|json_script:"compare-aphid-datasets" }}
@@ -501,11 +616,16 @@ function buildSeriesDatasets(rawDatasets) {
     data: dataset.data,
     borderColor: dataset.borderColor,
     backgroundColor: dataset.backgroundColor,
-    tension: 0.22,
-    borderWidth: 3,
-    pointRadius: 4,
-    pointHoverRadius: 6,
-    spanGaps: true,
+    tension: dataset.tension ?? 0.22,
+    borderWidth: dataset.borderWidth ?? 3,
+    pointRadius: dataset.pointRadius ?? 4,
+    pointHoverRadius: dataset.pointHoverRadius ?? 6,
+    pointStyle: dataset.pointStyle ?? 'circle',
+    pointBackgroundColor: dataset.pointBackgroundColor ?? dataset.backgroundColor,
+    pointBorderColor: dataset.pointBorderColor ?? dataset.borderColor,
+    pointBorderWidth: dataset.pointBorderWidth ?? 2,
+    spanGaps: dataset.spanGaps ?? true,
+    borderDash: dataset.borderDash ?? [],
   }));
 }
 
@@ -575,8 +695,8 @@ function makeSeriesChart(canvasId, labels, datasets, yTitle, yAxisOptions = {}, 
               if (dataset.isActionMarker && dataset.actionMeta) {
                 const action = dataset.actionMeta;
                 const lines = [
-                  `${action.series_name} • ${action.type_name}`,
-                  `${action.date} • ${action.scope}`,
+                  `${action.series_name} | ${action.type_name}`,
+                  `${action.date} | ${action.scope}`,
                 ];
                 if (action.details && action.details !== 'Sans detail complementaire') {
                   lines.push(action.details);
@@ -621,18 +741,23 @@ function makeSeriesChart(canvasId, labels, datasets, yTitle, yAxisOptions = {}, 
 
 function buildOtherPestDatasets(rawDatasets, seriesId) {
   return (rawDatasets || [])
-    .filter(dataset => String(dataset.seriesId) === String(seriesId))
+    .filter(dataset => dataset.isReference || String(dataset.seriesId) === String(seriesId))
     .map(dataset => ({
       type: 'line',
       label: dataset.label,
       data: dataset.data,
       borderColor: dataset.borderColor,
       backgroundColor: dataset.backgroundColor,
-      tension: 0.22,
-      borderWidth: 3,
-      pointRadius: 4,
-      pointHoverRadius: 6,
-      spanGaps: true,
+      tension: dataset.tension ?? 0.22,
+      borderWidth: dataset.borderWidth ?? 3,
+      pointRadius: dataset.pointRadius ?? 4,
+      pointHoverRadius: dataset.pointHoverRadius ?? 6,
+      pointStyle: dataset.pointStyle ?? 'circle',
+      pointBackgroundColor: dataset.pointBackgroundColor ?? dataset.backgroundColor,
+      pointBorderColor: dataset.pointBorderColor ?? dataset.borderColor,
+      pointBorderWidth: dataset.pointBorderWidth ?? 2,
+      spanGaps: dataset.spanGaps ?? true,
+      borderDash: dataset.borderDash || [],
     }));
 }
 
@@ -717,8 +842,8 @@ function renderOtherPestChart(seriesId) {
               if (dataset.isActionMarker && dataset.actionMeta) {
                 const action = dataset.actionMeta;
                 const lines = [
-                  `${action.series_name} • ${action.type_name}`,
-                  `${action.date} • ${action.scope}`,
+                  `${action.series_name} | ${action.type_name}`,
+                  `${action.date} | ${action.scope}`,
                 ];
                 if (action.details && action.details !== 'Sans detail complementaire') {
                   lines.push(action.details);
@@ -780,3 +905,4 @@ if (otherPestButtons.length) {
 </script>
 {% endif %}
 {% endblock %}
+

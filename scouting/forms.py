@@ -516,9 +516,9 @@ class PlantActionForm(forms.ModelForm):
         labels = {
             'action_date': "Date d'action",
             'action_type': "Type d'action",
-            'scope': 'PortÃ©e',
+            'scope': 'Portée',
             'auxiliary_taxon': 'Auxiliaire lache',
-            'notes': 'DÃ©tails',
+            'notes': 'Détails',
         }
 
     def __init__(self, *args, **kwargs):
