@@ -1,10 +1,23 @@
 {% extends 'base.html' %}
 {% block content %}
 <style>
+  .series-shell {
+    border: 1px solid #d7e9df;
+    border-radius: 1.35rem;
+    box-shadow: 0 1rem 2.4rem rgba(20, 80, 52, 0.08);
+    overflow: hidden;
+  }
+  .series-shell .card-body {
+    padding: 1.35rem;
+    background:
+      radial-gradient(circle at top left, rgba(25, 135, 84, 0.06), transparent 32%),
+      linear-gradient(180deg, #ffffff 0%, #fbfefc 100%);
+  }
   .series-card {
     border: 1px solid #d8e9df;
     border-radius: 1rem;
     box-shadow: 0 0.35rem 1rem rgba(20, 80, 52, 0.08);
+    background: linear-gradient(180deg, #ffffff 0%, #fbfefc 100%);
   }
   .series-card__media {
     width: 64px;
@@ -39,28 +52,175 @@
     font-weight: 600;
     word-break: break-word;
   }
-  .series-card__actions .btn,
-  .series-form-actions .btn {
+  .series-card__actions .btn {
     flex: 1 1 0;
+    border-radius: 999px;
+    font-weight: 700;
   }
   .series-reco-box {
     border-radius: 0.95rem;
-    background: #fcfefc;
+    background: linear-gradient(180deg, #fcfefc 0%, #f7fbf8 100%);
     border: 1px solid #d8e9df;
     padding: 0.85rem;
   }
-  @media (min-width: 768px) {
-    .series-form-actions .btn {
-      flex: 0 0 auto;
+  .series-modal .modal-content {
+    border: 0;
+    border-radius: 1.2rem;
+    box-shadow: 0 1.4rem 3rem rgba(20, 80, 52, 0.2);
+  }
+  .series-modal .modal-header {
+    border-bottom: 1px solid #e4efe8;
+    padding: 1.15rem 1.25rem 1rem;
+    background:
+      radial-gradient(circle at top right, rgba(25, 135, 84, 0.1), transparent 34%),
+      linear-gradient(180deg, #f7fbf8 0%, #ffffff 100%);
+  }
+  .series-modal .modal-footer {
+    border-top: 1px solid #e4efe8;
+    padding: 1rem 1.25rem 1.2rem;
+    background: #fbfefc;
+  }
+  .series-modal .modal-body {
+    padding: 1.15rem 1.25rem 1rem;
+  }
+  .series-modal .form-control,
+  .series-modal .form-select {
+    border-radius: 0.9rem;
+    min-height: 48px;
+  }
+  .series-modal .modal-footer .btn {
+    border-radius: 999px;
+    min-width: 180px;
+    font-weight: 700;
+  }
+  .series-modal__current-photo {
+    font-size: 0.9rem;
+    color: #5c6f67;
+  }
+  .series-modal__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    background: rgba(25, 135, 84, 0.08);
+    color: #157347;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    margin-bottom: 0.55rem;
+  }
+  .series-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    padding: 1rem 1.05rem;
+    border: 1px solid #d7e9df;
+    border-radius: 1.15rem;
+    background: linear-gradient(135deg, rgba(25, 135, 84, 0.08) 0%, rgba(255, 255, 255, 0.98) 52%);
+  }
+  .series-toolbar__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.32rem 0.7rem;
+    border-radius: 999px;
+    background: #e7f6ee;
+    color: #11663e;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    margin-bottom: 0.55rem;
+  }
+  .series-toolbar__title {
+    color: #114f32;
+    font-weight: 800;
+  }
+  .series-toolbar__text {
+    max-width: 620px;
+    color: #4d635a;
+    margin-bottom: 0;
+  }
+  .series-toolbar__action {
+    border-radius: 999px;
+    padding-inline: 1.05rem;
+    min-height: 46px;
+    font-weight: 800;
+    box-shadow: 0 0.9rem 1.8rem rgba(25, 135, 84, 0.18);
+  }
+  .series-table {
+    margin-bottom: 0;
+  }
+  .series-table thead th {
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #5a6f65;
+    border-bottom-width: 1px;
+  }
+  .series-table tbody tr:hover {
+    background: rgba(25, 135, 84, 0.04);
+  }
+  .series-empty {
+    border: 1px dashed #cfe4d7;
+    border-radius: 1rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f9fcfa 100%);
+    color: #5a6f65;
+  }
+  .series-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .series-status-badge.is-active {
+    background: #e7f6ee;
+    color: #11663e;
+    border: 1px solid #b9e2ca;
+  }
+  .series-status-badge.is-archived {
+    background: #eef3f0;
+    color: #566861;
+    border: 1px solid #d4dfd8;
+  }
+  @media (max-width: 767.98px) {
+    .series-shell .card-body {
+      padding: 1rem;
+    }
+    .series-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .series-toolbar__action {
+      width: 100%;
+    }
+    .series-modal .modal-footer .btn {
+      min-width: 0;
+      width: 100%;
     }
   }
 </style>
 
 <div class="row g-3">
   <div class="col-12">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm series-shell">
       <div class="card-body">
-        <h2 class="h6 mb-3">Séries existantes</h2>
+        <div class="series-toolbar">
+          <div>
+            <div class="series-toolbar__eyebrow">Pilotage des séries</div>
+            <h1 class="h4 series-toolbar__title mb-2">Mes séries</h1>
+            <p class="series-toolbar__text">Gérez vos séries actives, archivez les anciennes et modifiez leurs paramètres sans quitter la liste.</p>
+          </div>
+          <a href="{% url 'my_series' %}" class="btn btn-success series-toolbar__action js-new-series-btn">Nouvelle série</a>
+        </div>
 
         <div class="d-lg-none">
           {% for s in series_list %}
@@ -74,16 +234,16 @@
               <div class="flex-grow-1">
                 <div class="d-flex justify-content-between align-items-start gap-2">
                   <div>
-                    <h3 class="h6 mb-1"><a class="text-decoration-none" href="{% url 'my_series' %}?edit={{ s.id }}">{{ s.name }}</a></h3>
+                    <h2 class="h6 mb-1">{{ s.name }}</h2>
                     <div class="small text-muted">{{ s.crop.name }} | {{ s.conduct_type.name }} | {{ s.variety.name }}</div>
                     {% if s.greenhouse %}
                     <div class="small text-muted mt-1">Serre : {{ s.greenhouse }}</div>
                     {% endif %}
                   </div>
                   {% if s.is_active %}
-                    <span class="badge text-bg-success">Active</span>
+                    <span class="series-status-badge is-active">Active</span>
                   {% else %}
-                    <span class="badge text-bg-secondary">Archivée</span>
+                    <span class="series-status-badge is-archived">Archivée</span>
                   {% endif %}
                 </div>
               </div>
@@ -141,7 +301,23 @@
             </div>
 
             <div class="series-card__actions d-flex gap-2 flex-wrap">
-              <a class="btn btn-outline-primary btn-sm" href="{% url 'my_series' %}?edit={{ s.id }}">Modifier</a>
+              <a
+                class="btn btn-outline-primary btn-sm js-edit-series-btn"
+                href="{% url 'my_series' %}?edit={{ s.id }}"
+                data-series-id="{{ s.id }}"
+                data-name="{{ s.name }}"
+                data-crop-id="{{ s.crop_id }}"
+                data-conduct-type-id="{{ s.conduct_type_id }}"
+                data-organic-mode="{{ s.organic_mode }}"
+                data-variety-id="{{ s.variety_id }}"
+                data-greenhouse="{{ s.greenhouse|default_if_none:'' }}"
+                data-year="{{ s.year }}"
+                data-planting-week="{{ s.planting_week|default_if_none:'' }}"
+                data-plants-count="{{ s.plants_count }}"
+                data-leaves-per-plant="{{ s.leaves_per_plant }}"
+                data-is-active="{% if s.is_active %}1{% else %}0{% endif %}"
+                data-has-photo="{% if s.photo %}1{% else %}0{% endif %}"
+              >Modifier</a>
               {% if s.is_active %}
                 <form
                   method="post"
@@ -190,12 +366,12 @@
             </div>
           </article>
           {% empty %}
-          <div class="alert alert-light border">Aucune série.</div>
+          <div class="alert series-empty mb-0">Aucune série pour le moment.</div>
           {% endfor %}
         </div>
 
         <div class="table-responsive d-none d-lg-block">
-          <table class="table table-sm align-middle">
+          <table class="table table-sm align-middle series-table">
             <thead>
               <tr>
                 <th>Photo</th>
@@ -223,7 +399,7 @@
                     -
                   {% endif %}
                 </td>
-                <td><a href="{% url 'my_series' %}?edit={{ s.id }}">{{ s.name }}</a></td>
+                <td>{{ s.name }}</td>
                 <td>{{ s.greenhouse|default:'-' }}</td>
                 <td>{{ s.year }}</td>
                 <td>{% if s.planting_week %}S{{ s.planting_week }}{% else %}-{% endif %}</td>
@@ -265,7 +441,23 @@
                 </td>
                 <td style="min-width:220px;">
                   <div class="d-flex gap-2 flex-wrap align-items-center">
-                    <a class="btn btn-sm btn-outline-primary" href="{% url 'my_series' %}?edit={{ s.id }}">Modifier</a>
+                    <a
+                      class="btn btn-sm btn-outline-primary js-edit-series-btn"
+                      href="{% url 'my_series' %}?edit={{ s.id }}"
+                      data-series-id="{{ s.id }}"
+                      data-name="{{ s.name }}"
+                      data-crop-id="{{ s.crop_id }}"
+                      data-conduct-type-id="{{ s.conduct_type_id }}"
+                      data-organic-mode="{{ s.organic_mode }}"
+                      data-variety-id="{{ s.variety_id }}"
+                      data-greenhouse="{{ s.greenhouse|default_if_none:'' }}"
+                      data-year="{{ s.year }}"
+                      data-planting-week="{{ s.planting_week|default_if_none:'' }}"
+                      data-plants-count="{{ s.plants_count }}"
+                      data-leaves-per-plant="{{ s.leaves_per_plant }}"
+                      data-is-active="{% if s.is_active %}1{% else %}0{% endif %}"
+                      data-has-photo="{% if s.photo %}1{% else %}0{% endif %}"
+                    >Modifier</a>
                     {% if s.is_active %}
                       <form
                         method="post"
@@ -282,7 +474,6 @@
                         <button class="btn btn-sm btn-outline-warning" type="submit">Archiver</button>
                       </form>
                     {% else %}
-                      <span class="badge text-bg-secondary">Archivée</span>
                       <form
                         method="post"
                         class="d-inline js-app-confirm"
@@ -324,34 +515,94 @@
       </div>
     </div>
   </div>
+</div>
 
-  <div class="col-12 col-lg-6">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h1 class="h5">{% if editing_instance %}Modifier ma série{% else %}Ajouter une série de plants{% endif %}</h1>
-        <form method="post" enctype="multipart/form-data" class="row g-2">
+<div class="modal fade series-modal" id="seriesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <div class="series-modal__eyebrow">Formulaire série</div>
+          <h2 class="h5 mb-1" id="seriesModalTitle">
+            {% if series_modal_mode == 'edit' %}Modifier la série{% else %}Nouvelle série{% endif %}
+          </h2>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">
+        <form method="post" enctype="multipart/form-data" class="row g-3" id="seriesForm">
           {% csrf_token %}
-          {% if editing_instance %}<input type="hidden" name="series_id" value="{{ editing_instance.id }}">{% endif %}
-          <div class="col-12"><label class="form-label">Nom de la série</label>{{ form.name }}</div>
-          <div class="col-12"><label class="form-label">Photo de la série</label>{{ form.photo }}</div>
-          <div class="col-12"><label class="form-label">Culture</label>{{ form.crop }}</div>
-          <div class="col-12"><label class="form-label">Conduite</label>{{ form.conduct_type }}</div>
-          <div class="col-12"><label class="form-label">Mode de conduite</label>{{ form.organic_mode }}</div>
-          <div class="col-12"><label class="form-label">Serre</label>{{ form.greenhouse }}</div>
-          <div class="col-12"><label class="form-label">Année</label>{{ form.year }}</div>
-          <div class="col-12"><label class="form-label">Numéro de la semaine de plantation</label>{{ form.planting_week }}</div>
-          <div class="col-12"><label class="form-label">Recherche variété</label><input id="varietySearch" class="form-control" type="text" placeholder="Rechercher dans la liste..."></div>
-          <div class="col-12"><label class="form-label">Variété</label>{{ form.variety }}</div>
-          <div class="col-12"><label class="form-label">Nouvelle variété (si absente)</label>{{ form.new_variety_name }}</div>
-          <div class="col-6"><label class="form-label">Nb plants</label>{{ form.plants_count }}</div>
-          <div class="col-6"><label class="form-label">Nb feuilles/plant</label>{{ form.leaves_per_plant }}</div>
-          <div class="col-12 form-check mt-2">{{ form.is_active }} <label class="form-check-label">Série active</label></div>
-          <div class="col-12 text-danger small">{{ form.errors }}</div>
-          <div class="col-12 d-flex flex-column flex-md-row gap-2 series-form-actions">
-            <button class="btn btn-success" type="submit">{% if editing_instance %}Modifier ma série{% else %}Ajouter la série{% endif %}</button>
-            <a class="btn btn-outline-secondary" href="{% url 'my_series' %}">Nouveau</a>
+          <input type="hidden" name="series_id" id="seriesFormSeriesId" value="{% if editing_instance %}{{ editing_instance.id }}{% endif %}">
+
+          <div class="col-12">
+            <label class="form-label">Nom de la série</label>
+            {{ form.name }}
           </div>
+          <div class="col-12">
+            <label class="form-label">Photo de la série</label>
+            {{ form.photo }}
+            <div class="series-modal__current-photo d-none" id="seriesCurrentPhotoNotice">La photo actuelle sera conservée si vous n'en choisissez pas une autre.</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Culture</label>
+            {{ form.crop }}
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Conduite</label>
+            {{ form.conduct_type }}
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Mode de conduite</label>
+            {{ form.organic_mode }}
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Serre</label>
+            {{ form.greenhouse }}
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Année</label>
+            {{ form.year }}
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Numéro de la semaine de plantation</label>
+            {{ form.planting_week }}
+          </div>
+          <div class="col-12">
+            <label class="form-label">Recherche variété</label>
+            <input id="varietySearch" class="form-control" type="text" placeholder="Rechercher dans la liste...">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Variété</label>
+            {{ form.variety }}
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Nouvelle variété (si absente)</label>
+            {{ form.new_variety_name }}
+          </div>
+          <div class="col-6">
+            <label class="form-label">Nb plants</label>
+            {{ form.plants_count }}
+          </div>
+          <div class="col-6">
+            <label class="form-label">Nb feuilles / plant</label>
+            {{ form.leaves_per_plant }}
+          </div>
+          <div class="col-12 form-check mt-2">
+            {{ form.is_active }}
+            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Série active</label>
+          </div>
+          {% if form.errors %}
+            <div class="col-12">
+              <div class="alert alert-danger mb-0" id="seriesFormErrors">{{ form.errors }}</div>
+            </div>
+          {% endif %}
         </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+        <button class="btn btn-success" type="submit" form="seriesForm" id="seriesModalSubmitButton">
+          {% if series_modal_mode == 'edit' %}Enregistrer les modifications{% else %}Créer la série{% endif %}
+        </button>
       </div>
     </div>
   </div>
@@ -359,6 +610,9 @@
 
 {{ varieties|json_script:"varieties-data" }}
 <datalist id="varietySuggestions"></datalist>
+{% endblock %}
+
+{% block scripts %}
 <script>
 const varieties = JSON.parse(document.getElementById('varieties-data').textContent);
 const cropField = document.getElementById('id_crop');
@@ -366,8 +620,29 @@ const varietyField = document.getElementById('id_variety');
 const varietySearch = document.getElementById('varietySearch');
 const newVarietyInput = document.getElementById('id_new_variety_name');
 const varietySuggestions = document.getElementById('varietySuggestions');
+const seriesModalEl = document.getElementById('seriesModal');
+const seriesModal = (seriesModalEl && window.bootstrap)
+  ? bootstrap.Modal.getOrCreateInstance(seriesModalEl)
+  : null;
+const seriesModalTitle = document.getElementById('seriesModalTitle');
+const seriesModalSubmitButton = document.getElementById('seriesModalSubmitButton');
+const seriesCurrentPhotoNotice = document.getElementById('seriesCurrentPhotoNotice');
+const seriesIdField = document.getElementById('seriesFormSeriesId');
+const seriesPhotoField = document.getElementById('id_photo');
+const seriesNameField = document.getElementById('id_name');
+const conductTypeField = document.getElementById('id_conduct_type');
+const organicModeField = document.getElementById('id_organic_mode');
+const greenhouseField = document.getElementById('id_greenhouse');
+const yearField = document.getElementById('id_year');
+const plantingWeekField = document.getElementById('id_planting_week');
+const plantsCountField = document.getElementById('id_plants_count');
+const leavesPerPlantField = document.getElementById('id_leaves_per_plant');
+const isActiveField = document.getElementById('id_is_active');
+const openSeriesModalOnLoad = {{ open_series_modal|yesno:"true,false" }};
+const initialSeriesModalMode = '{{ series_modal_mode }}';
 
 function filterVarieties() {
+  if (!cropField || !varietyField) return;
   const cropId = cropField.value;
   const current = varietyField.value;
   const query = (varietySearch?.value || '').toLowerCase().trim();
@@ -386,11 +661,80 @@ function filterVarieties() {
     varietySuggestions.innerHTML = filtered.map(v => `<option value="${v.name}"></option>`).join('');
   }
 }
+
+function setSeriesModalMode(mode) {
+  if (!seriesModalTitle || !seriesModalSubmitButton) return;
+  if (mode === 'edit') {
+    seriesModalTitle.textContent = 'Modifier la série';
+    seriesModalSubmitButton.textContent = 'Enregistrer les modifications';
+  } else {
+    seriesModalTitle.textContent = 'Nouvelle série';
+    seriesModalSubmitButton.textContent = 'Créer la série';
+  }
+}
+
+function toggleCurrentPhotoNotice(hasPhoto) {
+  if (!seriesCurrentPhotoNotice) return;
+  seriesCurrentPhotoNotice.classList.toggle('d-none', !hasPhoto);
+}
+
+function resetSeriesFormForCreate() {
+  document.getElementById('seriesForm')?.reset();
+  if (seriesIdField) seriesIdField.value = '';
+  if (seriesPhotoField) seriesPhotoField.value = '';
+  if (varietySearch) varietySearch.value = '';
+  if (newVarietyInput) newVarietyInput.value = '';
+  toggleCurrentPhotoNotice(false);
+  setSeriesModalMode('create');
+  filterVarieties();
+}
+
+function populateSeriesFormFromTrigger(trigger) {
+  if (!trigger) return;
+  if (seriesIdField) seriesIdField.value = trigger.dataset.seriesId || '';
+  if (seriesNameField) seriesNameField.value = trigger.dataset.name || '';
+  if (cropField) cropField.value = trigger.dataset.cropId || '';
+  if (conductTypeField) conductTypeField.value = trigger.dataset.conductTypeId || '';
+  if (organicModeField) organicModeField.value = trigger.dataset.organicMode || '';
+  if (greenhouseField) greenhouseField.value = trigger.dataset.greenhouse || '';
+  if (yearField) yearField.value = trigger.dataset.year || '';
+  if (plantingWeekField) plantingWeekField.value = trigger.dataset.plantingWeek || '';
+  if (plantsCountField) plantsCountField.value = trigger.dataset.plantsCount || '';
+  if (leavesPerPlantField) leavesPerPlantField.value = trigger.dataset.leavesPerPlant || '';
+  if (isActiveField) isActiveField.checked = trigger.dataset.isActive === '1';
+  if (seriesPhotoField) seriesPhotoField.value = '';
+  if (varietySearch) varietySearch.value = '';
+  if (newVarietyInput) newVarietyInput.value = '';
+  filterVarieties();
+  if (varietyField) {
+    varietyField.value = trigger.dataset.varietyId || '';
+  }
+  toggleCurrentPhotoNotice(trigger.dataset.hasPhoto === '1');
+  setSeriesModalMode('edit');
+}
+
+document.querySelectorAll('.js-new-series-btn').forEach(button => {
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    resetSeriesFormForCreate();
+    seriesModal?.show();
+  });
+});
+
+document.querySelectorAll('.js-edit-series-btn').forEach(button => {
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    populateSeriesFormFromTrigger(button);
+    seriesModal?.show();
+  });
+});
+
 if (cropField && varietyField) {
   cropField.addEventListener('change', filterVarieties);
   if (varietySearch) varietySearch.addEventListener('input', filterVarieties);
   filterVarieties();
 }
+
 if (newVarietyInput && varietyField) {
   newVarietyInput.addEventListener('input', () => {
     const typed = newVarietyInput.value.trim().toLowerCase();
@@ -402,6 +746,13 @@ if (newVarietyInput && varietyField) {
       varietyField.value = matched.value;
     }
   });
+}
+
+if (openSeriesModalOnLoad) {
+  setSeriesModalMode(initialSeriesModalMode);
+  toggleCurrentPhotoNotice(initialSeriesModalMode === 'edit');
+  filterVarieties();
+  seriesModal?.show();
 }
 </script>
 {% endblock %}

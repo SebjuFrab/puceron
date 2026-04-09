@@ -3,7 +3,6 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Prefetch
 from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 
 from .decision_engine import evaluate_record_recommendation
 from .forms import PlantSeriesForm, RecommendationDismissForm
@@ -110,9 +109,9 @@ def my_series_view(request):
                 series.variety = variety
             series.save()
             if editing_instance:
-                messages.success(request, 'S?rie modifi?e.')
-                return redirect(f"{reverse('my_series')}?edit={series.id}")
-            messages.success(request, 'S?rie enregistr?e.')
+                messages.success(request, 'Série modifiée.')
+                return redirect('my_series')
+            messages.success(request, 'Série enregistrée.')
             return redirect('my_series')
     else:
         form = PlantSeriesForm(instance=editing_instance)
@@ -129,6 +128,8 @@ def my_series_view(request):
             'form': form,
             'series_list': series_list,
             'editing_instance': editing_instance,
+            'open_series_modal': bool(editing_instance or form.errors),
+            'series_modal_mode': 'edit' if editing_instance else 'create',
             'varieties': list(varieties),
             'profile': profile,
         },
