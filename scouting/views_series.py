@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Prefetch
 from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from .decision_engine import evaluate_record_recommendation
 from .forms import PlantSeriesForm, RecommendationDismissForm
@@ -14,6 +15,21 @@ from .view_recommendation_support import (
     _recommendation_record_queryset_for_user,
     _sanitize_next_url,
 )
+
+
+def _serialize_service_plants(queryset):
+    payload = []
+    for plant in queryset:
+        payload.append(
+            {
+                'id': plant.id,
+                'label': plant.name,
+                'latinName': plant.latin_name,
+                'photoUrl': plant.image_url,
+                'description': plant.description or '',
+            }
+        )
+    return payload
 
 
 @login_required
@@ -36,7 +52,7 @@ def my_series_view(request):
     series_qs = (
         PlantSeries.objects.filter(user=effective_user)
         .select_related('crop', 'conduct_type', 'variety')
-        .prefetch_related(records_prefetch)
+        .prefetch_related(records_prefetch, 'service_plants')
     )
     editing_id = request.GET.get('edit')
     editing_instance = None
@@ -108,6 +124,7 @@ def my_series_view(request):
                     )
                 series.variety = variety
             series.save()
+            form.save_m2m()
             if editing_instance:
                 messages.success(request, 'Série modifiée.')
                 return redirect('my_series')
@@ -121,6 +138,7 @@ def my_series_view(request):
         _latest_series_recommendation(series)
 
     varieties = Variety.objects.filter(is_active=True).values('id', 'name', 'crop_id')
+    service_plants = form.fields['service_plants'].queryset
     return render(
         request,
         'scouting/my_series.html',
@@ -131,6 +149,7 @@ def my_series_view(request):
             'open_series_modal': bool(editing_instance or form.errors),
             'series_modal_mode': 'edit' if editing_instance else 'create',
             'varieties': list(varieties),
+            'service_plants': _serialize_service_plants(service_plants),
             'profile': profile,
         },
     )

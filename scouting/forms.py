@@ -1,6 +1,7 @@
 ﻿from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
+from django.db.models import Q
 
 from .models import (
     ActionType,
@@ -14,6 +15,7 @@ from .models import (
     PlantSeries,
     RecommendationDismissReason,
     ScoutingRecord,
+    ServicePlant,
     UserProfile,
     Variety,
 )
@@ -433,6 +435,12 @@ class ProducerImportForm(forms.Form):
 
 class PlantSeriesForm(forms.ModelForm):
     new_variety_name = forms.CharField(required=False, label='Nouvelle variÃ©tÃ© (si absente)')
+    service_plants = forms.ModelMultipleChoiceField(
+        queryset=ServicePlant.objects.none(),
+        required=False,
+        label='Plantes de service',
+        widget=forms.SelectMultiple(),
+    )
 
     class Meta:
         model = PlantSeries
@@ -444,6 +452,8 @@ class PlantSeriesForm(forms.ModelForm):
             'organic_mode',
             'variety',
             'greenhouse',
+            'has_service_plants',
+            'service_plants',
             'year',
             'planting_week',
             'plants_count',
@@ -457,6 +467,8 @@ class PlantSeriesForm(forms.ModelForm):
             'organic_mode': 'Mode de conduite',
             'variety': 'VariÃ©tÃ©',
             'greenhouse': 'Serre',
+            'has_service_plants': 'Presence de plantes de service',
+            'service_plants': 'Plantes de service',
             'year': 'AnnÃ©e',
             'planting_week': 'NumÃ©ro de la semaine de plantation',
             'plants_count': 'Nb plants',
@@ -476,6 +488,14 @@ class PlantSeriesForm(forms.ModelForm):
         self.fields['conduct_type'].queryset = ConductType.objects.filter(is_active=True)
         self.fields['variety'].queryset = Variety.objects.filter(is_active=True)
         self.fields['variety'].required = False
+        service_plant_queryset = ServicePlant.objects.filter(is_active=True)
+        if self.instance.pk:
+            service_plant_queryset = ServicePlant.objects.filter(
+                Q(is_active=True) | Q(pk__in=self.instance.service_plants.values('pk'))
+            ).distinct()
+        self.fields['service_plants'].queryset = service_plant_queryset
+        self.fields['service_plants'].widget.attrs['class'] = 'd-none'
+        self.fields['has_service_plants'].widget.attrs['class'] = 'form-check-input'
         self.fields['is_active'].widget.attrs['class'] = 'form-check-input'
         self.fields['new_variety_name'].widget.attrs.update(
             {
@@ -490,10 +510,16 @@ class PlantSeriesForm(forms.ModelForm):
         crop = cleaned.get('crop')
         variety = cleaned.get('variety')
         new_variety_name = (cleaned.get('new_variety_name') or '').strip()
+        has_service_plants = cleaned.get('has_service_plants')
+        service_plants = cleaned.get('service_plants')
         if variety and crop and variety.crop_id != crop.id:
             self.add_error('variety', 'La variete doit appartenir a la culture choisie.')
         if not variety and not new_variety_name:
             self.add_error('variety', 'Choisissez une variete ou renseignez une nouvelle variete.')
+        if has_service_plants and not service_plants:
+            self.add_error('service_plants', 'Choisissez au moins une plante de service.')
+        if not has_service_plants:
+            cleaned['service_plants'] = ServicePlant.objects.none()
         return cleaned
 
 
@@ -597,5 +623,3 @@ class RecommendationDismissForm(forms.Form):
         )
         self.fields['dismiss_reason'].widget.attrs['class'] = 'form-select form-select-sm js-dismiss-reason'
         self.fields['dismiss_note'].widget.attrs['class'] = 'form-control form-control-sm js-dismiss-note d-none'
-
-

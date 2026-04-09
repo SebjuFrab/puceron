@@ -25,6 +25,7 @@ from .models import (
     QuickRecordOtherPestCount,
     RecommendationDismissReason,
     ScoutingRecord,
+    ServicePlant,
     UserProfile,
     Variety,
 )
@@ -46,15 +47,16 @@ ADMIN_MODEL_ORDER = {
         'Crop': 50,
         'ConductType': 60,
         'Variety': 70,
-        'AuxiliaryTaxon': 80,
-        'AphidSpecies': 90,
-        'OtherPestTaxon': 100,
-        'Molecule': 110,
-        'RecommendationDismissReason': 120,
-        'ActionType': 130,
-        'DecisionRule': 140,
-        'DecisionLever': 150,
-        'LeafObservation': 160,
+        'ServicePlant': 80,
+        'AuxiliaryTaxon': 90,
+        'AphidSpecies': 100,
+        'OtherPestTaxon': 110,
+        'Molecule': 120,
+        'RecommendationDismissReason': 130,
+        'ActionType': 140,
+        'DecisionRule': 150,
+        'DecisionLever': 160,
+        'LeafObservation': 170,
     },
     'auth': {
         'User': 10,
@@ -68,7 +70,7 @@ SCOUTING_ADMIN_GROUPS = [
     (
         'settings',
         'Parametrage',
-        ['Crop', 'ConductType', 'Variety', 'AuxiliaryTaxon', 'AphidSpecies', 'OtherPestTaxon', 'Molecule', 'RecommendationDismissReason'],
+        ['Crop', 'ConductType', 'Variety', 'ServicePlant', 'AuxiliaryTaxon', 'AphidSpecies', 'OtherPestTaxon', 'Molecule', 'RecommendationDismissReason'],
     ),
     (
         'decisions',
@@ -275,6 +277,7 @@ class PlantSeriesAdmin(admin.ModelAdmin):
         'conduct_type',
         'organic_mode',
         'variety',
+        'has_service_plants',
         'plants_count',
         'leaves_per_plant',
         'is_active',
@@ -282,6 +285,7 @@ class PlantSeriesAdmin(admin.ModelAdmin):
     list_filter = ('crop', 'conduct_type', 'is_active')
     search_fields = ('name', 'greenhouse', 'user__username')
     readonly_fields = ('photo_preview',)
+    filter_horizontal = ('service_plants',)
     fields = (
         'name',
         'greenhouse',
@@ -294,15 +298,18 @@ class PlantSeriesAdmin(admin.ModelAdmin):
         'conduct_type',
         'organic_mode',
         'variety',
+        'has_service_plants',
+        'service_plants',
         'plants_count',
         'leaves_per_plant',
         'is_active',
     )
 
     def photo_preview(self, obj):
-        if not obj.photo:
+        image_url = obj.image_url
+        if not image_url:
             return '-'
-        return format_html('<img src="{}" style="height:48px;border-radius:6px;" />', obj.photo.url)
+        return format_html('<img src="{}" style="height:48px;border-radius:6px;" />', image_url)
 
     photo_preview.short_description = 'Photo'
 
@@ -395,6 +402,33 @@ class AphidSpeciesAdmin(admin.ModelAdmin):
         'photo_preview',
         'molecules',
         'auxiliary_taxa',
+        'description',
+        'display_order',
+        'is_active',
+    )
+
+    def photo_preview(self, obj):
+        if not obj.photo:
+            return '-'
+        return format_html('<img src="{}" style="height:48px;border-radius:6px;" />', obj.photo.url)
+
+    photo_preview.short_description = 'Photo'
+
+
+@admin.register(ServicePlant)
+class ServicePlantAdmin(admin.ModelAdmin):
+    list_display = ('photo_preview', 'name', 'latin_name', 'code', 'display_order', 'is_active')
+    list_display_links = ('name',)
+    list_filter = ('is_active',)
+    search_fields = ('name', 'latin_name', 'code')
+    ordering = ('display_order', 'name', 'latin_name')
+    readonly_fields = ('photo_preview',)
+    fields = (
+        'name',
+        'latin_name',
+        'code',
+        'photo',
+        'photo_preview',
         'description',
         'display_order',
         'is_active',

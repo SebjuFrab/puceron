@@ -5,6 +5,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Sum
+from django.templatetags.static import static
 from django.utils import timezone
 from wagtail import blocks
 from modelcluster.fields import ParentalKey
@@ -125,6 +126,17 @@ INFO_PAGE_KEY_CHOICES = [
     ('techniques', 'Techniques de lutte'),
     ('auxiliaries', 'Auxiliaires'),
 ]
+
+DEFAULT_SERVICE_PLANT_ICON_CODES = {
+    'basilic',
+    'tagete',
+    'capucine',
+    'coriandre',
+    'aneth',
+    'phacelie',
+    'bourrache',
+    'souci',
+}
 
 
 class LogoItemBlock(blocks.StructBlock):
@@ -459,6 +471,34 @@ class Variety(models.Model):
         return f'{self.crop.name} - {self.name}'
 
 
+class ServicePlant(models.Model):
+    code = models.SlugField(max_length=50, unique=True, verbose_name='Code')
+    name = models.CharField(max_length=140, verbose_name='Nom')
+    latin_name = models.CharField(max_length=140, blank=True, verbose_name='Nom latin')
+    photo = models.ImageField(upload_to='service_plants/', blank=True, verbose_name='Photo')
+    description = models.TextField(blank=True, verbose_name='Description')
+    display_order = models.PositiveSmallIntegerField(default=1, verbose_name="Ordre d'affichage")
+    is_active = models.BooleanField(default=True, verbose_name='Actif')
+
+    class Meta:
+        ordering = ['display_order', 'name', 'latin_name']
+        verbose_name = 'Plante de service'
+        verbose_name_plural = 'Plantes de service'
+
+    def __str__(self):
+        if self.latin_name and self.latin_name != self.name:
+            return f'{self.name} ({self.latin_name})'
+        return self.name
+
+    @property
+    def image_url(self):
+        if self.photo:
+            return self.photo.url
+        if self.code in DEFAULT_SERVICE_PLANT_ICON_CODES:
+            return static(f'service_plants/icons/{self.code}.png')
+        return ''
+
+
 class PlantSeries(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -478,6 +518,13 @@ class PlantSeries(models.Model):
     organic_mode = models.CharField(max_length=10, choices=ORGANIC_MODE_CHOICES, default='bio', verbose_name='Mode de conduite')
     variety = models.ForeignKey(Variety, on_delete=models.PROTECT, related_name='plant_series', verbose_name='Variete')
     greenhouse = models.CharField(max_length=150, blank=True, verbose_name='Serre')
+    has_service_plants = models.BooleanField(default=False, verbose_name='Presence de plantes de service')
+    service_plants = models.ManyToManyField(
+        ServicePlant,
+        related_name='plant_series',
+        blank=True,
+        verbose_name='Plantes de service',
+    )
     year = models.PositiveSmallIntegerField(default=current_campaign_year, verbose_name='Annee')
     planting_week = models.PositiveSmallIntegerField(
         null=True,
