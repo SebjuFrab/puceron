@@ -1,0 +1,30 @@
+{% load wagtailcore_tags %}
+{% if title or text or logos %}
+<section class="site-logo-panel{% if variant %} site-logo-panel--{{ variant }}{% endif %}">
+  {% if title %}
+    <h2 class="site-logo-panel__title">{{ title }}</h2>
+  {% endif %}
+  {% if text %}
+    <div class="site-logo-panel__text">{{ text|richtext }}</div>
+  {% endif %}
+  {% if logos %}
+    <div class="site-logo-panel__logos">
+      {% for block in logos %}
+        {% if block.block_type == 'logo' and block.value.image %}
+          {% with image=block.value.image alt_text=block.value.alt|default:title|default:"Logo" %}
+            {% if block.value.url %}
+              <a class="site-logo-panel__logo-link" href="{{ block.value.url }}" target="_blank" rel="noopener">
+                <img class="site-logo-panel__logo" src="{{ image.file.url }}" alt="{{ alt_text }}">
+              </a>
+            {% else %}
+              <span class="site-logo-panel__logo-link">
+                <img class="site-logo-panel__logo" src="{{ image.file.url }}" alt="{{ alt_text }}">
+              </span>
+            {% endif %}
+          {% endwith %}
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+{% endif %}

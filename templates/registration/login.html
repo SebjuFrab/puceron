@@ -1,28 +1,84 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-12 col-md-6 col-lg-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h1 class="h4 mb-3">Connexion</h1>
-        <form method="post">
-          {% csrf_token %}
-          {% if form.errors %}
-          <div class="alert alert-danger py-2">Connexion impossible. Vérifiez l'identifiant ou l'adresse mail, puis le mot de passe.</div>
-          {% endif %}
-          <div class="mb-3">
-            <label class="form-label" for="id_username">Identifiant ou adresse mail</label>
-            <input type="text" name="username" autofocus required id="id_username" class="form-control" value="{{ form.username.value|default:'' }}">
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="id_password">Mot de passe</label>
-            <input type="password" name="password" required id="id_password" class="form-control">
-          </div>
-          <div class="mb-3 text-end">
-            <a href="{% url 'password_reset' %}" class="small">Mot de passe oublié ?</a>
-          </div>
-          <button class="btn btn-success w-100" type="submit">Se connecter</button>
-        </form>
+<style>
+  .login-shell {
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+  .login-card {
+    border: 1px solid #d8e9df;
+    border-radius: 1.35rem;
+    box-shadow: 0 1rem 2.4rem rgba(20, 80, 52, 0.08);
+    overflow: hidden;
+  }
+  .login-card .card-body {
+    padding: 1.35rem;
+    background:
+      radial-gradient(circle at top left, rgba(25, 135, 84, 0.06), transparent 34%),
+      linear-gradient(180deg, #ffffff 0%, #fbfefc 100%);
+  }
+  .login-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.32rem 0.7rem;
+    border-radius: 999px;
+    background: #e7f6ee;
+    color: #11663e;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    margin-bottom: 0.65rem;
+  }
+  .login-card .form-control {
+    min-height: 48px;
+    border-radius: 0.9rem;
+  }
+  .login-card .btn-success {
+    min-height: 48px;
+    border-radius: 999px;
+    font-weight: 800;
+  }
+  .login-side {
+    display: grid;
+    gap: 1rem;
+  }
+</style>
+
+<div class="login-shell">
+  <div class="row g-4 justify-content-center align-items-start">
+    <div class="col-12 col-lg-5">
+      <div class="card login-card">
+        <div class="card-body">
+          <div class="login-eyebrow">Connexion</div>
+          <h1 class="h3 mb-2">Accéder à PUCERON</h1>
+          <p class="text-muted mb-4">Connectez-vous avec votre identifiant ou votre adresse mail pour accéder à vos séries, vos saisies et vos analyses.</p>
+          <form method="post">
+            {% csrf_token %}
+            {% if form.errors %}
+              <div class="alert alert-danger py-2">Connexion impossible. Vérifiez l'identifiant ou l'adresse mail, puis le mot de passe.</div>
+            {% endif %}
+            <div class="mb-3">
+              <label class="form-label" for="id_username">Identifiant ou adresse mail</label>
+              <input type="text" name="username" autofocus required id="id_username" class="form-control" value="{{ form.username.value|default:'' }}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="id_password">Mot de passe</label>
+              <input type="password" name="password" required id="id_password" class="form-control">
+            </div>
+            <div class="mb-3 text-end">
+              <a href="{% url 'password_reset' %}" class="small">Mot de passe oublié ?</a>
+            </div>
+            <button class="btn btn-success w-100" type="submit">Se connecter</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-7">
+      <div class="login-side">
+        {% if site_content_settings %}
+          {% include 'scouting/includes/logo_panel.html' with title=site_content_settings.funders_title text=site_content_settings.funders_text logos=site_content_settings.funders_logos variant='funders' %}
+        {% endif %}
       </div>
     </div>
   </div>

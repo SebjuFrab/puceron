@@ -158,6 +158,61 @@
       font-weight: 700;
       padding: 0.7rem 1rem;
     }
+    .site-logo-panel {
+      border: 1px solid #d8e9df;
+      border-radius: 1.25rem;
+      background: linear-gradient(180deg, #ffffff 0%, #f7fbf8 100%);
+      padding: 1rem 1.1rem;
+    }
+    .site-logo-panel__title {
+      margin: 0 0 0.45rem;
+      font-size: 1rem;
+      font-weight: 800;
+      color: #114f32;
+    }
+    .site-logo-panel__text {
+      color: #52665d;
+      font-size: 0.95rem;
+    }
+    .site-logo-panel__text > *:last-child {
+      margin-bottom: 0;
+    }
+    .site-logo-panel__logos {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+      margin-top: 0.85rem;
+      align-items: center;
+    }
+    .site-logo-panel__logo-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 88px;
+      min-height: 56px;
+      padding: 0.55rem 0.8rem;
+      border-radius: 1rem;
+      border: 1px solid #d8e9df;
+      background: #ffffff;
+      text-decoration: none;
+      box-shadow: 0 0.45rem 1rem rgba(20, 80, 52, 0.06);
+    }
+    .site-logo-panel__logo {
+      display: block;
+      max-width: 120px;
+      max-height: 52px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+    .site-footer {
+      margin-top: 1rem;
+      padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+    }
+    .site-footer__inner {
+      display: grid;
+      gap: 1rem;
+    }
     @media (max-width: 991.98px) {
       #navMain {
         margin-top: 0.9rem;
@@ -303,6 +358,16 @@
   {% endif %}
   {% block content %}{% endblock %}
 </main>
+
+{% if site_content_settings and site_content_settings.footer_text or site_content_settings.footer_logos %}
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__inner">
+        {% include 'scouting/includes/logo_panel.html' with title=site_content_settings.footer_title text=site_content_settings.footer_text logos=site_content_settings.footer_logos variant='footer' %}
+      </div>
+    </div>
+  </footer>
+{% endif %}
 
 <div class="modal fade app-confirm-modal" id="appConfirmModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
