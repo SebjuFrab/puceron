@@ -390,7 +390,7 @@ class SiteContentSettings(BaseSiteSetting):
         use_json_field=True,
         verbose_name='Logos financeurs',
     )
-    footer_title = models.CharField(max_length=160, default='Bas de page', verbose_name='Titre footer')
+    footer_title = models.CharField(max_length=160, blank=True, default='', verbose_name='Titre footer')
     footer_text = RichTextField(blank=True, verbose_name='Texte footer')
     footer_logos = StreamField(
         [('logo', LogoItemBlock())],
