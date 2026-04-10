@@ -663,20 +663,29 @@ def _technician_dashboard_context(request):
     ]
     allowed_variety_ids = {variety['id'] for variety in available_varieties}
     variety_filter_submitted = request.GET.get('variety_filter_submitted') == '1'
+    raw_excluded_variety_ids = [
+        parsed_id
+        for raw_value in (request.GET.get('excluded_varieties') or '').split(',')
+        for parsed_id in [_parse_positive_int(raw_value.strip())]
+        if parsed_id
+    ]
+    excluded_variety_ids = {
+        parsed_id
+        for parsed_id in raw_excluded_variety_ids
+        if parsed_id in allowed_variety_ids
+    }
     raw_selected_variety_ids = [
         parsed_id
         for raw_value in request.GET.getlist('varieties')
         for parsed_id in [_parse_positive_int(raw_value)]
         if parsed_id
     ]
-    selected_variety_ids = {
-        parsed_id
-        for parsed_id in raw_selected_variety_ids
-        if parsed_id in allowed_variety_ids
-    }
-    if not variety_filter_submitted or (raw_selected_variety_ids and not selected_variety_ids):
+    if not variety_filter_submitted:
         selected_variety_ids = set(allowed_variety_ids)
-
+    elif raw_selected_variety_ids or excluded_variety_ids:
+        selected_variety_ids = set(allowed_variety_ids) - excluded_variety_ids
+    else:
+        selected_variety_ids = set(allowed_variety_ids)
     variety_filtered_series = [series for series in producer_filtered_series if series.variety_id in selected_variety_ids]
 
     allowed_series_ids = {series.id for series in variety_filtered_series}

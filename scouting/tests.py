@@ -328,3 +328,54 @@ class TechnicianDashboardComparisonTests(TestCase):
         aux_reference = next(dataset for dataset in context['aux_datasets'] if dataset['label'] == 'Moyenne du groupe')
         self.assertEqual(aphid_reference['data'], [40.0])
         self.assertEqual(aux_reference['data'], [0.4])
+
+    def test_producer_selection_reselects_all_varieties_and_series_when_none_are_explicitly_unchecked(self):
+        context = self._context(
+            crop=str(self.crop.id),
+            year='2026',
+            organic_mode='bio',
+            producer_filter_submitted='1',
+            producers=[str(self.producer_1.id)],
+            variety_filter_submitted='1',
+            series_filter_submitted='0',
+        )
+
+        self.assertSetEqual(context['selected_producer_ids'], {self.producer_1.id})
+        self.assertSetEqual(context['selected_variety_ids'], {self.variety.id})
+        self.assertSetEqual(context['selected_series_ids'], {self.series_1.id})
+        self.assertEqual(context['displayed_series_count'], 1)
+
+    def test_producer_selection_keeps_explicitly_unchecked_varieties_out_of_series_reset(self):
+        other_variety = Variety.objects.create(
+            crop=self.crop,
+            name='Variete dashboard secondaire',
+            created_by=self.technician,
+        )
+        other_series = PlantSeries.objects.create(
+            user=self.producer_1,
+            name='Serie 1 bis',
+            crop=self.crop,
+            conduct_type=self.conduct_type,
+            organic_mode='bio',
+            variety=other_variety,
+            year=2026,
+            plants_count=10,
+            leaves_per_plant=3,
+        )
+
+        context = self._context(
+            crop=str(self.crop.id),
+            year='2026',
+            organic_mode='bio',
+            producer_filter_submitted='1',
+            producers=[str(self.producer_1.id)],
+            variety_filter_submitted='1',
+            excluded_varieties=str(other_variety.id),
+            series_filter_submitted='0',
+        )
+
+        self.assertSetEqual(context['selected_producer_ids'], {self.producer_1.id})
+        self.assertSetEqual(context['selected_variety_ids'], {self.variety.id})
+        self.assertSetEqual(context['selected_series_ids'], {self.series_1.id})
+        self.assertNotIn(other_series.id, context['selected_series_ids'])
+        self.assertEqual(context['displayed_series_count'], 1)

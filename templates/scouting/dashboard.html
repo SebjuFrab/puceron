@@ -345,9 +345,10 @@
         {% endif %}
 
         <hr class="my-4">
-        <input type="hidden" name="producer_filter_submitted" value="1">
-        <input type="hidden" name="variety_filter_submitted" value="1">
-        <input type="hidden" name="series_filter_submitted" value="1">
+        <input type="hidden" name="producer_filter_submitted" value="{{ producer_filter_submitted|yesno:'1,0' }}">
+        <input type="hidden" name="variety_filter_submitted" value="{{ variety_filter_submitted|yesno:'1,0' }}">
+        <input type="hidden" name="series_filter_submitted" value="{{ series_filter_submitted|yesno:'1,0' }}">
+        <input type="hidden" name="excluded_varieties" value="">
 
         {% if available_producers %}
           <div class="mb-3">
@@ -594,6 +595,43 @@ function setupAutoDashboardSubmit(formId) {
   const form = document.getElementById(formId);
   if (!form) return;
   const scrollStorageKey = `${formId}-scroll-top`;
+  const setHiddenFlag = (fieldName, isSubmitted) => {
+    const field = form.querySelector(`input[name="${fieldName}"]`);
+    if (field) {
+      field.value = isSubmitted ? '1' : '0';
+    }
+  };
+  const syncExplicitFilterState = () => {
+    const excludedVarietiesField = form.querySelector('input[name="excluded_varieties"]');
+    if (excludedVarietiesField) {
+      excludedVarietiesField.value = Array.from(form.querySelectorAll('input[name="varieties"]'))
+        .filter(field => !field.checked)
+        .map(field => field.value)
+        .join(',');
+    }
+  };
+  const prepareCascadeForField = (fieldName) => {
+    if (fieldName === 'crop' || fieldName === 'year' || fieldName === 'organic_mode') {
+      setHiddenFlag('producer_filter_submitted', false);
+      setHiddenFlag('variety_filter_submitted', false);
+      setHiddenFlag('series_filter_submitted', false);
+      return;
+    }
+    if (fieldName === 'producers') {
+      setHiddenFlag('producer_filter_submitted', true);
+      setHiddenFlag('variety_filter_submitted', true);
+      setHiddenFlag('series_filter_submitted', false);
+      return;
+    }
+    if (fieldName === 'varieties') {
+      setHiddenFlag('variety_filter_submitted', true);
+      setHiddenFlag('series_filter_submitted', false);
+      return;
+    }
+    if (fieldName === 'visible_series') {
+      setHiddenFlag('series_filter_submitted', true);
+    }
+  };
   const restoreScrollPosition = () => {
     let rawTop = null;
     try {
@@ -619,6 +657,7 @@ function setupAutoDashboardSubmit(formId) {
   const scheduleSubmit = () => {
     window.clearTimeout(submitTimer);
     submitTimer = window.setTimeout(() => {
+      syncExplicitFilterState();
       try {
         sessionStorage.setItem(scrollStorageKey, String(window.scrollY || window.pageYOffset || 0));
       } catch (error) {
@@ -632,7 +671,10 @@ function setupAutoDashboardSubmit(formId) {
     }, 120);
   };
   form.querySelectorAll('select, input[type="radio"], input[type="checkbox"]').forEach(field => {
-    field.addEventListener('change', scheduleSubmit);
+    field.addEventListener('change', () => {
+      prepareCascadeForField(field.name);
+      scheduleSubmit();
+    });
   });
   form.querySelectorAll('[data-bulk-toggle][data-bulk-target]').forEach(button => {
     button.addEventListener('click', () => {
@@ -648,6 +690,7 @@ function setupAutoDashboardSubmit(formId) {
         }
       });
       if (changed) {
+        prepareCascadeForField(fields[0].name);
         scheduleSubmit();
       }
     });
