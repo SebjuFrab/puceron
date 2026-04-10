@@ -78,6 +78,34 @@
     color: #5a7668;
     font-size: 0.9rem;
   }
+  .filter-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .filter-bulk-actions {
+    display: inline-flex;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+  }
+  .filter-bulk-button {
+    appearance: none;
+    border: 1px solid #cfe2d8;
+    background: #ffffff;
+    color: #1d5a3d;
+    border-radius: 999px;
+    padding: 0.32rem 0.72rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .filter-bulk-button:hover {
+    background: #f2faf5;
+    border-color: #b7d5c3;
+  }
   .chart-card--aphid { border-top: 4px solid #0d6efd; }
   .chart-card--aux { border-top: 4px solid #f59f00; }
   .chart-card--pest { border-top: 4px solid #dc3545; }
@@ -244,6 +272,15 @@
       gap: 16px;
     }
   }
+  @media (max-width: 575.98px) {
+    .filter-bulk-actions {
+      width: 100%;
+    }
+    .filter-bulk-button {
+      flex: 1 1 0;
+      text-align: center;
+    }
+  }
 </style>
 {% endblock %}
 {% block content %}
@@ -274,7 +311,7 @@
         </div>
 
         <div class="row g-3 align-items-end">
-          <div class="col-12 col-md-6">
+          <div class="col-12 col-md-4">
             <label class="form-label">Année</label>
             <select class="form-select" name="year">
               {% for year in available_years %}
@@ -282,7 +319,7 @@
               {% endfor %}
             </select>
           </div>
-          <div class="col-12 col-md-6">
+          <div class="col-12 col-md-4">
             <label class="form-label">Mode de conduite</label>
             <select class="form-select" name="organic_mode">
               <option value="both" {% if organic_mode == 'both' %}selected{% endif %}>Bio et non bio</option>
@@ -290,7 +327,22 @@
               <option value="non_bio" {% if organic_mode == 'non_bio' %}selected{% endif %}>Non bio</option>
             </select>
           </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Référence</label>
+            <select class="form-select" name="comparison_mode">
+              <option value="none" {% if comparison_mode == 'none' %}selected{% endif %}>Aucune</option>
+              <option value="average" {% if comparison_mode == 'average' %}selected{% endif %}>Moyenne</option>
+              <option value="median" {% if comparison_mode == 'median' %}selected{% endif %}>Médiane</option>
+            </select>
+          </div>
         </div>
+        {% if comparison_mode != 'none' %}
+          <div class="comparison-meta mt-3">
+            <span class="compare-pill">{{ comparison_match_count }} série(s) dans la référence</span>
+            <span class="compare-pill">{{ comparison_mode_label }}</span>
+            <span class="compare-pill">Filtres producteurs / variétés appliqués</span>
+          </div>
+        {% endif %}
 
         <hr class="my-4">
         <input type="hidden" name="producer_filter_submitted" value="1">
@@ -299,7 +351,13 @@
 
         {% if available_producers %}
           <div class="mb-3">
-            <div class="panel-subtitle mb-2">Producteurs</div>
+            <div class="filter-section-head">
+              <div class="panel-subtitle mb-0">Producteurs</div>
+              <div class="filter-bulk-actions">
+                <button type="button" class="filter-bulk-button" data-bulk-toggle="check" data-bulk-target='input[name="producers"]'>Tout sélectionner</button>
+                <button type="button" class="filter-bulk-button" data-bulk-toggle="uncheck" data-bulk-target='input[name="producers"]'>Tout désélectionner</button>
+              </div>
+            </div>
             <div class="filters-group">
               {% for producer in available_producers %}
                 <label class="filter-chip">
@@ -313,7 +371,13 @@
 
         {% if available_varieties %}
           <div class="mb-3">
-            <div class="panel-subtitle mb-2">Variétés</div>
+            <div class="filter-section-head">
+              <div class="panel-subtitle mb-0">Variétés</div>
+              <div class="filter-bulk-actions">
+                <button type="button" class="filter-bulk-button" data-bulk-toggle="check" data-bulk-target='input[name="varieties"]'>Tout sélectionner</button>
+                <button type="button" class="filter-bulk-button" data-bulk-toggle="uncheck" data-bulk-target='input[name="varieties"]'>Tout désélectionner</button>
+              </div>
+            </div>
             <div class="filters-group">
               {% for variety in available_varieties %}
                 <label class="filter-chip">
@@ -330,6 +394,12 @@
             <h2 class="panel-title">Séries affichées</h2>
             <p class="panel-subtitle">Décochez une série pour la retirer du graphique.</p>
           </div>
+          {% if year_series %}
+            <div class="filter-bulk-actions">
+              <button type="button" class="filter-bulk-button" data-bulk-toggle="check" data-bulk-target='input[name="visible_series"]'>Tout sélectionner</button>
+              <button type="button" class="filter-bulk-button" data-bulk-toggle="uncheck" data-bulk-target='input[name="visible_series"]'>Tout désélectionner</button>
+            </div>
+          {% endif %}
         </div>
         <div class="series-selector-list">
           {% for series in year_series %}
@@ -397,6 +467,9 @@
           <span class="compare-pill">Culture {{ selected_crop.name }}</span>
           <span class="compare-pill">Année {{ selected_year }}</span>
           <span class="compare-pill">Mode {{ organic_mode_label }}</span>
+          {% if comparison_mode != 'none' %}
+            <span class="compare-pill">{{ comparison_mode_label }} sur {{ comparison_match_count }} série(s)</span>
+          {% endif %}
         </div>
         {% if displayed_series %}
           <div class="comparison-meta mt-2">
@@ -561,6 +634,24 @@ function setupAutoDashboardSubmit(formId) {
   form.querySelectorAll('select, input[type="radio"], input[type="checkbox"]').forEach(field => {
     field.addEventListener('change', scheduleSubmit);
   });
+  form.querySelectorAll('[data-bulk-toggle][data-bulk-target]').forEach(button => {
+    button.addEventListener('click', () => {
+      const selector = button.dataset.bulkTarget;
+      const shouldCheck = button.dataset.bulkToggle === 'check';
+      const fields = Array.from(form.querySelectorAll(selector)).filter(field => !field.disabled);
+      if (!fields.length) return;
+      let changed = false;
+      fields.forEach(field => {
+        if (field.checked !== shouldCheck) {
+          field.checked = shouldCheck;
+          changed = true;
+        }
+      });
+      if (changed) {
+        scheduleSubmit();
+      }
+    });
+  });
   restoreScrollPosition();
 }
 
@@ -585,11 +676,16 @@ function buildSeriesDatasets(rawDatasets) {
     data: dataset.data,
     borderColor: dataset.borderColor,
     backgroundColor: dataset.backgroundColor,
-    tension: 0.22,
-    borderWidth: 3,
-    pointRadius: 4,
-    pointHoverRadius: 6,
-    spanGaps: true,
+    tension: dataset.tension ?? 0.22,
+    borderWidth: dataset.borderWidth ?? 3,
+    pointRadius: dataset.pointRadius ?? 4,
+    pointHoverRadius: dataset.pointHoverRadius ?? 6,
+    pointStyle: dataset.pointStyle ?? 'circle',
+    pointBackgroundColor: dataset.pointBackgroundColor ?? dataset.backgroundColor,
+    pointBorderColor: dataset.pointBorderColor ?? dataset.borderColor,
+    pointBorderWidth: dataset.pointBorderWidth ?? 2,
+    spanGaps: dataset.spanGaps ?? true,
+    borderDash: dataset.borderDash ?? [],
   }));
 }
 
@@ -629,18 +725,23 @@ function buildActionMarkerDatasets(rawActions, labels, allowedSeriesIds = null) 
 
 function buildOtherPestDatasets(rawDatasets, seriesId) {
   return (rawDatasets || [])
-    .filter(dataset => String(dataset.seriesId) === String(seriesId))
+    .filter(dataset => dataset.isReference || String(dataset.seriesId) === String(seriesId))
     .map(dataset => ({
       type: 'line',
       label: dataset.label,
       data: dataset.data,
       borderColor: dataset.borderColor,
       backgroundColor: dataset.backgroundColor,
-      tension: 0.22,
-      borderWidth: 3,
-      pointRadius: 4,
-      pointHoverRadius: 6,
-      spanGaps: true,
+      tension: dataset.tension ?? 0.22,
+      borderWidth: dataset.borderWidth ?? 3,
+      pointRadius: dataset.pointRadius ?? 4,
+      pointHoverRadius: dataset.pointHoverRadius ?? 6,
+      pointStyle: dataset.pointStyle ?? 'circle',
+      pointBackgroundColor: dataset.pointBackgroundColor ?? dataset.backgroundColor,
+      pointBorderColor: dataset.pointBorderColor ?? dataset.borderColor,
+      pointBorderWidth: dataset.pointBorderWidth ?? 2,
+      spanGaps: dataset.spanGaps ?? true,
+      borderDash: dataset.borderDash || [],
     }));
 }
 
@@ -864,4 +965,3 @@ if (otherPestButtons.length) {
 </script>
 {% endif %}
 {% endblock %}
-

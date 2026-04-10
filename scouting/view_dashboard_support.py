@@ -595,6 +595,9 @@ def _technician_dashboard_context(request):
             'series_filter_submitted': False,
             'producer_filter_submitted': False,
             'variety_filter_submitted': False,
+            'comparison_mode': 'median',
+            'comparison_mode_label': 'Mediane du groupe',
+            'comparison_match_count': 0,
         }
 
     crop_map = {}
@@ -616,6 +619,10 @@ def _technician_dashboard_context(request):
     organic_mode = request.GET.get('organic_mode')
     if organic_mode not in {'bio', 'non_bio', 'both'}:
         organic_mode = 'both'
+
+    comparison_mode = request.GET.get('comparison_mode')
+    if comparison_mode not in {'none', 'average', 'median'}:
+        comparison_mode = 'median'
 
     year_series = [series for series in crop_series if series.year == selected_year]
     if organic_mode != 'both':
@@ -700,8 +707,11 @@ def _technician_dashboard_context(request):
     if not manager_user.is_superuser:
         visible_user_ids = {series.user_id for series in variety_filtered_series}
         records = [record for record in records if record.user_id in visible_user_ids]
+    comparison_records = records if comparison_mode != 'none' and allowed_series_ids else []
     weeks = _contiguous_week_range(
         {record.week for record in records if record.week and record.plant_series_id in displayed_series_ids}
+        |
+        {record.week for record in comparison_records if record.week}
     )
 
     aphid_by_series = defaultdict(dict)
@@ -721,6 +731,35 @@ def _technician_dashboard_context(request):
         series.chart_color = color
         series.latest_record = last_record_by_series.get(series.id)
         series.producer_name = series.user.profile.farm_name or display_user_name(series.user)
+
+    comparison_aphid_by_week = defaultdict(list)
+    comparison_aux_by_week = defaultdict(list)
+    for record in comparison_records:
+        if not record.week:
+            continue
+        comparison_aphid_by_week[record.week].append(round(float(record.aphid_infested_percent), 2))
+        comparison_aux_by_week[record.week].append(round(float(record.auxiliaries_per_plant), 2))
+
+    comparison_aggregator = _average if comparison_mode == 'average' else _median
+    comparison_label = {
+        'average': 'Moyenne du groupe',
+        'median': 'Mediane du groupe',
+    }.get(comparison_mode)
+    if comparison_label and comparison_records:
+        aphid_reference_map = {
+            week: comparison_aggregator(values)
+            for week, values in comparison_aphid_by_week.items()
+            if values
+        }
+        aux_reference_map = {
+            week: comparison_aggregator(values)
+            for week, values in comparison_aux_by_week.items()
+            if values
+        }
+        if aphid_reference_map:
+            aphid_datasets.append(_reference_chart_dataset(weeks, aphid_reference_map, comparison_label))
+        if aux_reference_map:
+            aux_datasets.append(_reference_chart_dataset(weeks, aux_reference_map, comparison_label))
 
     actions = list(
         PlantAction.objects.filter(
@@ -756,6 +795,11 @@ def _technician_dashboard_context(request):
 
     displayed_records = [record for record in records if record.plant_series_id in displayed_series_ids]
     other_pest_datasets = _other_pest_chart_datasets(displayed_records, weeks)
+    if comparison_label and comparison_records:
+        comparison_other_pest_source = _other_pest_chart_datasets(comparison_records, weeks)
+        other_pest_datasets.extend(
+            _reference_other_pest_datasets(comparison_other_pest_source, weeks, comparison_label)
+        )
     latest_weeks = sorted({record.week for record in displayed_records if record.week}, reverse=True)
     latest_week = latest_weeks[0] if latest_weeks else None
 
@@ -789,4 +833,7 @@ def _technician_dashboard_context(request):
         'series_filter_submitted': series_filter_submitted,
         'producer_filter_submitted': producer_filter_submitted,
         'variety_filter_submitted': variety_filter_submitted,
+        'comparison_mode': comparison_mode,
+        'comparison_mode_label': comparison_label,
+        'comparison_match_count': len(variety_filtered_series),
     }
