@@ -176,7 +176,7 @@ class UserProfile(models.Model):
         related_name='assigned_producer_profiles',
         verbose_name='Technicien referent',
     )
-    department = models.CharField(max_length=2, choices=DEPARTMENT_CHOICES, blank=True, verbose_name='Departement')
+    department = models.CharField(max_length=10, blank=True, verbose_name='Departement')
     farm_name = models.CharField(max_length=150, blank=True, verbose_name='Nom de ferme')
     phone = models.CharField(max_length=30, blank=True, verbose_name='Mobile')
     photo = models.ImageField(upload_to='profile_photos/', blank=True, verbose_name='Photo ou logo')
@@ -326,6 +326,26 @@ class InfoContentPage(Page):
 
     def get_page_key_display_label(self):
         return dict(INFO_PAGE_KEY_CHOICES).get(self.page_key, self.page_key or self.slug)
+
+
+class Department(models.Model):
+    code = models.CharField(max_length=10, unique=True, verbose_name='Code')
+    name = models.CharField(max_length=120, verbose_name='Nom')
+    is_active = models.BooleanField(default=True, verbose_name='Actif')
+
+    class Meta:
+        ordering = ['code']
+        verbose_name = 'Departement'
+        verbose_name_plural = 'Departements'
+
+    def __str__(self):
+        return self.label
+
+    @property
+    def label(self):
+        if self.name and self.code:
+            return f'{self.name} ({self.code})'
+        return self.code
 
 
 class InfoContentPageResource(Orderable):
@@ -588,7 +608,7 @@ class ScoutingRecord(models.Model):
         related_name='records',
         verbose_name='Variete',
     )
-    department = models.CharField(max_length=2, choices=DEPARTMENT_CHOICES, verbose_name='Departement')
+    department = models.CharField(max_length=10, verbose_name='Departement')
     crop = models.CharField(max_length=100, verbose_name='Culture')
     scouting_date = models.DateField(default=timezone.localdate, verbose_name='Date observation')
     year = models.PositiveSmallIntegerField(verbose_name='Annee')
@@ -961,7 +981,7 @@ class PlantAction(models.Model):
         verbose_name='Saisie par',
     )
     plant_series = models.ForeignKey(PlantSeries, on_delete=models.PROTECT, related_name='actions', verbose_name='Serie de plants')
-    department = models.CharField(max_length=2, choices=DEPARTMENT_CHOICES, verbose_name='Departement')
+    department = models.CharField(max_length=10, verbose_name='Departement')
     crop_ref = models.ForeignKey(Crop, on_delete=models.PROTECT, related_name='actions', verbose_name='Culture')
     conduct_type_ref = models.ForeignKey(
         ConductType,

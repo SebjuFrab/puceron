@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
@@ -11,6 +12,7 @@ from .models import (
     AuxiliaryTaxon,
     ConductType,
     Crop,
+    Department,
     DecisionLever,
     DecisionRule,
     LeafAuxiliaryObservation,
@@ -44,19 +46,20 @@ ADMIN_MODEL_ORDER = {
         'PlantSeries': 20,
         'ScoutingRecord': 30,
         'PlantAction': 40,
-        'Crop': 50,
-        'ConductType': 60,
-        'Variety': 70,
-        'ServicePlant': 80,
-        'AuxiliaryTaxon': 90,
-        'AphidSpecies': 100,
-        'OtherPestTaxon': 110,
-        'Molecule': 120,
-        'RecommendationDismissReason': 130,
-        'ActionType': 140,
-        'DecisionRule': 150,
-        'DecisionLever': 160,
-        'LeafObservation': 170,
+        'Department': 50,
+        'Crop': 60,
+        'ConductType': 70,
+        'Variety': 80,
+        'ServicePlant': 90,
+        'AuxiliaryTaxon': 100,
+        'AphidSpecies': 110,
+        'OtherPestTaxon': 120,
+        'Molecule': 130,
+        'RecommendationDismissReason': 140,
+        'ActionType': 150,
+        'DecisionRule': 160,
+        'DecisionLever': 170,
+        'LeafObservation': 180,
     },
     'auth': {
         'User': 10,
@@ -70,7 +73,18 @@ SCOUTING_ADMIN_GROUPS = [
     (
         'settings',
         'Parametrage',
-        ['Crop', 'ConductType', 'Variety', 'ServicePlant', 'AuxiliaryTaxon', 'AphidSpecies', 'OtherPestTaxon', 'Molecule', 'RecommendationDismissReason'],
+        [
+            'Department',
+            'Crop',
+            'ConductType',
+            'Variety',
+            'ServicePlant',
+            'AuxiliaryTaxon',
+            'AphidSpecies',
+            'OtherPestTaxon',
+            'Molecule',
+            'RecommendationDismissReason',
+        ],
     ),
     (
         'decisions',
@@ -171,8 +185,35 @@ class SuperuserOnlyAdminMixin:
         return request.user.is_superuser
 
 
+def _department_choices(current_value=''):
+    current_value = (current_value or '').strip()
+    choices = [('', '---------')]
+    for department in Department.objects.order_by('code'):
+        label = department.label
+        if not department.is_active:
+            label = f'{label} [inactif]'
+        choices.append((department.code, label))
+    if current_value and all(code != current_value for code, _ in choices):
+        choices.append((current_value, current_value))
+    return choices
+
+
+class UserProfileAdminForm(forms.ModelForm):
+    department = forms.ChoiceField(required=False, label='Departement')
+
+    class Meta:
+        model = UserProfile
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        current_value = self.instance.department if getattr(self.instance, 'pk', None) else ''
+        self.fields['department'].choices = _department_choices(current_value)
+
+
 class UserProfileInline(admin.StackedInline):
     model = UserProfile
+    form = UserProfileAdminForm
     fk_name = 'user'
     can_delete = False
     extra = 0
@@ -205,6 +246,7 @@ class UserAdmin(DjangoUserAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
+    form = UserProfileAdminForm
     list_display = (
         'user',
         'role',
@@ -241,6 +283,14 @@ class UserProfileAdmin(admin.ModelAdmin):
             },
         ),
     )
+
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('code', 'name')
+    ordering = ('code',)
 
 
 @admin.register(Crop)

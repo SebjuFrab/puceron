@@ -9,6 +9,7 @@ from .models import (
     AuxiliaryTaxon,
     ConductType,
     Crop,
+    Department,
     Molecule,
     OtherPestTaxon,
     PlantAction,
@@ -116,6 +117,7 @@ class QuickScoutingRecordForm(forms.ModelForm):
 
 
 class UserProfileForm(forms.ModelForm):
+    department = forms.ChoiceField(required=False, label='Département')
     email = forms.EmailField(required=False, label='Email')
     first_name = forms.CharField(required=False, max_length=150, label='PrÃ©nom')
     last_name = forms.CharField(required=False, max_length=150, label='Nom')
@@ -162,6 +164,14 @@ class UserProfileForm(forms.ModelForm):
         self.fields['last_name'].widget.attrs['class'] = 'form-control'
         self.fields['first_name'].initial = self.user.first_name if self.user else ''
         self.fields['last_name'].initial = self.user.last_name if self.user else ''
+        active_departments = list(Department.objects.filter(is_active=True).order_by('code'))
+        department_choices = [('', '---------')] + [(d.code, d.label) for d in active_departments]
+        current_department = (self.instance.department or '').strip() if self.instance else ''
+        if current_department and all(code != current_department for code, _ in department_choices):
+            fallback = Department.objects.filter(code=current_department).first()
+            label = fallback.label if fallback else current_department
+            department_choices.append((current_department, label))
+        self.fields['department'].choices = department_choices
         self.fields['department'].widget.attrs['class'] = 'form-select'
         if self.instance and self.instance.farm_address and not self.instance.street_address:
             self.fields['street_address'].initial = self.instance.farm_address

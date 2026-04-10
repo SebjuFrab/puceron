@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import UserProfileForm
-from .models import DEPARTMENT_CHOICES, PlantAction, ScoutingRecord
+from .models import Department, PlantAction, ScoutingRecord
 from .utils import display_user_name
 from .view_access import (
     _accessible_technician_profiles,
@@ -185,7 +185,7 @@ def my_records_view(request):
 
     base_records_list = list(base_records)
     base_actions_list = list(base_actions)
-    department_labels = dict(DEPARTMENT_CHOICES)
+    department_labels = {dep.code: dep.label for dep in Department.objects.all()}
     active_filters = {
         'department': filter_department,
         'technician': filter_technician,
