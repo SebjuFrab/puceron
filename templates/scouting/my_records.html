@@ -182,7 +182,7 @@
 
     <div class="record-card__actions d-flex gap-2">
       <a class="btn btn-outline-primary btn-sm" href="{% url 'record_update' rec.pk %}">Modifier</a>
-      <form method="post" action="{% url 'record_delete' rec.pk %}" class="d-flex flex-fill js-confirm-form" data-confirm-title="Supprimer le comptage" data-confirm-body="Supprimer ce comptage ?">
+      <form method="post" action="{% url 'record_delete' rec.pk %}" class="d-flex flex-fill js-app-confirm" data-confirm-title="Supprimer le comptage" data-confirm-subtitle="Cette action est définitive." data-confirm-message="Supprimer ce comptage ?" data-confirm-confirm-label="Supprimer" data-confirm-confirm-class="btn-danger">
         {% csrf_token %}
         <button type="submit" class="btn btn-outline-danger btn-sm w-100">Supprimer</button>
       </form>
@@ -231,7 +231,7 @@
         <td>{{ rec.comment|default:'-' }}</td>
         <td class="d-flex gap-1 flex-wrap">
           <a class="btn btn-outline-primary btn-sm" href="{% url 'record_update' rec.pk %}">Modifier</a>
-          <form method="post" action="{% url 'record_delete' rec.pk %}" class="d-inline js-confirm-form" data-confirm-title="Supprimer le comptage" data-confirm-body="Supprimer ce comptage ?">
+          <form method="post" action="{% url 'record_delete' rec.pk %}" class="d-inline js-app-confirm" data-confirm-title="Supprimer le comptage" data-confirm-subtitle="Cette action est définitive." data-confirm-message="Supprimer ce comptage ?" data-confirm-confirm-label="Supprimer" data-confirm-confirm-class="btn-danger">
             {% csrf_token %}
             <button type="submit" class="btn btn-outline-danger btn-sm">Supprimer</button>
           </form>
@@ -292,7 +292,7 @@
 
     <div class="action-card__actions d-flex gap-2">
       <a class="btn btn-outline-primary btn-sm" href="{% url 'action_update' action.pk %}?next={{ request.get_full_path|urlencode }}">Modifier</a>
-      <form method="post" action="{% url 'action_delete' action.pk %}" class="d-flex flex-fill js-confirm-form" data-confirm-title="Supprimer l'action" data-confirm-body="Supprimer cette action ?">
+      <form method="post" action="{% url 'action_delete' action.pk %}" class="d-flex flex-fill js-app-confirm" data-confirm-title="Supprimer l'action" data-confirm-subtitle="Cette action est définitive." data-confirm-message="Supprimer cette action ?" data-confirm-confirm-label="Supprimer" data-confirm-confirm-class="btn-danger">
         {% csrf_token %}
         <button type="submit" class="btn btn-outline-danger btn-sm w-100">Supprimer</button>
       </form>
@@ -337,7 +337,7 @@
         <td>{{ action.notes|default:'-' }}</td>
         <td class="d-flex gap-1 flex-wrap">
           <a class="btn btn-outline-primary btn-sm" href="{% url 'action_update' action.pk %}?next={{ request.get_full_path|urlencode }}">Modifier</a>
-          <form method="post" action="{% url 'action_delete' action.pk %}" class="d-inline js-confirm-form" data-confirm-title="Supprimer l'action" data-confirm-body="Supprimer cette action ?">
+          <form method="post" action="{% url 'action_delete' action.pk %}" class="d-inline js-app-confirm" data-confirm-title="Supprimer l'action" data-confirm-subtitle="Cette action est définitive." data-confirm-message="Supprimer cette action ?" data-confirm-confirm-label="Supprimer" data-confirm-confirm-class="btn-danger">
             {% csrf_token %}
             <button type="submit" class="btn btn-outline-danger btn-sm">Supprimer</button>
           </form>
