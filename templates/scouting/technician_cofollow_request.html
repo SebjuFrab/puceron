@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-xl-9">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h1 class="h4 mb-2">Proposer un co-suivi</h1>
+        <p class="text-muted mb-3">
+          Vous pouvez proposer a un autre technicien de reprendre ou co-suivre une selection de producteurs.
+        </p>
+
+        <form method="post" class="row g-3">
+          {% csrf_token %}
+          <div class="col-md-6">
+            <label class="form-label" for="id_target_technician">Technicien cible</label>
+            {{ form.target_technician }}
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="id_message">Message</label>
+            {{ form.message }}
+          </div>
+          <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+              <label class="form-label mb-0">Producteurs proposes</label>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="cofollow-select-all">Tout selectionner</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="cofollow-clear-all">Tout deselectionner</button>
+              </div>
+            </div>
+            <div class="border rounded p-3" style="max-height: 360px; overflow: auto;">
+              {% if has_available_producers %}
+                {{ form.producers }}
+              {% else %}
+                <div class="text-muted">Aucun producteur disponible pour ce technicien.</div>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if form.errors %}
+          <div class="col-12 text-danger small">{{ form.errors }}</div>
+          {% endif %}
+
+          <div class="col-12 d-flex gap-2">
+            <button type="submit" class="btn btn-success" {% if not has_available_producers %}disabled{% endif %}>Envoyer la demande</button>
+            <a href="{% url 'technician_records' %}" class="btn btn-outline-secondary">Annuler</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const cofollowCheckboxes = Array.from(document.querySelectorAll('input[name=\"producers\"]'));
+document.getElementById('cofollow-select-all')?.addEventListener('click', () => {
+  cofollowCheckboxes.forEach((input) => { input.checked = true; });
+});
+document.getElementById('cofollow-clear-all')?.addEventListener('click', () => {
+  cofollowCheckboxes.forEach((input) => { input.checked = false; });
+});
+</script>
+{% endblock %}

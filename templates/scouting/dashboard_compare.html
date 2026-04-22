@@ -247,6 +247,12 @@
 </style>
 {% endblock %}
 {% block content %}
+{% if producer_read_only %}
+  <div class="alert alert-warning">
+    <strong>Compte en lecture seule.</strong>
+    {{ producer_read_only_message }}
+  </div>
+{% endif %}
 {% if not series_list %}
   <div class="alert alert-warning mb-0">Aucune série active pour afficher l’analyse. Créez d'abord une série dans <a href="{% url 'my_series' %}">Mes séries</a>.</div>
 {% else %}
@@ -905,4 +911,3 @@ if (otherPestButtons.length) {
 </script>
 {% endif %}
 {% endblock %}
-

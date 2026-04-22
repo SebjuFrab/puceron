@@ -355,7 +355,8 @@ def _producer_dashboard_context(request):
             crop_id=selected_crop_id,
             year=selected_year,
         )
-        .select_related('variety', 'user', 'user__profile', 'user__profile__assigned_technician')
+        .select_related('variety', 'user', 'user__profile')
+        .prefetch_related('user__profile__technician_assignments__technician')
         .order_by('name')
     )
 
@@ -377,9 +378,12 @@ def _producer_dashboard_context(request):
 
     available_comparison_technicians_map = {}
     for series in comparison_department_series:
-        technician = series.user.profile.assigned_technician
-        if technician:
-            available_comparison_technicians_map[technician.id] = display_user_name(technician)
+        assignments = series.user.profile.technician_assignments.filter(
+            is_active=True,
+            technician__profile__license_status='active',
+        ).select_related('technician')
+        for assignment in assignments:
+            available_comparison_technicians_map[assignment.technician.id] = display_user_name(assignment.technician)
     available_comparison_technicians = [
         {'id': technician_id, 'name': technician_name}
         for technician_id, technician_name in sorted(
@@ -394,7 +398,14 @@ def _producer_dashboard_context(request):
     comparison_technician_series = [
         series
         for series in comparison_department_series
-        if not selected_comparison_technician_id or series.user.profile.assigned_technician_id == selected_comparison_technician_id
+        if (
+            not selected_comparison_technician_id
+            or series.user.profile.technician_assignments.filter(
+                is_active=True,
+                technician_id=selected_comparison_technician_id,
+                technician__profile__license_status='active',
+            ).exists()
+        )
     ]
 
     available_comparison_varieties_map = {}

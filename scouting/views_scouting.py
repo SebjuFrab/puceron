@@ -26,6 +26,7 @@ from .models import (
     UserProfile,
 )
 from .view_access import (
+    _effective_access_restriction,
     _effective_profile,
     _effective_user,
     _get_profile,
@@ -522,6 +523,11 @@ def _record_form_context(
 
 @login_required
 def record_create_view(request):
+    restriction = _effective_access_restriction(request, for_write=True)
+    if restriction:
+        messages.error(request, restriction['message'])
+        return redirect('dashboard')
+
     taxa = list(AuxiliaryTaxon.objects.filter(is_active=True).order_by('display_order', 'name'))
     other_pest_taxa = _active_other_pest_taxa()
     aphid_species_list = _active_aphid_species()
@@ -562,18 +568,6 @@ def record_create_view(request):
             else ScoutingRecordForm(post_data, series_queryset=series_qs)
         )
         if form.is_valid():
-            if is_tech_user and not manager_profile.department:
-                form.add_error(None, 'Renseignez votre d?partement dans Mon profil avant de saisir un comptage.')
-                return render(
-                    request,
-                    'scouting/record_select_series.html',
-                    {
-                        'series_list': series_qs,
-                        'is_technician': is_tech_user,
-                        'dismiss_reasons': _dismiss_reasons_queryset(),
-                    },
-                )
-
             record = form.save(commit=False)
             selected_series = form.cleaned_data['plant_series']
             if not selected_series:
@@ -770,6 +764,11 @@ def record_create_view(request):
 
 @login_required
 def action_create_view(request):
+    restriction = _effective_access_restriction(request, for_write=True)
+    if restriction:
+        messages.error(request, restriction['message'])
+        return redirect('dashboard')
+
     manager_user = _manager_user(request)
     manager_profile = _get_profile(manager_user)
     effective_profile = _effective_profile(request)
@@ -881,6 +880,11 @@ def action_create_view(request):
 
 @login_required
 def action_update_view(request, action_id):
+    restriction = _effective_access_restriction(request, for_write=True)
+    if restriction:
+        messages.error(request, restriction['message'])
+        return redirect('my_records')
+
     queryset = PlantAction.objects.select_related('plant_series', 'user', 'decision_lever')
     manager_user = _manager_user(request)
     manager_profile = _get_profile(manager_user)
@@ -957,6 +961,11 @@ def action_update_view(request, action_id):
 
 @login_required
 def record_update_view(request, record_id):
+    restriction = _effective_access_restriction(request, for_write=True)
+    if restriction:
+        messages.error(request, restriction['message'])
+        return redirect('my_records')
+
     queryset = ScoutingRecord.objects.select_related('plant_series', 'user')
     manager_user = _manager_user(request)
     manager_profile = _get_profile(manager_user)

@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block head_extras %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
@@ -46,7 +46,9 @@
         <h1 class="h4">Mon profil</h1>
         <p class="text-muted">
           {% if profile.role == 'producer' and not profile_user.is_superuser %}
-            Informations de ferme, technicien référent et position GPS.
+            Informations de ferme, techniciens actifs et position GPS.
+          {% elif profile.role == 'technician' %}
+            Informations technicien, structure de rattachement et coordonnees.
           {% else %}
             Informations de profil et position GPS.
           {% endif %}
@@ -61,20 +63,33 @@
                 <div class="profile-logo-fallback">{{ profile.farm_name|default:profile_user.get_full_name|default:profile_user.username|slice:":1"|upper }}</div>
               {% endif %}
               <div class="flex-grow-1">
-                <label class="form-label" for="id_photo">Photo / logo</label>
+                <label class="form-label" for="id_photo">
+                  {% if profile.role == 'technician' %}Photo de profil{% else %}Photo / logo{% endif %}
+                </label>
                 {{ form.photo }}
-                <div class="form-text">Affichez le logo de la ferme ou une photo de profil.</div>
+                <div class="form-text">
+                  {% if profile.role == 'technician' %}
+                    Affichez votre photo de profil.
+                  {% else %}
+                    Affichez le logo de la ferme ou une photo de profil.
+                  {% endif %}
+                </div>
               </div>
             </div>
           </div>
 
           <div class="col-12">
-            <label class="form-label" for="id_farm_name">Nom de ferme</label>
+            <label class="form-label" for="id_farm_name">
+              {% if profile.role == 'technician' %}Nom d affichage{% else %}Nom de ferme{% endif %}
+            </label>
             {{ form.farm_name }}
+            {% if profile.role == 'technician' %}
+              <div class="form-text">Nom affiche aux producteurs (optionnel).</div>
+            {% endif %}
           </div>
 
           <div class="col-md-6">
-            <label class="form-label" for="id_first_name">Prénom</label>
+            <label class="form-label" for="id_first_name">Prenom</label>
             {{ form.first_name }}
           </div>
           <div class="col-md-6">
@@ -94,35 +109,53 @@
           {% if profile.role == 'producer' and not profile_user.is_superuser %}
           <div class="col-12">
             <div class="tech-contact-card">
-              <div class="small text-uppercase text-success fw-semibold mb-1">Technicien référent</div>
-              <div class="h5 mb-1">
-                {% if profile.assigned_technician %}
-                  {{ profile.assigned_technician.get_full_name|default:profile.assigned_technician.username }}
-                {% else %}
-                  Non renseigné
-                {% endif %}
-              </div>
-              {% if profile.assigned_technician %}
-                <div class="mt-2">
-                  <div><strong>Mobile:</strong> {% if technician_profile and technician_profile.phone %}{{ technician_profile.phone }}{% else %}Non renseigné{% endif %}</div>
-                  <div><strong>Email:</strong> {% if profile.assigned_technician.email %}{{ profile.assigned_technician.email }}{% else %}Non renseigné{% endif %}</div>
-                </div>
-                <div class="tech-contact-actions">
-                  {% if technician_profile and technician_profile.phone %}
-                    <a class="btn btn-outline-success btn-sm" href="tel:{{ technician_profile.phone|cut:' ' }}">Appeler</a>
-                  {% endif %}
-                  {% if profile.assigned_technician.email %}
-                    <a class="btn btn-outline-primary btn-sm" href="mailto:{{ profile.assigned_technician.email }}">Envoyer un mail</a>
-                  {% endif %}
-                </div>
+              <div class="small text-uppercase text-success fw-semibold mb-1">Techniciens actifs</div>
+              {% if technician_profiles %}
+                {% for technician_profile in technician_profiles %}
+                  <div class="{% if not forloop.first %}pt-3 mt-3 border-top{% endif %}">
+                    <div class="h5 mb-1">{{ technician_profile.user.get_full_name|default:technician_profile.user.username }}</div>
+                    {% if technician_profile.structure %}
+                      <div class="small text-muted mb-1">
+                        {{ technician_profile.structure.name }}
+                        {% if technician_profile.structure.website %}
+                          · <a href="{{ technician_profile.structure.website }}" target="_blank" rel="noopener">Site web</a>
+                        {% endif %}
+                      </div>
+                      {% if technician_profile.structure.generic_contact %}
+                        <div><strong>Contact structure:</strong> {{ technician_profile.structure.generic_contact }}</div>
+                      {% endif %}
+                      {% if technician_profile.structure.address %}
+                        <div><strong>Adresse structure:</strong> {{ technician_profile.structure.address }}</div>
+                      {% endif %}
+                    {% endif %}
+                    <div><strong>Mobile:</strong> {% if technician_profile.phone %}{{ technician_profile.phone }}{% else %}Non renseigne{% endif %}</div>
+                    <div><strong>Email:</strong> {% if technician_profile.user.email %}{{ technician_profile.user.email }}{% else %}Non renseigne{% endif %}</div>
+                    <div class="tech-contact-actions">
+                      {% if technician_profile.phone %}
+                        <a class="btn btn-outline-success btn-sm" href="tel:{{ technician_profile.phone|cut:' ' }}">Appeler</a>
+                      {% endif %}
+                      {% if technician_profile.user.email %}
+                        <a class="btn btn-outline-primary btn-sm" href="mailto:{{ technician_profile.user.email }}">Envoyer un mail</a>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-muted">Aucun technicien actif rattache.</div>
               {% endif %}
             </div>
           </div>
           {% else %}
           <div class="col-md-4">
-            <label class="form-label" for="id_department">Département</label>
+            <label class="form-label" for="id_department">Departement</label>
             {{ form.department }}
           </div>
+          {% if profile.role == 'technician' %}
+          <div class="col-md-8">
+            <label class="form-label" for="id_structure">Structure</label>
+            {{ form.structure }}
+          </div>
+          {% endif %}
           {% endif %}
 
           {{ form.latitude }}
@@ -147,7 +180,7 @@
                 {% if profile_has_coordinates %}
                   GPS: {{ profile.latitude }}, {{ profile.longitude }}
                 {% else %}
-                  Aucune coordonnée GPS enregistrée.
+                  Aucune coordonnee GPS enregistree.
                 {% endif %}
               </span>
             </div>
@@ -161,7 +194,7 @@
           <div class="col-12 text-danger small">{{ form.errors }}</div>
           {% endif %}
           <div class="col-12">
-            <button class="btn btn-success" type="submit">Enregistrer mon profil</button>
+            <button class="btn btn-success" type="submit" {% if effective_producer_read_only %}disabled{% endif %}>Enregistrer mon profil</button>
           </div>
         </form>
       </div>
@@ -240,7 +273,7 @@ async function geocodeProfileAddress() {
 
 document.getElementById('profileGeocodeBtn')?.addEventListener('click', function() {
   geocodeProfileAddress().catch(function() {
-    profileCoordsLabel.textContent = 'La géolocalisation a échoué.';
+    profileCoordsLabel.textContent = 'La geolocalisation a echoue.';
   });
 });
 </script>

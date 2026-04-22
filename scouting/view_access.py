@@ -1,6 +1,5 @@
 from django.db.models import Q
-
-from .models import PlantSeries, UserProfile
+from .models import AccessControlSettings, PlantSeries, ProducerTechnicianAssignment, UserProfile
 
 ACTING_PRODUCER_SESSION_KEY = 'acting_producer_user_id'
 ACTING_TECHNICIAN_SESSION_KEY = 'acting_technician_user_id'
@@ -21,18 +20,48 @@ def _is_technician(user):
     return profile.role == UserProfile.ROLE_TECHNICIAN
 
 
+def _technician_has_active_license(user):
+    if user.is_superuser:
+        return True
+    profile = _get_profile(user)
+    return profile.role != UserProfile.ROLE_TECHNICIAN or profile.has_active_license
+
+
 def _can_manage_producers(user):
-    return bool(user.is_authenticated and (user.is_superuser or _is_technician(user)))
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    return _is_technician(user) and _technician_has_active_license(user)
+
+
+def _access_control_settings():
+    return AccessControlSettings.get_solo()
+
+
+def _technician_denied_message(profile):
+    if profile.deactivation_message:
+        return profile.deactivation_message
+    return _access_control_settings().default_technician_denied_message
 
 
 def _technician_visibility_q(user, profile_prefix='user__profile'):
     profile = _get_profile(user)
-    assigned_lookup = f'{profile_prefix}__assigned_technician' if profile_prefix else 'assigned_technician'
-    department_lookup = f'{profile_prefix}__department' if profile_prefix else 'department'
-    base_query = Q(**{assigned_lookup: user})
-    if profile.department:
-        base_query |= Q(**{f'{assigned_lookup}__isnull': True, department_lookup: profile.department})
-    return base_query
+    if user.is_superuser:
+        return Q()
+    if profile.role != UserProfile.ROLE_TECHNICIAN:
+        return Q(pk__in=[])
+    assignment_lookup = f'{profile_prefix}__technician_assignments' if profile_prefix else 'technician_assignments'
+    # Temporary compatibility fallback:
+    # some legacy data can still be attached only through assigned_technician.
+    # Explicit assignment remains the primary security path.
+    legacy_lookup = f'{profile_prefix}__assigned_technician' if profile_prefix else 'assigned_technician'
+    return Q(
+        **{
+            f'{assignment_lookup}__is_active': True,
+            f'{assignment_lookup}__technician': user,
+        }
+    ) | Q(**{legacy_lookup: user})
 
 
 def _series_queryset_for_user(user):
@@ -45,30 +74,107 @@ def _series_queryset_for_user(user):
     if profile.role == UserProfile.ROLE_TECHNICIAN:
         return qs.filter(user__profile__role=UserProfile.ROLE_PRODUCER).filter(
             _technician_visibility_q(user, 'user__profile')
-        )
+        ).distinct()
     return qs.filter(user=user)
 
 
 def _accessible_producer_profiles(user):
     qs = (
-        UserProfile.objects.select_related('user', 'assigned_technician')
-        .prefetch_related('user__plant_series')
+        UserProfile.objects.select_related('user')
+        .prefetch_related(
+            'user__plant_series',
+            'technician_assignments__technician',
+            'technician_assignments__technician__profile',
+            'technician_assignments__technician__profile__structure',
+        )
         .filter(role=UserProfile.ROLE_PRODUCER, user__is_superuser=False)
     )
     if user.is_superuser:
         return qs.order_by('farm_name', 'user__username')
-    return qs.filter(_technician_visibility_q(user, '')).order_by('farm_name', 'user__username')
+    profile = _get_profile(user)
+    if profile.role != UserProfile.ROLE_TECHNICIAN:
+        return qs.none()
+    return qs.filter(_technician_visibility_q(user, '')).distinct().order_by('farm_name', 'user__username')
 
 
 def _accessible_technician_profiles(user):
     qs = (
-        UserProfile.objects.select_related('user')
+        UserProfile.objects.select_related('user', 'structure')
         .filter(role=UserProfile.ROLE_TECHNICIAN, user__is_superuser=False)
         .order_by('user__first_name', 'user__last_name', 'user__username')
     )
     if user.is_superuser:
         return qs
     return qs.filter(user=user)
+
+
+def _active_technician_profiles_for_producer(profile, include_inactive_license=False):
+    assignments = profile.technician_assignments.filter(
+        is_active=True,
+        technician__profile__role=UserProfile.ROLE_TECHNICIAN,
+    ).select_related('technician', 'technician__profile', 'technician__profile__structure')
+    if not include_inactive_license:
+        assignments = assignments.filter(technician__profile__license_status=UserProfile.LICENSE_STATUS_ACTIVE)
+    return [assignment.technician.profile for assignment in assignments]
+
+
+def _sync_producer_technicians(
+    producer_profile,
+    technicians,
+    *,
+    changed_by=None,
+    reason=ProducerTechnicianAssignment.END_REASON_ADMIN_REMOVED,
+    message='',
+):
+    if producer_profile.role != UserProfile.ROLE_PRODUCER:
+        return {'added': 0, 'removed': 0, 'active_count': 0}
+
+    desired_technicians = []
+    desired_ids = set()
+    for technician in technicians:
+        if not technician or technician.id in desired_ids:
+            continue
+        technician_profile = _get_profile(technician)
+        if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
+            continue
+        desired_technicians.append(technician)
+        desired_ids.add(technician.id)
+
+    active_assignments = {
+        assignment.technician_id: assignment
+        for assignment in producer_profile.technician_assignments.filter(is_active=True).select_related('technician')
+    }
+
+    removed_count = 0
+    added_count = 0
+
+    for technician_id, assignment in active_assignments.items():
+        if technician_id in desired_ids:
+            continue
+        assignment.close(ended_by=changed_by, reason=reason, message=message)
+        removed_count += 1
+
+    for technician in desired_technicians:
+        if technician.id in active_assignments:
+            continue
+        ProducerTechnicianAssignment.objects.create(
+            producer_profile=producer_profile,
+            technician=technician,
+            is_active=True,
+            created_by=changed_by,
+        )
+        added_count += 1
+
+    first_technician = desired_technicians[0] if desired_technicians else None
+    if producer_profile.assigned_technician_id != (first_technician.id if first_technician else None):
+        producer_profile.assigned_technician = first_technician
+        producer_profile.save(update_fields=['assigned_technician'])
+
+    return {
+        'added': added_count,
+        'removed': removed_count,
+        'active_count': len(desired_technicians),
+    }
 
 
 def _acting_technician_profile(request):
@@ -135,6 +241,43 @@ def _effective_profile(request):
     return acting_technician or _get_profile(request.user)
 
 
+def _is_effective_technician_denied(request):
+    if not request.user.is_authenticated or request.user.is_superuser:
+        return False
+    manager_profile = _get_profile(_manager_user(request))
+    return manager_profile.role == UserProfile.ROLE_TECHNICIAN and not manager_profile.has_active_license
+
+
+def _is_effective_producer_read_only(request):
+    if not request.user.is_authenticated or request.user.is_superuser:
+        return False
+    profile = _effective_profile(request)
+    return profile.role == UserProfile.ROLE_PRODUCER and not profile.has_active_technician()
+
+
+def _effective_access_restriction(request, for_write=False):
+    if not request.user.is_authenticated:
+        return None
+    if request.user.is_superuser:
+        return None
+
+    if _is_effective_technician_denied(request):
+        manager_profile = _get_profile(_manager_user(request))
+        return {
+            'code': 'technician_denied',
+            'message': _technician_denied_message(manager_profile),
+        }
+
+    if for_write and _is_effective_producer_read_only(request):
+        effective_profile = _effective_profile(request)
+        return {
+            'code': 'producer_read_only',
+            'message': effective_profile.producer_readonly_message(),
+        }
+
+    return None
+
+
 def _show_producer_interface(request):
     if not request.user.is_authenticated:
         return False
@@ -144,7 +287,14 @@ def _show_producer_interface(request):
 
 
 def _show_technician_interface(request):
-    return request.user.is_authenticated and _is_technician(_manager_user(request)) and not _is_acting_as_producer(request)
+    if not request.user.is_authenticated or _is_acting_as_producer(request):
+        return False
+    manager_user = _manager_user(request)
+    if not _is_technician(manager_user):
+        return False
+    if request.user.is_superuser:
+        return True
+    return _technician_has_active_license(manager_user)
 
 
 def _filter_records(request, queryset):
@@ -162,12 +312,15 @@ def _filter_records(request, queryset):
     if department:
         queryset = queryset.filter(department=department)
     if technician:
-        queryset = queryset.filter(user__profile__assigned_technician_id=technician)
+        queryset = queryset.filter(
+            user__profile__technician_assignments__technician_id=technician,
+            user__profile__technician_assignments__is_active=True,
+        )
     if producer:
         queryset = queryset.filter(user_id=producer)
     if series:
         queryset = queryset.filter(plant_series_id=series)
-    return queryset
+    return queryset.distinct()
 
 
 def _parse_count(value):

@@ -7,6 +7,7 @@ from wagtail.models import Site
 
 from .models import SiteContentSettings
 from .views_support import (
+    _effective_access_restriction,
     _effective_profile,
     _info_pages_queryset,
     _producer_dashboard_context,
@@ -114,8 +115,24 @@ self.addEventListener('fetch', event => {
 
 @login_required
 def dashboard_view(request):
+    restriction = _effective_access_restriction(request, for_write=False)
+    if restriction and restriction['code'] == 'technician_denied':
+        return render(
+            request,
+            'scouting/access_denied.html',
+            {
+                'access_denied_title': 'Acces refuse',
+                'access_denied_message': restriction['message'],
+            },
+            status=403,
+        )
+
     if _show_producer_interface(request):
-        return render(request, 'scouting/dashboard_compare.html', _producer_dashboard_context(request))
+        context = _producer_dashboard_context(request)
+        profile = _effective_profile(request)
+        context['producer_read_only'] = not request.user.is_superuser and not profile.has_active_technician()
+        context['producer_read_only_message'] = profile.producer_readonly_message() if context['producer_read_only'] else ''
+        return render(request, 'scouting/dashboard_compare.html', context)
 
     profile = _effective_profile(request)
     context = _technician_dashboard_context(request)

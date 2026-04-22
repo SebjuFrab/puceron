@@ -8,7 +8,7 @@ from django.urls import reverse
 from .decision_engine import evaluate_record_recommendation
 from .forms import PlantSeriesForm, RecommendationDismissForm
 from .models import PlantSeries, RecommendationResponse, ScoutingRecord, Variety
-from .view_access import _effective_profile, _effective_user, _is_technician, _show_producer_interface
+from .view_access import _effective_access_restriction, _effective_profile, _effective_user, _is_technician, _show_producer_interface
 from .view_recommendation_support import (
     _dismiss_reasons_queryset,
     _latest_series_recommendation,
@@ -36,6 +36,11 @@ def _serialize_service_plants(queryset):
 def my_series_view(request):
     profile = _effective_profile(request)
     effective_user = _effective_user(request)
+    if request.method == 'POST':
+        restriction = _effective_access_restriction(request, for_write=True)
+        if restriction:
+            messages.error(request, restriction['message'])
+            return redirect('my_series')
     if (request.user.is_superuser or _is_technician(request.user)) and not _show_producer_interface(request):
         messages.error(request, 'La gestion de séries est réservée aux producteurs.')
         return redirect('dashboard')
@@ -202,6 +207,10 @@ def my_recommendations_view(request):
 @login_required
 def recommendation_dismiss_view(request, record_id):
     if request.method != 'POST':
+        return redirect('my_recommendations')
+    restriction = _effective_access_restriction(request, for_write=True)
+    if restriction:
+        messages.error(request, restriction['message'])
         return redirect('my_recommendations')
 
     record = get_object_or_404(_recommendation_record_queryset_for_user(_effective_user(request)), id=record_id)

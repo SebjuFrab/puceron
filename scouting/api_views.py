@@ -17,12 +17,16 @@ from .models import AuxiliaryTaxon, ConductType, Crop, PlantSeries, ScoutingReco
 
 def _technician_visibility_q(user, profile_prefix='user__profile'):
     profile = UserProfile.objects.get_or_create(user=user)[0]
-    assigned_lookup = f'{profile_prefix}__assigned_technician' if profile_prefix else 'assigned_technician'
-    department_lookup = f'{profile_prefix}__department' if profile_prefix else 'department'
-    query = Q(**{assigned_lookup: user})
-    if profile.department:
-        query |= Q(**{f'{assigned_lookup}__isnull': True, department_lookup: profile.department})
-    return query
+    if profile.role != UserProfile.ROLE_TECHNICIAN or not profile.has_active_license:
+        return Q(pk__in=[])
+    assignment_lookup = f'{profile_prefix}__technician_assignments' if profile_prefix else 'technician_assignments'
+    return Q(
+        **{
+            f'{assignment_lookup}__is_active': True,
+            f'{assignment_lookup}__technician': user,
+            f'{assignment_lookup}__technician__profile__license_status': UserProfile.LICENSE_STATUS_ACTIVE,
+        }
+    )
 
 
 class IsAdminOrReadOnly(permissions.BasePermission):
@@ -100,7 +104,9 @@ class PlantSeriesViewSet(viewsets.ModelViewSet):
             return qs
         profile = UserProfile.objects.get_or_create(user=user)[0]
         if profile.role == UserProfile.ROLE_TECHNICIAN:
-            return qs.filter(_technician_visibility_q(user, 'user__profile'))
+            if not profile.has_active_license:
+                return qs.none()
+            return qs.filter(_technician_visibility_q(user, 'user__profile')).distinct()
         return qs.filter(user=user)
 
     def perform_create(self, serializer):
@@ -123,7 +129,9 @@ class ScoutingRecordViewSet(viewsets.ModelViewSet):
         if not user.is_superuser:
             profile = UserProfile.objects.get_or_create(user=user)[0]
             if profile.role == UserProfile.ROLE_TECHNICIAN:
-                queryset = queryset.filter(_technician_visibility_q(user))
+                if not profile.has_active_license:
+                    return queryset.none()
+                queryset = queryset.filter(_technician_visibility_q(user)).distinct()
             else:
                 queryset = queryset.filter(user=user)
 

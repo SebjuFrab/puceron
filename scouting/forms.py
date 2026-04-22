@@ -13,20 +13,33 @@ from .models import (
     Molecule,
     OtherPestTaxon,
     PlantAction,
+    ProducerTechnicianAssignment,
     PlantSeries,
     RecommendationDismissReason,
     ScoutingRecord,
     ServicePlant,
+    TechnicianCoFollowRequest,
+    TechnicianCoFollowRequestItem,
+    TechnicianStructure,
     UserProfile,
     Variety,
 )
 from .utils import display_user_name
+from .view_access import _sync_producer_technicians
 
 User = get_user_model()
 
 
 class TechnicianChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
+        return display_user_name(obj)
+
+
+class ProducerChoiceField(forms.ModelMultipleChoiceField):
+    def label_from_instance(self, obj):
+        profile = getattr(obj, 'profile', None)
+        if profile and profile.farm_name:
+            return f'{profile.farm_name} ({obj.username})'
         return display_user_name(obj)
 
 
@@ -132,6 +145,7 @@ class UserProfileForm(forms.ModelForm):
             'postal_code',
             'city',
             'department',
+            'structure',
             'latitude',
             'longitude',
         ]
@@ -147,6 +161,7 @@ class UserProfileForm(forms.ModelForm):
             'postal_code': 'Code postal',
             'city': 'Commune',
             'department': 'DÃ©partement',
+            'structure': 'Structure',
             'latitude': 'Latitude',
             'longitude': 'Longitude',
         }
@@ -173,10 +188,13 @@ class UserProfileForm(forms.ModelForm):
             department_choices.append((current_department, label))
         self.fields['department'].choices = department_choices
         self.fields['department'].widget.attrs['class'] = 'form-select'
+        self.fields['structure'].queryset = TechnicianStructure.objects.order_by('name')
+        self.fields['structure'].required = False
+        self.fields['structure'].widget.attrs['class'] = 'form-select'
         if self.instance and self.instance.farm_address and not self.instance.street_address:
             self.fields['street_address'].initial = self.instance.farm_address
-        if self.instance and self.instance.role == UserProfile.ROLE_PRODUCER and self.instance.assigned_technician_id:
-            self.fields['department'].disabled = True
+        if self.instance and self.instance.role == UserProfile.ROLE_PRODUCER:
+            self.fields['structure'].widget = forms.HiddenInput()
 
     def clean_email(self):
         email = (self.cleaned_data.get('email') or '').strip().lower()
@@ -207,7 +225,11 @@ class UserProfileForm(forms.ModelForm):
 
 class ProducerAccountCreationForm(UserCreationForm):
     email = forms.EmailField(required=False, label='Email')
-    technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien rÃ©fÃ©rent')
+    technicians = forms.ModelMultipleChoiceField(
+        queryset=User.objects.none(),
+        label='Techniciens rattaches',
+        required=True,
+    )
     farm_name = forms.CharField(max_length=150, label='Nom de ferme')
     phone = forms.CharField(required=False, max_length=30, label='Mobile')
     street_address = forms.CharField(max_length=255, label='Adresse')
@@ -225,25 +247,29 @@ class ProducerAccountCreationForm(UserCreationForm):
     def __init__(self, *args, **kwargs):
         self.creator = kwargs.pop('creator')
         super().__init__(*args, **kwargs)
-        self.technician_display_name = ''
+        self.technician_display_names = []
         for field in self.fields.values():
             if not isinstance(field.widget, forms.HiddenInput):
                 field.widget.attrs['class'] = 'form-control'
         self.fields['email'].widget.attrs['class'] = 'form-control'
         self.fields['phone'].widget.attrs['type'] = 'tel'
-        technician_qs = User.objects.filter(profile__role=UserProfile.ROLE_TECHNICIAN).order_by(
+        technician_qs = User.objects.filter(
+            profile__role=UserProfile.ROLE_TECHNICIAN,
+            profile__license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+        ).order_by(
             'first_name',
             'last_name',
             'username',
         )
         if self.creator.is_superuser:
-            self.fields['technician'].queryset = technician_qs
-            self.fields['technician'].widget.attrs['class'] = 'form-select'
+            self.fields['technicians'].queryset = technician_qs
+            self.fields['technicians'].widget.attrs['class'] = 'form-select'
+            self.fields['technicians'].widget.attrs['size'] = 8
         else:
-            self.fields['technician'].queryset = technician_qs.filter(id=self.creator.id)
-            self.fields['technician'].initial = self.creator
-            self.fields['technician'].widget = forms.HiddenInput()
-            self.technician_display_name = display_user_name(self.creator)
+            self.fields['technicians'].queryset = technician_qs.filter(id=self.creator.id)
+            self.fields['technicians'].initial = [self.creator.id]
+            self.fields['technicians'].widget = forms.MultipleHiddenInput()
+            self.technician_display_names = [display_user_name(self.creator)]
 
     def clean_email(self):
         email = (self.cleaned_data.get('email') or '').strip().lower()
@@ -253,21 +279,24 @@ class ProducerAccountCreationForm(UserCreationForm):
             raise forms.ValidationError('Cette adresse mail existe deja.')
         return email
 
-    def clean_technician(self):
-        technician = self.cleaned_data['technician']
-        if not self.creator.is_superuser and technician != self.creator:
-            raise forms.ValidationError('Un technicien ne peut creer que des comptes rattaches a lui-meme.')
-        return technician
+    def clean_technicians(self):
+        technicians = list(self.cleaned_data['technicians'])
+        if not technicians:
+            raise forms.ValidationError('Selectionnez au moins un technicien.')
+        if not self.creator.is_superuser:
+            ids = {technician.id for technician in technicians}
+            if ids != {self.creator.id}:
+                raise forms.ValidationError('Un technicien ne peut creer que des comptes rattaches a lui-meme.')
+        return technicians
 
     def clean(self):
         cleaned = super().clean()
-        technician = cleaned.get('technician')
-        if technician:
+        technicians = cleaned.get('technicians') or []
+        for technician in technicians:
             technician_profile = UserProfile.objects.get_or_create(user=technician)[0]
             if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
-                self.add_error('technician', 'Le rattachement doit pointer vers un technicien.')
-            if not technician_profile.department:
-                self.add_error('technician', 'Le technicien doit avoir un dÃ©partement renseignÃ©.')
+                self.add_error('technicians', 'Le rattachement doit pointer vers des techniciens.')
+                break
         return cleaned
 
     def save(self, commit=True):
@@ -275,12 +304,16 @@ class ProducerAccountCreationForm(UserCreationForm):
         user.email = self.cleaned_data.get('email', '')
         if commit:
             user.save(update_fields=['email'])
-        technician = self.cleaned_data['technician']
-        technician_profile = UserProfile.objects.get_or_create(user=technician)[0]
+        technicians = self.cleaned_data['technicians']
+        first_technician = technicians[0] if technicians else None
+        first_technician_profile = (
+            UserProfile.objects.get_or_create(user=first_technician)[0] if first_technician else None
+        )
         profile, _ = UserProfile.objects.get_or_create(user=user)
         profile.role = UserProfile.ROLE_PRODUCER
-        profile.assigned_technician = technician
-        profile.department = technician_profile.department
+        profile.assigned_technician = first_technician
+        if first_technician_profile and first_technician_profile.department and not profile.department:
+            profile.department = first_technician_profile.department
         profile.farm_name = self.cleaned_data['farm_name']
         profile.phone = self.cleaned_data.get('phone', '')
         profile.street_address = self.cleaned_data['street_address']
@@ -291,6 +324,7 @@ class ProducerAccountCreationForm(UserCreationForm):
         profile.crops_grown = self.cleaned_data.get('crops_grown', '')
         profile.tracked_plants = self.cleaned_data.get('tracked_plants', '')
         profile.save()
+        _sync_producer_technicians(profile, technicians, changed_by=self.creator)
         return user
 
 
@@ -299,7 +333,11 @@ class ProducerProfileUpdateForm(forms.ModelForm):
     email = forms.EmailField(required=False, label='Email')
     first_name = forms.CharField(max_length=150, required=False, label='PrÃ©nom')
     last_name = forms.CharField(max_length=150, required=False, label='Nom')
-    technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien rÃ©fÃ©rent')
+    technicians = forms.ModelMultipleChoiceField(
+        queryset=User.objects.none(),
+        label='Techniciens rattaches',
+        required=True,
+    )
 
     class Meta:
         model = UserProfile
@@ -333,35 +371,44 @@ class ProducerProfileUpdateForm(forms.ModelForm):
         self.editor = kwargs.pop('editor')
         self.producer_user = kwargs.pop('producer_user')
         super().__init__(*args, **kwargs)
-        self.technician_display_name = ''
+        self.technician_display_names = []
         for field in self.fields.values():
             if not isinstance(field.widget, forms.HiddenInput):
                 field.widget.attrs['class'] = 'form-control'
         self.fields['email'].widget.attrs['class'] = 'form-control'
         self.fields['phone'].widget.attrs['type'] = 'tel'
-        technician_qs = User.objects.filter(profile__role=UserProfile.ROLE_TECHNICIAN).order_by(
+        technician_qs = User.objects.filter(
+            profile__role=UserProfile.ROLE_TECHNICIAN,
+            profile__license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+        ).order_by(
             'first_name',
             'last_name',
             'username',
         )
+        active_technician_ids = list(
+            self.instance.technician_assignments.filter(is_active=True).values_list('technician_id', flat=True)
+        )
+        if not active_technician_ids and self.instance.assigned_technician_id:
+            active_technician_ids = [self.instance.assigned_technician_id]
         if self.editor.is_superuser:
-            self.fields['technician'].queryset = technician_qs
-            self.fields['technician'].widget.attrs['class'] = 'form-select'
+            self.fields['technicians'].queryset = technician_qs
+            self.fields['technicians'].widget.attrs['class'] = 'form-select'
+            self.fields['technicians'].widget.attrs['size'] = 8
         else:
-            self.fields['technician'].queryset = technician_qs.filter(id=self.editor.id)
-            self.fields['technician'].initial = self.editor
-            self.fields['technician'].widget = forms.HiddenInput()
+            self.fields['technicians'].queryset = technician_qs.filter(id=self.editor.id)
+            self.fields['technicians'].initial = [self.editor.id]
+            self.fields['technicians'].widget = forms.MultipleHiddenInput()
+            self.technician_display_names = [display_user_name(self.editor)]
 
         profile = self.instance
         self.fields['username'].initial = self.producer_user.username
         self.fields['email'].initial = self.producer_user.email
         self.fields['first_name'].initial = self.producer_user.first_name
         self.fields['last_name'].initial = self.producer_user.last_name
-        self.fields['technician'].initial = profile.assigned_technician or (
-            self.editor if not self.editor.is_superuser else None
-        )
-        technician_user = profile.assigned_technician or (self.editor if not self.editor.is_superuser else None)
-        self.technician_display_name = display_user_name(technician_user)
+        if self.editor.is_superuser:
+            self.fields['technicians'].initial = active_technician_ids
+        elif not self.technician_display_names:
+            self.technician_display_names = [display_user_name(self.editor)]
         if profile and profile.farm_address and not profile.street_address:
             self.fields['street_address'].initial = profile.farm_address
 
@@ -383,21 +430,24 @@ class ProducerProfileUpdateForm(forms.ModelForm):
             raise forms.ValidationError('Cette adresse mail existe deja.')
         return email
 
-    def clean_technician(self):
-        technician = self.cleaned_data['technician']
-        if not self.editor.is_superuser and technician != self.editor:
-            raise forms.ValidationError('Un technicien ne peut rattacher un producteur qu a lui-meme.')
-        return technician
+    def clean_technicians(self):
+        technicians = list(self.cleaned_data['technicians'])
+        if not technicians:
+            raise forms.ValidationError('Selectionnez au moins un technicien.')
+        if not self.editor.is_superuser:
+            ids = {technician.id for technician in technicians}
+            if ids != {self.editor.id}:
+                raise forms.ValidationError('Un technicien ne peut rattacher un producteur qu a lui-meme.')
+        return technicians
 
     def clean(self):
         cleaned = super().clean()
-        technician = cleaned.get('technician')
-        if technician:
+        technicians = cleaned.get('technicians') or []
+        for technician in technicians:
             technician_profile = UserProfile.objects.get_or_create(user=technician)[0]
             if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
-                self.add_error('technician', 'Le rattachement doit pointer vers un technicien.')
-            if not technician_profile.department:
-                self.add_error('technician', 'Le technicien doit avoir un dÃ©partement renseignÃ©.')
+                self.add_error('technicians', 'Le rattachement doit pointer vers des techniciens.')
+                break
         return cleaned
 
     def save(self, commit=True):
@@ -410,15 +460,20 @@ class ProducerProfileUpdateForm(forms.ModelForm):
             user.save()
 
         profile = super().save(commit=False)
-        technician = self.cleaned_data['technician']
-        technician_profile = UserProfile.objects.get_or_create(user=technician)[0]
+        technicians = self.cleaned_data['technicians']
+        first_technician = technicians[0] if technicians else None
+        first_technician_profile = (
+            UserProfile.objects.get_or_create(user=first_technician)[0] if first_technician else None
+        )
         profile.user = user
         profile.role = UserProfile.ROLE_PRODUCER
-        profile.assigned_technician = technician
-        profile.department = technician_profile.department
+        profile.assigned_technician = first_technician
+        if first_technician_profile and first_technician_profile.department and not profile.department:
+            profile.department = first_technician_profile.department
         profile.sync_profile_fields()
         if commit:
             profile.save()
+            _sync_producer_technicians(profile, technicians, changed_by=self.editor)
         return user
 
 
@@ -441,6 +496,114 @@ class ProducerImportForm(forms.Form):
         if not csv_file.name.lower().endswith('.csv'):
             raise forms.ValidationError('Importez un fichier .csv.')
         return csv_file
+
+
+class TechnicianDeactivationForm(forms.Form):
+    REASSIGN_MODE_NONE = 'none'
+    REASSIGN_MODE_SELECTED = 'selected'
+    REASSIGN_MODE_ALL = 'all'
+    REASSIGN_MODE_CHOICES = [
+        (REASSIGN_MODE_ALL, 'Reaffecter tous les producteurs selectionnes'),
+        (REASSIGN_MODE_SELECTED, 'Reaffecter seulement la selection'),
+        (REASSIGN_MODE_NONE, 'Ne rien reaffecter'),
+    ]
+
+    reassign_mode = forms.ChoiceField(choices=REASSIGN_MODE_CHOICES, label='Strategie')
+    target_technician = TechnicianChoiceField(
+        queryset=User.objects.none(),
+        required=False,
+        label='Technicien cible',
+    )
+    producers = ProducerChoiceField(
+        queryset=User.objects.none(),
+        required=False,
+        label='Producteurs concernes',
+    )
+    deactivation_message = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'rows': 3}),
+        label='Message producteur',
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.technician = kwargs.pop('technician')
+        super().__init__(*args, **kwargs)
+        self.fields['producers'].widget = forms.CheckboxSelectMultiple()
+        active_assignments = ProducerTechnicianAssignment.objects.filter(
+            technician=self.technician,
+            is_active=True,
+        ).select_related('producer_profile__user')
+        producer_ids = [assignment.producer_profile.user_id for assignment in active_assignments]
+        self.fields['producers'].queryset = (
+            User.objects.filter(id__in=producer_ids)
+            .select_related('profile')
+            .order_by('profile__farm_name', 'username')
+        )
+
+        technicians_qs = User.objects.filter(
+            profile__role=UserProfile.ROLE_TECHNICIAN,
+            profile__license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+        ).exclude(id=self.technician.id).order_by('first_name', 'last_name', 'username')
+        self.fields['target_technician'].queryset = technicians_qs
+
+        self.fields['reassign_mode'].widget.attrs['class'] = 'form-select'
+        self.fields['target_technician'].widget.attrs['class'] = 'form-select'
+        self.fields['deactivation_message'].widget.attrs['class'] = 'form-control'
+
+    def clean(self):
+        cleaned = super().clean()
+        mode = cleaned.get('reassign_mode')
+        target = cleaned.get('target_technician')
+        if mode in {self.REASSIGN_MODE_ALL, self.REASSIGN_MODE_SELECTED} and target is None:
+            self.add_error('target_technician', 'Selectionnez un technicien cible.')
+        return cleaned
+
+
+class TechnicianCoFollowRequestForm(forms.Form):
+    target_technician = TechnicianChoiceField(queryset=User.objects.none(), label='Technicien cible')
+    producers = ProducerChoiceField(
+        queryset=User.objects.none(),
+        required=True,
+        label='Producteurs proposes',
+    )
+    message = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'rows': 3}),
+        label='Message',
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.source_technician = kwargs.pop('source_technician')
+        self.producer_queryset = kwargs.pop('producer_queryset', User.objects.none())
+        super().__init__(*args, **kwargs)
+        self.fields['producers'].widget = forms.CheckboxSelectMultiple()
+        self.fields['target_technician'].queryset = User.objects.filter(
+            profile__role=UserProfile.ROLE_TECHNICIAN,
+            profile__license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+        ).exclude(id=self.source_technician.id).order_by('first_name', 'last_name', 'username')
+        self.fields['producers'].queryset = self.producer_queryset
+        self.fields['target_technician'].widget.attrs['class'] = 'form-select'
+        self.fields['message'].widget.attrs['class'] = 'form-control'
+
+    def save(self):
+        request_obj = TechnicianCoFollowRequest.objects.create(
+            source_technician=self.source_technician,
+            target_technician=self.cleaned_data['target_technician'],
+            message=(self.cleaned_data.get('message') or '').strip(),
+            status=TechnicianCoFollowRequest.STATUS_PENDING,
+        )
+        producer_profiles = UserProfile.objects.filter(user__in=self.cleaned_data['producers'])
+        TechnicianCoFollowRequestItem.objects.bulk_create(
+            [
+                TechnicianCoFollowRequestItem(
+                    request=request_obj,
+                    producer_profile=profile,
+                    decision=TechnicianCoFollowRequestItem.DECISION_PENDING,
+                )
+                for profile in producer_profiles
+            ]
+        )
+        return request_obj
 
 
 class PlantSeriesForm(forms.ModelForm):

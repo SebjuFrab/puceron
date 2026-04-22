@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.templatetags.static import static
 from django.utils import timezone
 from wagtail import blocks
@@ -153,12 +153,63 @@ def current_campaign_year():
     return timezone.localdate().year
 
 
+class TechnicianStructure(models.Model):
+    name = models.CharField(max_length=160, unique=True, verbose_name='Structure')
+    address = models.TextField(blank=True, verbose_name='Adresse')
+    logo = models.ImageField(upload_to='technician_structures/', blank=True, verbose_name='Logo')
+    generic_contact = models.CharField(max_length=160, blank=True, verbose_name='Contact generic')
+    website = models.URLField(blank=True, verbose_name='Site web')
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Structure technicien'
+        verbose_name_plural = 'Structures technicien'
+
+    def __str__(self):
+        return self.name
+
+
+class AccessControlSettings(models.Model):
+    default_producer_readonly_message = models.TextField(
+        blank=True,
+        default=(
+            "Votre compte est actuellement en lecture seule car aucun technicien actif n'est rattache a votre profil."
+        ),
+        verbose_name='Message global lecture seule producteur',
+    )
+    default_technician_denied_message = models.TextField(
+        blank=True,
+        default='Votre licence technicien est inactive. Contactez le super-admin.',
+        verbose_name='Message global acces refuse technicien',
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mis a jour le')
+
+    class Meta:
+        verbose_name = "Parametres d'acces"
+        verbose_name_plural = "Parametres d'acces"
+
+    def __str__(self):
+        return "Parametres d'acces"
+
+    @classmethod
+    def get_solo(cls):
+        return cls.objects.order_by('pk').first() or cls.objects.create()
+
+
 class UserProfile(models.Model):
     ROLE_PRODUCER = 'producer'
     ROLE_TECHNICIAN = 'technician'
     ROLE_CHOICES = [
         (ROLE_PRODUCER, 'Producteur'),
         (ROLE_TECHNICIAN, 'Technicien'),
+    ]
+    LICENSE_STATUS_ACTIVE = 'active'
+    LICENSE_STATUS_INACTIVE = 'inactive'
+    LICENSE_STATUS_SUSPENDED = 'suspended'
+    LICENSE_STATUS_CHOICES = [
+        (LICENSE_STATUS_ACTIVE, 'Active'),
+        (LICENSE_STATUS_INACTIVE, 'Inactive'),
+        (LICENSE_STATUS_SUSPENDED, 'Suspendue'),
     ]
 
     user = models.OneToOneField(
@@ -177,6 +228,24 @@ class UserProfile(models.Model):
         verbose_name='Technicien referent',
     )
     department = models.CharField(max_length=10, blank=True, verbose_name='Departement')
+    structure = models.ForeignKey(
+        'TechnicianStructure',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='technician_profiles',
+        verbose_name='Structure',
+    )
+    license_status = models.CharField(
+        max_length=20,
+        choices=LICENSE_STATUS_CHOICES,
+        default=LICENSE_STATUS_ACTIVE,
+        verbose_name='Statut licence',
+    )
+    deactivation_message = models.TextField(
+        blank=True,
+        verbose_name='Message desactivation / arret de suivi',
+    )
     farm_name = models.CharField(max_length=150, blank=True, verbose_name='Nom de ferme')
     phone = models.CharField(max_length=30, blank=True, verbose_name='Mobile')
     photo = models.ImageField(upload_to='profile_photos/', blank=True, verbose_name='Photo ou logo')
@@ -211,14 +280,244 @@ class UserProfile(models.Model):
         elif not self.street_address and not self.postal_code and not self.city:
             self.farm_address = ''
 
-        if self.role == self.ROLE_PRODUCER and self.assigned_technician_id:
-            technician_profile = UserProfile.objects.get_or_create(user=self.assigned_technician)[0]
-            if technician_profile and technician_profile.department:
-                self.department = technician_profile.department
+    @property
+    def has_active_license(self):
+        return self.license_status == self.LICENSE_STATUS_ACTIVE
+
+    def active_technician_assignments(self):
+        return self.technician_assignments.filter(
+            is_active=True,
+            technician__profile__role=self.ROLE_TECHNICIAN,
+            technician__profile__license_status=self.LICENSE_STATUS_ACTIVE,
+        ).select_related('technician', 'technician__profile', 'technician__profile__structure')
+
+    def has_active_technician(self):
+        if self.role != self.ROLE_PRODUCER:
+            return True
+        return self.active_technician_assignments().exists()
+
+    def producer_readonly_message(self):
+        if self.role != self.ROLE_PRODUCER:
+            return ''
+        if self.has_active_technician():
+            return ''
+
+        latest_closed_assignment = (
+            self.technician_assignments.exclude(message='')
+            .exclude(is_active=True)
+            .order_by('-ended_at', '-updated_at')
+            .first()
+        )
+        if latest_closed_assignment:
+            return latest_closed_assignment.message
+
+        previous_assignment = (
+            self.technician_assignments.exclude(message='')
+            .order_by('-updated_at', '-created_at')
+            .first()
+        )
+        if previous_assignment:
+            return previous_assignment.message
+
+        inactive_assignment_message = (
+            self.technician_assignments.filter(
+                is_active=True,
+                technician__profile__role=self.ROLE_TECHNICIAN,
+            )
+            .exclude(technician__profile__deactivation_message='')
+            .order_by('-updated_at')
+            .values_list('technician__profile__deactivation_message', flat=True)
+            .first()
+        )
+        if inactive_assignment_message:
+            return inactive_assignment_message
+
+        settings = AccessControlSettings.get_solo()
+        return settings.default_producer_readonly_message
 
     def save(self, *args, **kwargs):
         self.sync_profile_fields()
         super().save(*args, **kwargs)
+
+
+class ProducerTechnicianAssignment(models.Model):
+    END_REASON_ADMIN_REMOVED = 'admin_removed'
+    END_REASON_TECHNICIAN_STOP = 'technician_stop'
+    END_REASON_TECHNICIAN_DISABLED = 'technician_disabled'
+    END_REASON_REASSIGNED = 'reassigned'
+    END_REASON_CHOICES = [
+        (END_REASON_ADMIN_REMOVED, 'Retrait admin'),
+        (END_REASON_TECHNICIAN_STOP, 'Arret suivi technicien'),
+        (END_REASON_TECHNICIAN_DISABLED, 'Technicien desactive'),
+        (END_REASON_REASSIGNED, 'Reaffectation'),
+    ]
+
+    producer_profile = models.ForeignKey(
+        UserProfile,
+        on_delete=models.CASCADE,
+        related_name='technician_assignments',
+        verbose_name='Producteur',
+    )
+    technician = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='producer_assignments',
+        verbose_name='Technicien',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Affectation active')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Affecte le')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_producer_assignments',
+        verbose_name='Affecte par',
+    )
+    ended_at = models.DateTimeField(null=True, blank=True, verbose_name='Fin affectation')
+    ended_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ended_producer_assignments',
+        verbose_name='Termine par',
+    )
+    end_reason = models.CharField(
+        max_length=30,
+        choices=END_REASON_CHOICES,
+        blank=True,
+        verbose_name='Motif de fin',
+    )
+    message = models.TextField(
+        blank=True,
+        verbose_name='Message producteur',
+        help_text='Message affiche au producteur si son acces passe en lecture seule.',
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mis a jour le')
+
+    class Meta:
+        ordering = ['-is_active', '-updated_at', '-created_at']
+        verbose_name = 'Affectation technicien/producteur'
+        verbose_name_plural = 'Affectations technicien/producteur'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['producer_profile', 'technician'],
+                condition=Q(is_active=True),
+                name='unique_active_technician_assignment_per_producer',
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.producer_profile} -> {display_user_name(self.technician)}'
+
+    def clean(self):
+        errors = {}
+        if self.producer_profile_id and self.producer_profile.role != UserProfile.ROLE_PRODUCER:
+            errors['producer_profile'] = "L'affectation doit pointer vers un profil producteur."
+        if self.technician_id:
+            technician_profile = UserProfile.objects.get_or_create(user=self.technician)[0]
+            if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
+                errors['technician'] = "L'affectation doit pointer vers un technicien."
+        if errors:
+            raise ValidationError(errors)
+
+    def close(self, *, ended_by=None, reason='', message=''):
+        self.is_active = False
+        self.ended_at = timezone.now()
+        self.ended_by = ended_by
+        self.end_reason = reason or self.end_reason
+        if message:
+            self.message = message
+        self.save(update_fields=['is_active', 'ended_at', 'ended_by', 'end_reason', 'message', 'updated_at'])
+
+
+class TechnicianCoFollowRequest(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_ACCEPTED = 'accepted'
+    STATUS_REJECTED = 'rejected'
+    STATUS_PARTIAL = 'partial'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'En attente'),
+        (STATUS_ACCEPTED, 'Acceptee'),
+        (STATUS_REJECTED, 'Refusee'),
+        (STATUS_PARTIAL, 'Partielle'),
+    ]
+
+    source_technician = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='outgoing_cofollow_requests',
+        verbose_name='Technicien source',
+    )
+    target_technician = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='incoming_cofollow_requests',
+        verbose_name='Technicien cible',
+    )
+    message = models.TextField(blank=True, verbose_name='Message')
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        verbose_name='Statut',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Cree le')
+    responded_at = models.DateTimeField(null=True, blank=True, verbose_name='Traite le')
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Demande co-suivi technicien'
+        verbose_name_plural = 'Demandes co-suivi technicien'
+
+    def __str__(self):
+        return f'{display_user_name(self.source_technician)} -> {display_user_name(self.target_technician)}'
+
+
+class TechnicianCoFollowRequestItem(models.Model):
+    DECISION_PENDING = 'pending'
+    DECISION_ACCEPTED = 'accepted'
+    DECISION_REJECTED = 'rejected'
+    DECISION_CHOICES = [
+        (DECISION_PENDING, 'En attente'),
+        (DECISION_ACCEPTED, 'Accepte'),
+        (DECISION_REJECTED, 'Refuse'),
+    ]
+
+    request = models.ForeignKey(
+        TechnicianCoFollowRequest,
+        on_delete=models.CASCADE,
+        related_name='items',
+        verbose_name='Demande',
+    )
+    producer_profile = models.ForeignKey(
+        UserProfile,
+        on_delete=models.CASCADE,
+        related_name='cofollow_request_items',
+        verbose_name='Producteur',
+    )
+    decision = models.CharField(
+        max_length=20,
+        choices=DECISION_CHOICES,
+        default=DECISION_PENDING,
+        verbose_name='Decision',
+    )
+    decided_at = models.DateTimeField(null=True, blank=True, verbose_name='Decide le')
+
+    class Meta:
+        ordering = ['id']
+        verbose_name = 'Producteur demande co-suivi'
+        verbose_name_plural = 'Producteurs demande co-suivi'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['request', 'producer_profile'],
+                name='unique_cofollow_request_item_per_producer',
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.request_id} - {self.producer_profile}'
 
 
 class InfoPage(models.Model):

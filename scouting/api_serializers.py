@@ -180,18 +180,21 @@ class ScoutingRecordSerializer(serializers.ModelSerializer):
         request = self.context['request']
         user = request.user
         profile = UserProfile.objects.get_or_create(user=user)[0]
-        if not profile.department:
-            raise serializers.ValidationError('Le departement doit etre renseigne dans Mon profil.')
+        if profile.role == UserProfile.ROLE_TECHNICIAN and not user.is_superuser and not profile.has_active_license:
+            raise serializers.ValidationError('Votre licence technicien est inactive.')
         series = attrs.get('plant_series')
         if series and not user.is_superuser:
             if profile.role == UserProfile.ROLE_PRODUCER and series.user_id != user.id:
                 raise serializers.ValidationError('Cette serie ne vous appartient pas.')
             if profile.role == UserProfile.ROLE_TECHNICIAN:
                 owner_profile = UserProfile.objects.get_or_create(user=series.user)[0]
-                if owner_profile.assigned_technician_id not in [None, user.id]:
+                has_assignment = owner_profile.technician_assignments.filter(
+                    is_active=True,
+                    technician=user,
+                    technician__profile__license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+                ).exists()
+                if not has_assignment:
                     raise serializers.ValidationError("Cette serie n'est pas rattachee a votre compte technicien.")
-                if owner_profile.assigned_technician_id is None and owner_profile.department != profile.department:
-                    raise serializers.ValidationError("Cette serie n'est pas dans votre perimetre technicien.")
         return attrs
 
 
@@ -209,7 +212,23 @@ class OtherPestTaxonSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
-    assigned_technician_username = serializers.CharField(source='assigned_technician.username', read_only=True)
+    active_technicians = serializers.SerializerMethodField()
+
+    def get_active_technicians(self, obj):
+        if obj.role != UserProfile.ROLE_PRODUCER:
+            return []
+        rows = obj.technician_assignments.filter(
+            is_active=True,
+            technician__profile__license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+        ).select_related('technician')
+        return [
+            {
+                'id': row.technician_id,
+                'username': row.technician.username,
+                'display_name': str(row.technician.get_full_name() or row.technician.username),
+            }
+            for row in rows
+        ]
 
     class Meta:
         model = UserProfile
@@ -217,8 +236,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'id',
             'username',
             'role',
-            'assigned_technician',
-            'assigned_technician_username',
+            'active_technicians',
             'department',
             'farm_name',
             'farm_address',
@@ -232,8 +250,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'role',
-            'assigned_technician',
-            'assigned_technician_username',
+            'active_technicians',
             'department',
             'farm_address',
         ]
