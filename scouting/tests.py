@@ -10,10 +10,13 @@ from .models import (
     Crop,
     DecisionRule,
     PlantSeries,
+    ProducerTechnicianAssignment,
     RecommendationDismissReason,
     RecommendationResponse,
     ScoutingRecord,
     ServicePlant,
+    TechnicianCoFollowRequest,
+    TechnicianCoFollowRequestItem,
     UserProfile,
     Variety,
 )
@@ -22,14 +25,29 @@ from .view_dashboard_support import _technician_dashboard_context
 
 class RecommendationDismissViewTests(TestCase):
     def setUp(self):
+        self.technician = get_user_model().objects.create_user(
+            username='technician-recommendation',
+            password='secret',
+        )
+        UserProfile.objects.create(
+            user=self.technician,
+            role=UserProfile.ROLE_TECHNICIAN,
+            license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+            department='29',
+        )
         self.user = get_user_model().objects.create_user(
             username='producer',
             password='secret',
         )
-        UserProfile.objects.create(
+        self.profile = UserProfile.objects.create(
             user=self.user,
             role=UserProfile.ROLE_PRODUCER,
             department='29',
+        )
+        ProducerTechnicianAssignment.objects.create(
+            producer_profile=self.profile,
+            technician=self.technician,
+            is_active=True,
         )
         self.crop = Crop.objects.create(name='Concombre test')
         self.conduct_type = ConductType.objects.create(name='Sous abri test')
@@ -112,14 +130,29 @@ class RecommendationDismissViewTests(TestCase):
 
 class PlantSeriesServicePlantTests(TestCase):
     def setUp(self):
+        self.technician = get_user_model().objects.create_user(
+            username='technician-series',
+            password='secret',
+        )
+        UserProfile.objects.create(
+            user=self.technician,
+            role=UserProfile.ROLE_TECHNICIAN,
+            license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+            department='29',
+        )
         self.user = get_user_model().objects.create_user(
             username='producer-series',
             password='secret',
         )
-        UserProfile.objects.create(
+        self.profile = UserProfile.objects.create(
             user=self.user,
             role=UserProfile.ROLE_PRODUCER,
             department='29',
+        )
+        ProducerTechnicianAssignment.objects.create(
+            producer_profile=self.profile,
+            technician=self.technician,
+            is_active=True,
         )
         self.crop = Crop.objects.create(name='Aubergine serie test')
         self.conduct_type = ConductType.objects.create(name='Conduite serie test')
@@ -247,12 +280,17 @@ class TechnicianDashboardComparisonTests(TestCase):
             username=username,
             password='secret',
         )
-        UserProfile.objects.create(
+        profile = UserProfile.objects.create(
             user=producer,
             role=UserProfile.ROLE_PRODUCER,
             department='29',
             farm_name=farm_name,
             assigned_technician=self.technician,
+        )
+        ProducerTechnicianAssignment.objects.create(
+            producer_profile=profile,
+            technician=self.technician,
+            is_active=True,
         )
         return producer
 
@@ -379,3 +417,169 @@ class TechnicianDashboardComparisonTests(TestCase):
         self.assertSetEqual(context['selected_series_ids'], {self.series_1.id})
         self.assertNotIn(other_series.id, context['selected_series_ids'])
         self.assertEqual(context['displayed_series_count'], 1)
+
+
+class TechnicianCoFollowWorkflowTests(TestCase):
+    def setUp(self):
+        self.source_technician = get_user_model().objects.create_user(
+            username='tech-source',
+            password='secret',
+        )
+        UserProfile.objects.create(
+            user=self.source_technician,
+            role=UserProfile.ROLE_TECHNICIAN,
+            license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+        )
+
+        self.target_technician = get_user_model().objects.create_user(
+            username='tech-target',
+            password='secret',
+        )
+        UserProfile.objects.create(
+            user=self.target_technician,
+            role=UserProfile.ROLE_TECHNICIAN,
+            license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+        )
+
+        self.producer_profile_1 = self._create_producer_profile('producer-cofollow-1', 'GAEC CoFollow 1')
+        self.producer_profile_2 = self._create_producer_profile('producer-cofollow-2', 'GAEC CoFollow 2')
+
+        self.request_obj = TechnicianCoFollowRequest.objects.create(
+            source_technician=self.source_technician,
+            target_technician=self.target_technician,
+            message='Pouvez-vous reprendre une partie du suivi ?',
+            status=TechnicianCoFollowRequest.STATUS_PENDING,
+        )
+        TechnicianCoFollowRequestItem.objects.create(
+            request=self.request_obj,
+            producer_profile=self.producer_profile_1,
+            decision=TechnicianCoFollowRequestItem.DECISION_PENDING,
+        )
+        TechnicianCoFollowRequestItem.objects.create(
+            request=self.request_obj,
+            producer_profile=self.producer_profile_2,
+            decision=TechnicianCoFollowRequestItem.DECISION_PENDING,
+        )
+
+    def _create_producer_profile(self, username, farm_name):
+        producer = get_user_model().objects.create_user(
+            username=username,
+            password='secret',
+        )
+        profile = UserProfile.objects.create(
+            user=producer,
+            role=UserProfile.ROLE_PRODUCER,
+            farm_name=farm_name,
+            assigned_technician=self.source_technician,
+        )
+        ProducerTechnicianAssignment.objects.create(
+            producer_profile=profile,
+            technician=self.source_technician,
+            is_active=True,
+        )
+        return profile
+
+    def test_target_can_process_partial_acceptance(self):
+        self.client.force_login(self.target_technician)
+
+        response = self.client.post(
+            reverse('technician_cofollow_review', args=[self.request_obj.id]),
+            {
+                'accepted_producers': [str(self.producer_profile_1.id)],
+            },
+        )
+
+        self.assertRedirects(response, reverse('technician_records'))
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.status, TechnicianCoFollowRequest.STATUS_PARTIAL)
+        self.assertIsNotNone(self.request_obj.responded_at)
+
+        item_1 = TechnicianCoFollowRequestItem.objects.get(
+            request=self.request_obj,
+            producer_profile=self.producer_profile_1,
+        )
+        item_2 = TechnicianCoFollowRequestItem.objects.get(
+            request=self.request_obj,
+            producer_profile=self.producer_profile_2,
+        )
+        self.assertEqual(item_1.decision, TechnicianCoFollowRequestItem.DECISION_ACCEPTED)
+        self.assertEqual(item_2.decision, TechnicianCoFollowRequestItem.DECISION_REJECTED)
+
+        self.assertTrue(
+            ProducerTechnicianAssignment.objects.filter(
+                producer_profile=self.producer_profile_1,
+                technician=self.target_technician,
+                is_active=True,
+            ).exists()
+        )
+        self.assertFalse(
+            ProducerTechnicianAssignment.objects.filter(
+                producer_profile=self.producer_profile_2,
+                technician=self.target_technician,
+                is_active=True,
+            ).exists()
+        )
+
+    def test_management_page_shows_pending_requests_and_metrics(self):
+        self.client.force_login(self.target_technician)
+
+        response = self.client.get(reverse('technician_producer_management'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Demandes de co-suivi en attente')
+        self.assertContains(response, 'GAEC CoFollow 1')
+        self.assertContains(response, 'GAEC CoFollow 2')
+        self.assertContains(response, 'Demande de')
+
+
+class SuperAdminTechnicianManagementTests(TestCase):
+    def setUp(self):
+        self.super_admin = get_user_model().objects.create_superuser(
+            username='root-tech-mgmt',
+            email='root-tech-mgmt@example.test',
+            password='secret',
+        )
+
+        self.technician_user = get_user_model().objects.create_user(
+            username='tech-mgmt',
+            first_name='Jean',
+            last_name='Dupont',
+            password='secret',
+        )
+        self.technician_profile = UserProfile.objects.create(
+            user=self.technician_user,
+            role=UserProfile.ROLE_TECHNICIAN,
+            license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+        )
+
+        producer = get_user_model().objects.create_user(
+            username='producer-tech-mgmt',
+            password='secret',
+        )
+        producer_profile = UserProfile.objects.create(
+            user=producer,
+            role=UserProfile.ROLE_PRODUCER,
+            farm_name='GAEC Test',
+            assigned_technician=self.technician_user,
+        )
+        ProducerTechnicianAssignment.objects.create(
+            producer_profile=producer_profile,
+            technician=self.technician_user,
+            is_active=True,
+        )
+
+    def test_superadmin_page_displays_requested_columns(self):
+        self.client.force_login(self.super_admin)
+
+        response = self.client.get(reverse('superadmin_technician_management'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Gestion techniciens')
+        self.assertContains(response, 'Nom')
+        self.assertContains(response, 'Prenom')
+        self.assertContains(response, 'Structure')
+        self.assertContains(response, 'Actif')
+        self.assertContains(response, 'Nb prod')
+        self.assertContains(response, 'Dupont')
+        self.assertContains(response, 'Jean')
+        self.assertContains(response, '1')

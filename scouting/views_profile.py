@@ -8,7 +8,9 @@ from .forms import UserProfileForm
 from .models import Department, PlantAction, ScoutingRecord
 from .utils import display_user_name
 from .view_access import (
+    _active_technician_profiles_for_producer,
     _accessible_technician_profiles,
+    _effective_access_restriction,
     _effective_profile,
     _effective_user,
     _filter_records,
@@ -90,8 +92,12 @@ def _matches_prior_filters(value_getter, item, filters, ordered_keys, current_ke
 def my_profile_view(request):
     effective_user = _effective_user(request)
     profile = _effective_profile(request)
-    technician_profile = _get_profile(profile.assigned_technician) if profile.assigned_technician_id else None
+    technician_profiles = _active_technician_profiles_for_producer(profile)
     if request.method == 'POST':
+        restriction = _effective_access_restriction(request, for_write=True)
+        if restriction:
+            messages.error(request, restriction['message'])
+            return redirect('my_profile')
         form = UserProfileForm(request.POST, request.FILES, instance=profile, user=effective_user)
         if form.is_valid():
             form.save()
@@ -103,7 +109,7 @@ def my_profile_view(request):
         'form': form,
         'profile': profile,
         'profile_user': effective_user,
-        'technician_profile': technician_profile,
+        'technician_profiles': technician_profiles,
     }
     context.update(_profile_address_context(profile))
     return render(request, 'scouting/my_profile.html', context)
@@ -176,7 +182,10 @@ def my_records_view(request):
     if filter_department:
         actions = actions.filter(department=filter_department)
     if filter_technician:
-        actions = actions.filter(user__profile__assigned_technician_id=filter_technician)
+        actions = actions.filter(
+            user__profile__technician_assignments__technician_id=filter_technician,
+            user__profile__technician_assignments__is_active=True,
+        ).distinct()
     if filter_producer:
         actions = actions.filter(user_id=filter_producer)
     if filter_series:
@@ -388,6 +397,10 @@ def my_records_view(request):
 def record_delete_view(request, record_id):
     if request.method != 'POST':
         return redirect('my_records')
+    restriction = _effective_access_restriction(request, for_write=True)
+    if restriction:
+        messages.error(request, restriction['message'])
+        return redirect('my_records')
 
     effective_user = _effective_user(request)
     manager_user = _manager_user(request)
@@ -409,6 +422,10 @@ def record_delete_view(request, record_id):
 @login_required
 def action_delete_view(request, action_id):
     if request.method != 'POST':
+        return redirect('my_records')
+    restriction = _effective_access_restriction(request, for_write=True)
+    if restriction:
+        messages.error(request, restriction['message'])
         return redirect('my_records')
 
     effective_user = _effective_user(request)

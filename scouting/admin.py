@@ -2,10 +2,12 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.db.models import Count, Q
 from django.utils.html import format_html
 from rest_framework.authtoken.models import Token, TokenProxy
 
 from .models import (
+    AccessControlSettings,
     ActionType,
     AphidSpecies,
     AuxiliaryCount,
@@ -28,6 +30,10 @@ from .models import (
     RecommendationDismissReason,
     ScoutingRecord,
     ServicePlant,
+    ProducerTechnicianAssignment,
+    TechnicianCoFollowRequest,
+    TechnicianCoFollowRequestItem,
+    TechnicianStructure,
     UserProfile,
     Variety,
 )
@@ -43,23 +49,27 @@ ADMIN_APP_ORDER = {
 ADMIN_MODEL_ORDER = {
     'scouting': {
         'UserProfile': 10,
-        'PlantSeries': 20,
-        'ScoutingRecord': 30,
-        'PlantAction': 40,
-        'Department': 50,
-        'Crop': 60,
-        'ConductType': 70,
-        'Variety': 80,
-        'ServicePlant': 90,
-        'AuxiliaryTaxon': 100,
-        'AphidSpecies': 110,
-        'OtherPestTaxon': 120,
-        'Molecule': 130,
-        'RecommendationDismissReason': 140,
-        'ActionType': 150,
-        'DecisionRule': 160,
-        'DecisionLever': 170,
-        'LeafObservation': 180,
+        'ProducerTechnicianAssignment': 20,
+        'TechnicianCoFollowRequest': 30,
+        'TechnicianStructure': 40,
+        'PlantSeries': 50,
+        'ScoutingRecord': 60,
+        'PlantAction': 70,
+        'Department': 80,
+        'Crop': 90,
+        'ConductType': 100,
+        'Variety': 110,
+        'ServicePlant': 120,
+        'AuxiliaryTaxon': 130,
+        'AphidSpecies': 140,
+        'OtherPestTaxon': 150,
+        'Molecule': 160,
+        'RecommendationDismissReason': 170,
+        'ActionType': 180,
+        'DecisionRule': 190,
+        'DecisionLever': 200,
+        'AccessControlSettings': 210,
+        'LeafObservation': 220,
     },
     'auth': {
         'User': 10,
@@ -68,7 +78,11 @@ ADMIN_MODEL_ORDER = {
 }
 
 SCOUTING_ADMIN_GROUPS = [
-    ('users', 'Utilisateurs', ['UserProfile']),
+    (
+        'users',
+        'Utilisateurs',
+        ['UserProfile', 'ProducerTechnicianAssignment', 'TechnicianCoFollowRequest', 'TechnicianStructure'],
+    ),
     ('observations', 'Observations', ['PlantSeries', 'ScoutingRecord', 'LeafObservation']),
     (
         'settings',
@@ -84,6 +98,7 @@ SCOUTING_ADMIN_GROUPS = [
             'OtherPestTaxon',
             'Molecule',
             'RecommendationDismissReason',
+            'AccessControlSettings',
         ],
     ),
     (
@@ -223,6 +238,9 @@ class UserProfileInline(admin.StackedInline):
         'role',
         'assigned_technician',
         'department',
+        'structure',
+        'license_status',
+        'deactivation_message',
         'farm_name',
         'phone',
         'photo',
@@ -250,14 +268,19 @@ class UserProfileAdmin(admin.ModelAdmin):
     list_display = (
         'user',
         'role',
+        'license_status',
+        'structure',
         'assigned_technician',
         'department',
+        'active_producer_count',
+        'active_series_count',
+        'observation_count',
         'farm_name',
         'phone',
         'postal_code',
         'city',
     )
-    list_filter = ('role', 'department', 'assigned_technician')
+    list_filter = ('role', 'license_status', 'department', 'structure', 'assigned_technician')
     search_fields = ('user__username', 'farm_name', 'phone', 'street_address', 'postal_code', 'city')
     autocomplete_fields = ('assigned_technician',)
     fieldsets = (
@@ -267,6 +290,9 @@ class UserProfileAdmin(admin.ModelAdmin):
                 'fields': (
                     'user',
                     'role',
+                    'license_status',
+                    'deactivation_message',
+                    'structure',
                     'assigned_technician',
                     'department',
                     'farm_name',
@@ -284,6 +310,54 @@ class UserProfileAdmin(admin.ModelAdmin):
         ),
     )
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request).select_related('user', 'structure')
+        return qs.annotate(
+            _active_producer_count=Count(
+                'user__producer_assignments__producer_profile',
+                filter=Q(
+                    user__producer_assignments__is_active=True,
+                    user__producer_assignments__technician__profile__license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+                ),
+                distinct=True,
+            ),
+            _active_series_count=Count(
+                'user__producer_assignments__producer_profile__user__plant_series',
+                filter=Q(
+                    user__producer_assignments__is_active=True,
+                    user__producer_assignments__producer_profile__user__plant_series__is_active=True,
+                    user__producer_assignments__technician__profile__license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+                ),
+                distinct=True,
+            ),
+            _observation_count=Count(
+                'user__producer_assignments__producer_profile__user__records',
+                filter=Q(
+                    user__producer_assignments__is_active=True,
+                    user__producer_assignments__technician__profile__license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+                ),
+                distinct=True,
+            ),
+        )
+
+    @admin.display(description='Nb producteurs')
+    def active_producer_count(self, obj):
+        if obj.role != UserProfile.ROLE_TECHNICIAN:
+            return 0
+        return getattr(obj, '_active_producer_count', 0)
+
+    @admin.display(description='Nb series')
+    def active_series_count(self, obj):
+        if obj.role != UserProfile.ROLE_TECHNICIAN:
+            return 0
+        return getattr(obj, '_active_series_count', 0)
+
+    @admin.display(description='Nb observations')
+    def observation_count(self, obj):
+        if obj.role != UserProfile.ROLE_TECHNICIAN:
+            return 0
+        return getattr(obj, '_observation_count', 0)
+
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
@@ -291,6 +365,75 @@ class DepartmentAdmin(admin.ModelAdmin):
     list_filter = ('is_active',)
     search_fields = ('code', 'name')
     ordering = ('code',)
+
+
+@admin.register(TechnicianStructure)
+class TechnicianStructureAdmin(admin.ModelAdmin):
+    list_display = ('name', 'generic_contact', 'website')
+    search_fields = ('name', 'generic_contact', 'address', 'website')
+
+
+@admin.register(ProducerTechnicianAssignment)
+class ProducerTechnicianAssignmentAdmin(admin.ModelAdmin):
+    list_display = (
+        'producer_profile',
+        'technician',
+        'is_active',
+        'created_at',
+        'ended_at',
+        'end_reason',
+    )
+    list_filter = (
+        'is_active',
+        'end_reason',
+        'technician__profile__license_status',
+    )
+    search_fields = (
+        'producer_profile__farm_name',
+        'producer_profile__user__username',
+        'technician__username',
+    )
+    autocomplete_fields = ('producer_profile', 'technician', 'created_by', 'ended_by')
+
+
+class TechnicianCoFollowRequestItemInline(admin.TabularInline):
+    model = TechnicianCoFollowRequestItem
+    extra = 0
+    readonly_fields = ('producer_profile', 'decision', 'decided_at')
+    can_delete = False
+
+
+@admin.register(TechnicianCoFollowRequest)
+class TechnicianCoFollowRequestAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'source_technician',
+        'target_technician',
+        'status',
+        'producer_count',
+        'created_at',
+        'responded_at',
+    )
+    list_filter = ('status', 'created_at')
+    search_fields = (
+        'source_technician__username',
+        'target_technician__username',
+        'source_technician__first_name',
+        'source_technician__last_name',
+        'target_technician__first_name',
+        'target_technician__last_name',
+    )
+    autocomplete_fields = ('source_technician', 'target_technician')
+    inlines = (TechnicianCoFollowRequestItemInline,)
+
+    @admin.display(description='Nb producteurs')
+    def producer_count(self, obj):
+        return obj.items.count()
+
+
+@admin.register(AccessControlSettings)
+class AccessControlSettingsAdmin(SuperuserOnlyAdminMixin, admin.ModelAdmin):
+    list_display = ('id', 'updated_at')
 
 
 @admin.register(Crop)

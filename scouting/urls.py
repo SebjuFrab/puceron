@@ -26,14 +26,44 @@ urlpatterns = [
     ),
     path('technicien/controle/quitter/', views.producer_control_stop_view, name='producer_control_stop'),
     path(
+        'technicien/producteur/<int:producer_id>/arret-suivi/',
+        views.technician_stop_follow_view,
+        name='technician_stop_follow',
+    ),
+    path(
+        'technicien/co-suivi/demande/',
+        views.technician_cofollow_request_create_view,
+        name='technician_cofollow_request_create',
+    ),
+    path(
+        'technicien/co-suivi/demande/<int:request_id>/',
+        views.technician_cofollow_review_view,
+        name='technician_cofollow_review',
+    ),
+    path(
+        'technicien/gestion-producteurs/',
+        views.technician_producer_management_view,
+        name='technician_producer_management',
+    ),
+    path(
         'super-admin/controle-technicien/<int:technician_id>/',
         views.technician_control_start_view,
         name='technician_control_start',
     ),
     path(
+        'super-admin/gestion-techniciens/',
+        views.superadmin_technician_management_view,
+        name='superadmin_technician_management',
+    ),
+    path(
         'super-admin/controle-technicien/quitter/',
         views.technician_control_stop_view,
         name='technician_control_stop',
+    ),
+    path(
+        'super-admin/technicien/<int:technician_id>/desactiver/',
+        views.technician_deactivate_view,
+        name='technician_deactivate',
     ),
     path(
         'recommandations/<int:record_id>/ne-pas-suivre/',

@@ -257,7 +257,7 @@
   {% block head_extras %}{% endblock %}
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-light{% if user.is_authenticated and show_producer_nav and not hide_mobile_record_cta %} has-mobile-record-cta{% endif %}">
+<body class="bg-light{% if user.is_authenticated and show_producer_nav and not hide_mobile_record_cta and not effective_producer_read_only and not effective_technician_denied %} has-mobile-record-cta{% endif %}">
 <nav class="navbar navbar-expand-lg navbar-dark bg-success">
   <div class="container">
     <a class="navbar-brand fw-bold" href="{% url 'landing' %}">PUCERON</a>
@@ -267,15 +267,20 @@
     <div id="navMain" class="collapse navbar-collapse">
       <ul class="navbar-nav me-auto">
         {% if user.is_authenticated %}
-          <li class="nav-item"><a class="nav-link nav-link-cta" href="{% url 'record_create' %}">Saisir</a></li>
+          {% if not effective_technician_denied and not effective_producer_read_only %}
+            <li class="nav-item"><a class="nav-link nav-link-cta" href="{% url 'record_create' %}">Saisir</a></li>
+          {% endif %}
           <li class="nav-item"><a class="nav-link" href="{% url 'info_index' %}">Infos</a></li>
           {% if user.is_superuser and not acting_as_producer and not acting_as_technician %}
             <li class="nav-item"><a class="nav-link" href="/cms/">CMS</a></li>
           {% endif %}
           <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Analyse</a></li>
           <li class="nav-item"><a class="nav-link" href="{% url 'my_profile' %}">Mon profil</a></li>
-          {% if user.is_superuser %}
+          {% if user.is_superuser and not acting_as_producer and not acting_as_technician %}
             <li class="nav-item"><a class="nav-link" href="/admin/">Admin</a></li>
+          {% endif %}
+          {% if user.is_superuser and not acting_as_producer and not acting_as_technician %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'superadmin_technician_management' %}">Gestion techniciens</a></li>
           {% endif %}
           {% if can_manage_producers %}
             <li class="nav-item"><a class="nav-link" href="{% url 'producer_create' %}">Nouveau producteur</a></li>
@@ -290,6 +295,14 @@
           {% endif %}
           {% if show_technician_nav %}
             <li class="nav-item"><a class="nav-link" href="{% url 'technician_records' %}">Vue technicien</a></li>
+            <li class="nav-item">
+              <a class="nav-link d-inline-flex align-items-center gap-1" href="{% url 'technician_producer_management' %}">
+                Gestion producteurs
+                {% if pending_cofollow_request_count %}
+                  <span class="badge rounded-pill text-bg-warning">{{ pending_cofollow_request_count }}</span>
+                {% endif %}
+              </a>
+            </li>
           {% endif %}
         {% endif %}
       </ul>
@@ -356,6 +369,9 @@
       <div class="alert alert-info">{{ message }}</div>
     {% endfor %}
   {% endif %}
+  {% if effective_producer_read_only and effective_access_message %}
+    <div class="alert alert-warning">{{ effective_access_message }}</div>
+  {% endif %}
   {% block content %}{% endblock %}
 </main>
 
@@ -393,7 +409,7 @@
   </div>
 </div>
 
-{% if user.is_authenticated and show_producer_nav and not hide_mobile_record_cta %}
+{% if user.is_authenticated and show_producer_nav and not hide_mobile_record_cta and not effective_producer_read_only and not effective_technician_denied %}
   <a class="mobile-record-cta" href="{% url 'record_create' %}">Saisir un comptage</a>
 {% endif %}
 

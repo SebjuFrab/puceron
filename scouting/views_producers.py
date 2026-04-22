@@ -17,7 +17,7 @@ from .views_support import (
     CSV_IMPORT_REQUIRED_FIELDS,
     _accessible_producer_profiles,
     _can_manage_producers,
-    _get_profile,
+    _effective_access_restriction,
     _is_acting_as_producer,
     _manager_user,
     _load_csv_rows,
@@ -35,19 +35,22 @@ def producer_create_view(request):
     if not _can_manage_producers(manager_user):
         messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
         return redirect('dashboard')
-
-    creator_profile = _get_profile(manager_user)
-    if (not manager_user.is_superuser) and not creator_profile.department:
-        messages.error(request, 'Renseignez votre departement avant de creer un producteur.')
-        return redirect('my_profile')
+    restriction = _effective_access_restriction(request, for_write=True)
+    if restriction:
+        messages.error(request, restriction['message'])
+        return redirect('dashboard')
 
     if request.method == 'POST':
         form = ProducerAccountCreationForm(request.POST, creator=manager_user)
         if form.is_valid():
             created_user = form.save()
+            technician_count = len(form.cleaned_data.get('technicians') or [])
             messages.success(
                 request,
-                f'Compte producteur cree: {display_user_name(created_user)} (identifiant: {created_user.username})',
+                (
+                    f'Compte producteur cree: {display_user_name(created_user)} '
+                    f'(identifiant: {created_user.username}, {technician_count} technicien(s) rattache(s)).'
+                ),
             )
             return redirect('producer_create')
     else:
@@ -73,11 +76,10 @@ def producer_import_view(request):
     if not _can_manage_producers(manager_user):
         messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
         return redirect('dashboard')
-
-    creator_profile = _get_profile(manager_user)
-    if (not manager_user.is_superuser) and not creator_profile.department:
-        messages.error(request, 'Renseignez votre departement avant d importer des producteurs.')
-        return redirect('my_profile')
+    restriction = _effective_access_restriction(request, for_write=True)
+    if restriction:
+        messages.error(request, restriction['message'])
+        return redirect('dashboard')
 
     results = []
     summary = None
@@ -258,6 +260,10 @@ def producer_update_view(request, producer_id):
     manager_user = _manager_user(request)
     if not _can_manage_producers(manager_user):
         messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
+        return redirect('dashboard')
+    restriction = _effective_access_restriction(request, for_write=True)
+    if restriction:
+        messages.error(request, restriction['message'])
         return redirect('dashboard')
 
     producer_profile_qs = _accessible_producer_profiles(manager_user).select_related('user')

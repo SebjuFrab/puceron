@@ -1,4 +1,4 @@
-import csv
+﻿import csv
 import json
 import secrets
 import string
@@ -14,7 +14,7 @@ from django.db import transaction
 
 from .models import UserProfile
 from .utils import display_user_name
-from .view_access import _get_profile
+from .view_access import _get_profile, _sync_producer_technicians
 
 User = get_user_model()
 
@@ -48,7 +48,7 @@ CSV_IMPORT_REQUIRED_FIELDS = (
     'city',
 )
 
-MOJIBAKE_MARKERS = ('Ã', 'Â', 'â', '€', '™', 'œ', '�')
+MOJIBAKE_MARKERS = ('Ãƒ', 'Ã‚', 'Ã¢', 'â‚¬', 'â„¢', 'Å“', 'ï¿½')
 
 
 def _normalize_csv_header(value):
@@ -170,7 +170,10 @@ def _resolve_import_technician(importer, technician_ref):
     if not reference:
         raise ValueError('Colonne "IDtek referents" obligatoire pour un import super-admin.')
 
-    technician_qs = User.objects.filter(profile__role=UserProfile.ROLE_TECHNICIAN)
+    technician_qs = User.objects.filter(
+        profile__role=UserProfile.ROLE_TECHNICIAN,
+        profile__license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+    )
     technician = None
     if reference.isdigit():
         technician = technician_qs.filter(id=int(reference)).first()
@@ -263,8 +266,7 @@ def _upsert_producer_from_csv_row(row, importer, update_existing, geocode_cache=
     technician_profile = _get_profile(technician)
     if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
         raise ValueError(f'{display_user_name(technician)} n est pas technicien.')
-    if not technician_profile.department:
-        raise ValueError(f'{display_user_name(technician)} n a pas de departement renseigne.')
+    requested_department = (row.get('department') or '').strip()
 
     email = (row.get('email') or '').strip().lower()
     if not email:
@@ -305,19 +307,22 @@ def _upsert_producer_from_csv_row(row, importer, update_existing, geocode_cache=
         profile, _ = UserProfile.objects.get_or_create(user=user)
         profile.role = UserProfile.ROLE_PRODUCER
         profile.assigned_technician = technician
-        profile.department = technician_profile.department
+        if requested_department:
+            profile.department = requested_department
+        elif not profile.department and technician_profile.department:
+            profile.department = technician_profile.department
         profile.farm_name = row.get('farm_name', '')
         profile.phone = row.get('phone', '')
         profile.street_address = row.get('street_address', '')
         profile.postal_code = row.get('postal_code', '')
         profile.city = row.get('city', '')
         profile.save()
+        _sync_producer_technicians(profile, [technician], changed_by=importer)
 
-    requested_department = (row.get('department') or '').strip()
     notes = []
-    if requested_department and requested_department != technician_profile.department:
+    if requested_department and technician_profile.department and requested_department != technician_profile.department:
         notes.append(
-            f'Département CSV {requested_department} remplacé par {technician_profile.department} (technicien référent).'
+            f'Departement CSV {requested_department} conserve (filtre independant du rattachement technicien).'
         )
 
     geocode_result = _geocode_address(
@@ -342,3 +347,4 @@ def _upsert_producer_from_csv_row(row, importer, update_existing, geocode_cache=
         'geocode_status': geocode_result['status'],
         'note': ' '.join(note for note in notes if note),
     }
+

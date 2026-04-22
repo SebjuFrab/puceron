@@ -1,12 +1,16 @@
 import json
 from io import BytesIO
 
+from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db.models import Prefetch, Q
+from django.core.mail import send_mail
+from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 
 try:
     from openpyxl import Workbook
@@ -14,7 +18,17 @@ except Exception:  # pragma: no cover
     Workbook = None
 
 from .decision_engine import evaluate_record_recommendation
-from .models import AuxiliaryTaxon, PlantAction, PlantSeries, ScoutingRecord
+from .forms import TechnicianCoFollowRequestForm, TechnicianDeactivationForm
+from .models import (
+    AuxiliaryTaxon,
+    PlantAction,
+    PlantSeries,
+    ProducerTechnicianAssignment,
+    ScoutingRecord,
+    TechnicianCoFollowRequest,
+    TechnicianCoFollowRequestItem,
+    UserProfile,
+)
 from .utils import display_user_name
 from .views_support import (
     ACTING_PRODUCER_SESSION_KEY,
@@ -25,11 +39,30 @@ from .views_support import (
     _acting_producer_profile,
     _effective_user,
     _filter_records,
+    _get_profile,
     _is_technician,
     _manager_user,
     _latest_series_recommendation,
+    _sync_producer_technicians,
     _technician_visibility_q,
 )
+
+User = get_user_model()
+
+
+def _active_technician_names_for_profile(profile):
+    assignments = getattr(profile, 'active_assignments_prefetched', None)
+    if assignments is None:
+        assignments = profile.technician_assignments.filter(is_active=True).select_related('technician')
+    names = []
+    seen = set()
+    for assignment in assignments:
+        name = display_user_name(assignment.technician)
+        if name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    return names
 
 
 @login_required
@@ -39,10 +72,38 @@ def technician_records_view(request):
         return redirect('dashboard')
 
     manager_user = _manager_user(request)
-    producer_profiles = list(_accessible_producer_profiles(manager_user))
     technician_profiles = list(_accessible_technician_profiles(request.user)) if request.user.is_superuser else []
     active_technician_profile = _acting_technician_profile(request)
+    if request.user.is_superuser and active_technician_profile:
+        producer_profiles = list(
+            _accessible_producer_profiles(request.user)
+            .filter(
+                technician_assignments__technician_id=active_technician_profile.user_id,
+                technician_assignments__is_active=True,
+            )
+            .distinct()
+        )
+    else:
+        producer_profiles = list(_accessible_producer_profiles(manager_user))
     active_control_profile = _acting_producer_profile(request)
+    can_create_cofollow_request = (not request.user.is_superuser) or (
+        request.user.is_superuser and active_technician_profile is not None
+    )
+    incoming_cofollow_requests = []
+    outgoing_cofollow_requests = []
+    if can_create_cofollow_request:
+        incoming_cofollow_requests = list(
+            TechnicianCoFollowRequest.objects.filter(target_technician=manager_user)
+            .select_related('source_technician', 'target_technician')
+            .annotate(producer_count=Count('items', distinct=True))
+            .order_by('-created_at')[:8]
+        )
+        outgoing_cofollow_requests = list(
+            TechnicianCoFollowRequest.objects.filter(source_technician=manager_user)
+            .select_related('source_technician', 'target_technician')
+            .annotate(producer_count=Count('items', distinct=True))
+            .order_by('-created_at')[:8]
+        )
     selected_producer = None
     selected_producer_id = request.GET.get('producer')
 
@@ -152,6 +213,120 @@ def technician_records_view(request):
             'selected_producer_data': selected_producer_data,
             'selected_series': selected_series,
             'active_control_profile': active_control_profile,
+            'can_create_cofollow_request': can_create_cofollow_request,
+            'incoming_cofollow_requests': incoming_cofollow_requests,
+            'outgoing_cofollow_requests': outgoing_cofollow_requests,
+        },
+    )
+
+
+@login_required
+def technician_producer_management_view(request):
+    manager_user = _manager_user(request)
+    manager_profile = _get_profile(manager_user)
+    if not _is_technician(manager_user):
+        messages.error(request, 'Acces reserve aux techniciens.')
+        return redirect('dashboard')
+    if request.user.is_superuser and manager_user == request.user:
+        messages.error(
+            request,
+            'Selectionnez un technicien en mode controle pour acceder a la gestion des producteurs.',
+        )
+        return redirect('technician_records')
+    if (not request.user.is_superuser) and not manager_profile.has_active_license:
+        messages.error(request, manager_profile.deactivation_message or 'Votre licence technicien est inactive.')
+        return redirect('dashboard')
+
+    active_assignment_prefetch = Prefetch(
+        'technician_assignments',
+        queryset=ProducerTechnicianAssignment.objects.filter(is_active=True).select_related(
+            'technician',
+            'technician__profile',
+        ),
+        to_attr='active_assignments_prefetched',
+    )
+
+    managed_profiles = list(
+        _accessible_producer_profiles(manager_user)
+        .select_related('user')
+        .prefetch_related(active_assignment_prefetch)
+        .annotate(
+            active_series_count=Count(
+                'user__plant_series',
+                filter=Q(user__plant_series__is_active=True),
+                distinct=True,
+            ),
+            observation_count=Count('user__records', distinct=True),
+        )
+        .order_by('farm_name', 'user__username')
+    )
+    managed_rows = [
+        {
+            'producer_id': profile.user_id,
+            'producer_name': profile.farm_name or display_user_name(profile.user),
+            'producer_username': profile.user.username,
+            'series_count': getattr(profile, 'active_series_count', 0),
+            'observation_count': getattr(profile, 'observation_count', 0),
+            'last_connection_at': profile.user.last_login,
+            'technician_names': _active_technician_names_for_profile(profile),
+        }
+        for profile in managed_profiles
+    ]
+
+    pending_items = list(
+        TechnicianCoFollowRequestItem.objects.filter(
+            request__target_technician=manager_user,
+            request__status=TechnicianCoFollowRequest.STATUS_PENDING,
+            decision=TechnicianCoFollowRequestItem.DECISION_PENDING,
+        )
+        .select_related('request', 'request__source_technician', 'producer_profile', 'producer_profile__user')
+        .prefetch_related(
+            Prefetch(
+                'producer_profile__technician_assignments',
+                queryset=ProducerTechnicianAssignment.objects.filter(is_active=True).select_related(
+                    'technician',
+                    'technician__profile',
+                ),
+                to_attr='active_assignments_prefetched',
+            )
+        )
+        .annotate(
+            active_series_count=Count(
+                'producer_profile__user__plant_series',
+                filter=Q(producer_profile__user__plant_series__is_active=True),
+                distinct=True,
+            ),
+            observation_count=Count('producer_profile__user__records', distinct=True),
+        )
+        .order_by('-request__created_at', 'producer_profile__farm_name', 'producer_profile__user__username')
+    )
+    pending_rows = [
+        {
+            'request_id': item.request_id,
+            'request_created_at': item.request.created_at,
+            'request_source_name': display_user_name(item.request.source_technician),
+            'producer_id': item.producer_profile.user_id,
+            'producer_name': item.producer_profile.farm_name or display_user_name(item.producer_profile.user),
+            'producer_username': item.producer_profile.user.username,
+            'series_count': getattr(item, 'active_series_count', 0),
+            'observation_count': getattr(item, 'observation_count', 0),
+            'last_connection_at': item.producer_profile.user.last_login,
+            'technician_names': _active_technician_names_for_profile(item.producer_profile),
+        }
+        for item in pending_items
+    ]
+    pending_request_count = len({item.request_id for item in pending_items})
+
+    return render(
+        request,
+        'scouting/technician_producer_management.html',
+        {
+            'manager_user': manager_user,
+            'managed_rows': managed_rows,
+            'pending_rows': pending_rows,
+            'managed_count': len(managed_rows),
+            'pending_item_count': len(pending_rows),
+            'pending_request_count': pending_request_count,
         },
     )
 
@@ -165,7 +340,14 @@ def producer_control_start_view(request, producer_id):
         messages.error(request, 'Acces reserve aux techniciens.')
         return redirect('dashboard')
 
-    producer_profile = get_object_or_404(_accessible_producer_profiles(manager_user), user_id=producer_id)
+    if request.user.is_superuser and manager_user != request.user:
+        producer_scope = _accessible_producer_profiles(request.user).filter(
+            technician_assignments__technician_id=manager_user.id,
+            technician_assignments__is_active=True,
+        )
+    else:
+        producer_scope = _accessible_producer_profiles(manager_user)
+    producer_profile = get_object_or_404(producer_scope.distinct(), user_id=producer_id)
     request.session[ACTING_PRODUCER_SESSION_KEY] = producer_profile.user_id
     request.session.modified = True
     if hasattr(request, '_acting_technician_profile_cache'):
@@ -186,6 +368,232 @@ def producer_control_stop_view(request):
         delattr(request, '_acting_producer_profile_cache')
     messages.success(request, 'Retour a la vue technicien.')
     return redirect('technician_records')
+
+
+@login_required
+def technician_stop_follow_view(request, producer_id):
+    if request.method != 'POST':
+        return redirect('technician_records')
+
+    manager_user = _manager_user(request)
+    manager_profile = _get_profile(manager_user)
+    if not _is_technician(manager_user):
+        messages.error(request, 'Acces reserve aux techniciens.')
+        return redirect('dashboard')
+    if (not request.user.is_superuser) and not manager_profile.has_active_license:
+        messages.error(request, manager_profile.deactivation_message or 'Votre licence technicien est inactive.')
+        return redirect('dashboard')
+
+    if request.user.is_superuser and manager_user != request.user:
+        producer_scope = _accessible_producer_profiles(request.user).filter(
+            technician_assignments__technician_id=manager_user.id,
+            technician_assignments__is_active=True,
+        )
+    else:
+        producer_scope = _accessible_producer_profiles(manager_user)
+    producer_profile = get_object_or_404(producer_scope.distinct(), user_id=producer_id)
+
+    explanation = (request.POST.get('message') or '').strip()
+    assignment = producer_profile.technician_assignments.filter(
+        is_active=True,
+        technician=manager_user,
+    ).first()
+    if assignment is None:
+        messages.error(request, 'Aucune affectation active a retirer pour ce producteur.')
+        return redirect(f'{reverse("technician_records")}?producer={producer_id}')
+
+    assignment.close(
+        ended_by=request.user,
+        reason=ProducerTechnicianAssignment.END_REASON_TECHNICIAN_STOP,
+        message=explanation,
+    )
+
+    remaining_technicians = [
+        row.technician
+        for row in producer_profile.technician_assignments.filter(is_active=True).select_related('technician')
+    ]
+    _sync_producer_technicians(
+        producer_profile,
+        remaining_technicians,
+        changed_by=request.user,
+        reason=ProducerTechnicianAssignment.END_REASON_TECHNICIAN_STOP,
+        message=explanation,
+    )
+
+    messages.success(request, 'Arret de suivi enregistre.')
+    return redirect('technician_records')
+
+
+@login_required
+def technician_cofollow_request_create_view(request):
+    manager_user = _manager_user(request)
+    manager_profile = _get_profile(manager_user)
+    if not _is_technician(manager_user):
+        messages.error(request, 'Acces reserve aux techniciens.')
+        return redirect('dashboard')
+    if (not request.user.is_superuser) and not manager_profile.has_active_license:
+        messages.error(request, manager_profile.deactivation_message or 'Votre licence technicien est inactive.')
+        return redirect('dashboard')
+    if request.user.is_superuser and manager_user == request.user:
+        messages.error(
+            request,
+            'Selectionnez un technicien en mode controle pour envoyer une demande de co-suivi.',
+        )
+        return redirect('technician_records')
+
+    producer_profiles = _accessible_producer_profiles(manager_user)
+    producer_users = User.objects.filter(
+        id__in=producer_profiles.values_list('user_id', flat=True)
+    ).select_related('profile').order_by('profile__farm_name', 'username')
+    has_available_producers = producer_users.exists()
+    if not has_available_producers:
+        messages.warning(
+            request,
+            'Aucun producteur rattache au technicien source. Verifiez les affectations technicien <-> producteur.',
+        )
+
+    if request.method == 'POST':
+        form = TechnicianCoFollowRequestForm(
+            request.POST,
+            source_technician=manager_user,
+            producer_queryset=producer_users,
+        )
+        if form.is_valid():
+            request_obj = form.save()
+            review_url = request.build_absolute_uri(
+                reverse('technician_cofollow_review', args=[request_obj.id])
+            )
+            target_email = request_obj.target_technician.email
+            if target_email:
+                send_mail(
+                    subject='Nouvelle demande de co-suivi producteur',
+                    message=(
+                        f'{display_user_name(manager_user)} vous propose de co-suivre des producteurs.\n\n'
+                        f'Lien de traitement: {review_url}\n\n'
+                        f'Message: {request_obj.message or "-"}'
+                    ),
+                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                    recipient_list=[target_email],
+                    fail_silently=True,
+                )
+            messages.success(request, 'Demande envoyee au technicien cible.')
+            return redirect('technician_records')
+    else:
+        form = TechnicianCoFollowRequestForm(
+            source_technician=manager_user,
+            producer_queryset=producer_users,
+        )
+
+    return render(
+        request,
+        'scouting/technician_cofollow_request.html',
+        {
+            'form': form,
+            'source_technician': manager_user,
+            'has_available_producers': has_available_producers,
+        },
+    )
+
+
+@login_required
+def technician_cofollow_review_view(request, request_id):
+    request_obj = get_object_or_404(
+        TechnicianCoFollowRequest.objects.select_related('source_technician', 'target_technician').prefetch_related(
+            'items__producer_profile__user'
+        ),
+        id=request_id,
+    )
+
+    if not request.user.is_superuser and request.user.id != request_obj.target_technician_id:
+        messages.error(request, 'Acces reserve au technicien cible.')
+        return redirect('dashboard')
+
+    items = list(request_obj.items.all())
+    if request.method == 'POST' and request_obj.status == TechnicianCoFollowRequest.STATUS_PENDING:
+        selected_profile_ids = {
+            int(raw_id)
+            for raw_id in request.POST.getlist('accepted_producers')
+            if str(raw_id).isdigit()
+        }
+        accepted_count = 0
+        rejected_count = 0
+        for item in items:
+            if item.producer_profile_id in selected_profile_ids:
+                item.decision = TechnicianCoFollowRequestItem.DECISION_ACCEPTED
+                ProducerTechnicianAssignment.objects.get_or_create(
+                    producer_profile=item.producer_profile,
+                    technician=request_obj.target_technician,
+                    is_active=True,
+                    defaults={'created_by': request.user},
+                )
+                accepted_count += 1
+            else:
+                item.decision = TechnicianCoFollowRequestItem.DECISION_REJECTED
+                rejected_count += 1
+            item.decided_at = timezone.now()
+            item.save(update_fields=['decision', 'decided_at'])
+
+        if accepted_count and not rejected_count:
+            request_obj.status = TechnicianCoFollowRequest.STATUS_ACCEPTED
+        elif rejected_count and not accepted_count:
+            request_obj.status = TechnicianCoFollowRequest.STATUS_REJECTED
+        else:
+            request_obj.status = TechnicianCoFollowRequest.STATUS_PARTIAL
+        request_obj.responded_at = timezone.now()
+        request_obj.save(update_fields=['status', 'responded_at'])
+        messages.success(request, 'Demande traitee.')
+        return redirect('technician_records')
+
+    return render(
+        request,
+        'scouting/technician_cofollow_review.html',
+        {
+            'request_obj': request_obj,
+            'items': items,
+        },
+    )
+
+
+@login_required
+def superadmin_technician_management_view(request):
+    if not request.user.is_superuser:
+        messages.error(request, 'Acces reserve au super-admin.')
+        return redirect('dashboard')
+
+    technician_profiles = list(
+        UserProfile.objects.select_related('user', 'structure')
+        .filter(role=UserProfile.ROLE_TECHNICIAN, user__is_superuser=False)
+        .annotate(
+            active_producer_count=Count(
+                'user__producer_assignments__producer_profile',
+                filter=Q(user__producer_assignments__is_active=True),
+                distinct=True,
+            )
+        )
+        .order_by('user__last_name', 'user__first_name', 'user__username')
+    )
+
+    rows = [
+        {
+            'technician_id': profile.user_id,
+            'last_name': profile.user.last_name or '-',
+            'first_name': profile.user.first_name or '-',
+            'username': profile.user.username,
+            'structure_name': profile.structure.name if profile.structure else '-',
+            'is_active': profile.license_status == UserProfile.LICENSE_STATUS_ACTIVE,
+            'active_producer_count': getattr(profile, 'active_producer_count', 0),
+        }
+        for profile in technician_profiles
+    ]
+
+    return render(
+        request,
+        'scouting/superadmin_technician_management.html',
+        {
+            'rows': rows,
+            'technician_count': len(rows),
+        },
+    )
 
 
 @login_required
@@ -225,6 +633,101 @@ def technician_control_stop_view(request):
         delattr(request, '_acting_producer_profile_cache')
     messages.success(request, 'Retour au compte super-admin.')
     return redirect('technician_records')
+
+
+@login_required
+def technician_deactivate_view(request, technician_id):
+    if not request.user.is_superuser:
+        messages.error(request, 'Acces reserve au super-admin.')
+        return redirect('dashboard')
+
+    technician_profile = get_object_or_404(
+        UserProfile.objects.select_related('user'),
+        user_id=technician_id,
+        role=UserProfile.ROLE_TECHNICIAN,
+    )
+    active_assignments = list(
+        ProducerTechnicianAssignment.objects.filter(
+            technician=technician_profile.user,
+            is_active=True,
+        ).select_related('producer_profile__user')
+    )
+
+    initial = {'deactivation_message': technician_profile.deactivation_message}
+    if request.method == 'POST':
+        form = TechnicianDeactivationForm(request.POST, technician=technician_profile.user)
+        if form.is_valid():
+            mode = form.cleaned_data['reassign_mode']
+            target_technician = form.cleaned_data.get('target_technician')
+            message_for_producer = (form.cleaned_data.get('deactivation_message') or '').strip()
+
+            selected_users = form.cleaned_data.get('producers')
+            selected_profile_ids = set(
+                UserProfile.objects.filter(user__in=selected_users).values_list('id', flat=True)
+            )
+            if mode == TechnicianDeactivationForm.REASSIGN_MODE_ALL:
+                selected_profile_ids = {assignment.producer_profile_id for assignment in active_assignments}
+            elif mode == TechnicianDeactivationForm.REASSIGN_MODE_NONE:
+                selected_profile_ids = set()
+
+            technician_profile.license_status = UserProfile.LICENSE_STATUS_INACTIVE
+            technician_profile.deactivation_message = message_for_producer
+            technician_profile.save(update_fields=['license_status', 'deactivation_message'])
+
+            touched_profile_ids = set()
+            reassigned_count = 0
+            disabled_count = 0
+            for assignment in active_assignments:
+                touched_profile_ids.add(assignment.producer_profile_id)
+                should_reassign = (
+                    target_technician is not None and assignment.producer_profile_id in selected_profile_ids
+                )
+                assignment.close(
+                    ended_by=request.user,
+                    reason=(
+                        ProducerTechnicianAssignment.END_REASON_REASSIGNED
+                        if should_reassign
+                        else ProducerTechnicianAssignment.END_REASON_TECHNICIAN_DISABLED
+                    ),
+                    message=message_for_producer,
+                )
+                disabled_count += 1
+                if should_reassign:
+                    ProducerTechnicianAssignment.objects.get_or_create(
+                        producer_profile=assignment.producer_profile,
+                        technician=target_technician,
+                        is_active=True,
+                        defaults={'created_by': request.user},
+                    )
+                    reassigned_count += 1
+
+            for producer_profile in UserProfile.objects.filter(id__in=touched_profile_ids):
+                active_technicians = [
+                    row.technician
+                    for row in producer_profile.technician_assignments.filter(is_active=True).select_related('technician')
+                ]
+                _sync_producer_technicians(producer_profile, active_technicians, changed_by=request.user)
+
+            messages.success(
+                request,
+                (
+                    f'Technicien desactive. Affectations fermees: {disabled_count}. '
+                    f'Reaffectations creees: {reassigned_count}.'
+                ),
+            )
+            return redirect('technician_records')
+    else:
+        form = TechnicianDeactivationForm(technician=technician_profile.user, initial=initial)
+
+    return render(
+        request,
+        'scouting/technician_deactivate.html',
+        {
+            'form': form,
+            'technician_profile': technician_profile,
+            'active_assignments': active_assignments,
+        },
+    )
 
 
 @login_required
@@ -354,7 +857,10 @@ def export_actions_view(request):
     if department:
         qs = qs.filter(department=department)
     if technician:
-        qs = qs.filter(user__profile__assigned_technician_id=technician)
+        qs = qs.filter(
+            user__profile__technician_assignments__technician_id=technician,
+            user__profile__technician_assignments__is_active=True,
+        ).distinct()
     if producer:
         qs = qs.filter(user_id=producer)
     if crop:
