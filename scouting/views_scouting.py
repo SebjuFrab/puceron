@@ -895,7 +895,7 @@ def action_update_view(request, action_id):
     if manager_user.is_superuser and not acting_as_producer:
         action = get_object_or_404(queryset, id=action_id)
     elif editor_is_technician and not acting_as_producer:
-        action = get_object_or_404(queryset.filter(_technician_visibility_q(manager_user)), id=action_id)
+        action = get_object_or_404(queryset.filter(_technician_visibility_q(manager_user)).distinct(), id=action_id)
     else:
         action = get_object_or_404(queryset, id=action_id, user=effective_user)
 
@@ -975,7 +975,7 @@ def record_update_view(request, record_id):
     if manager_user.is_superuser and not acting_as_producer:
         record = get_object_or_404(queryset, id=record_id)
     elif editor_is_technician and not acting_as_producer:
-        record = get_object_or_404(queryset.filter(_technician_visibility_q(manager_user)), id=record_id)
+        record = get_object_or_404(queryset.filter(_technician_visibility_q(manager_user)).distinct(), id=record_id)
     else:
         record = get_object_or_404(queryset, id=record_id, user=effective_user)
     if not record.plant_series:

@@ -531,6 +531,63 @@ class TechnicianCoFollowWorkflowTests(TestCase):
         self.assertContains(response, 'GAEC CoFollow 2')
         self.assertContains(response, 'Demande de')
 
+    def test_technician_records_view_does_not_duplicate_records_with_multi_assignment(self):
+        crop = Crop.objects.create(name='Concombre dedup test')
+        conduct_type = ConductType.objects.create(name='Conduite dedup test')
+        variety = Variety.objects.create(
+            crop=crop,
+            name='Variete dedup test',
+            created_by=self.source_technician,
+        )
+        series = PlantSeries.objects.create(
+            user=self.producer_profile_1.user,
+            name='Serie dedup',
+            crop=crop,
+            conduct_type=conduct_type,
+            organic_mode='bio',
+            variety=variety,
+            year=2026,
+            plants_count=10,
+            leaves_per_plant=3,
+        )
+        record = ScoutingRecord.objects.create(
+            user=self.producer_profile_1.user,
+            plant_series=series,
+            crop_ref=crop,
+            conduct_type_ref=conduct_type,
+            variety_ref=variety,
+            department='29',
+            crop=crop.name,
+            scouting_date=date.fromisoformat('2026-04-23'),
+            year=2026,
+            week=17,
+            entry_mode='quick',
+            observed_plants_count=10,
+            observed_leaves_count=30,
+            aphid_infested_leaves_count=0,
+            aphid_infested_percent=Decimal('0.00'),
+            auxiliary_mode='quick',
+            auxiliary_total=6,
+        )
+
+        ProducerTechnicianAssignment.objects.get_or_create(
+            producer_profile=self.producer_profile_1,
+            technician=self.target_technician,
+            is_active=True,
+            defaults={'created_by': self.source_technician},
+        )
+        self.client.force_login(self.target_technician)
+
+        response = self.client.get(
+            reverse('technician_records'),
+            {'producer': self.producer_profile_1.user_id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        records = response.context['records']
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].id, record.id)
+
 
 class SuperAdminTechnicianManagementTests(TestCase):
     def setUp(self):

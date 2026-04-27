@@ -17,7 +17,7 @@ def _recommendation_record_queryset_for_user(user):
         return qs
     profile = _get_profile(user)
     if profile.role == UserProfile.ROLE_TECHNICIAN:
-        return qs.filter(_technician_visibility_q(user))
+        return qs.filter(_technician_visibility_q(user)).distinct()
     return qs.filter(user=user)
 
 

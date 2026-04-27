@@ -52,16 +52,12 @@ def _technician_visibility_q(user, profile_prefix='user__profile'):
     if profile.role != UserProfile.ROLE_TECHNICIAN:
         return Q(pk__in=[])
     assignment_lookup = f'{profile_prefix}__technician_assignments' if profile_prefix else 'technician_assignments'
-    # Temporary compatibility fallback:
-    # some legacy data can still be attached only through assigned_technician.
-    # Explicit assignment remains the primary security path.
-    legacy_lookup = f'{profile_prefix}__assigned_technician' if profile_prefix else 'assigned_technician'
     return Q(
         **{
             f'{assignment_lookup}__is_active': True,
             f'{assignment_lookup}__technician': user,
         }
-    ) | Q(**{legacy_lookup: user})
+    )
 
 
 def _series_queryset_for_user(user):

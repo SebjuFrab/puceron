@@ -165,8 +165,8 @@ def technician_records_view(request):
     )
     if not manager_user.is_superuser:
         visibility_query = _technician_visibility_q(manager_user)
-        records = records.filter(visibility_query)
-        actions = actions.filter(visibility_query)
+        records = records.filter(visibility_query).distinct()
+        actions = actions.filter(visibility_query).distinct()
 
     if selected_producer:
         records = list(records.filter(user=selected_producer.user))
@@ -748,7 +748,7 @@ def export_records_view(request):
             'variety_ref',
         ).prefetch_related('leaf_observations')
         if not manager_user.is_superuser:
-            qs = qs.filter(_technician_visibility_q(manager_user))
+            qs = qs.filter(_technician_visibility_q(manager_user)).distinct()
     else:
         qs = (
             ScoutingRecord.objects.filter(user=effective_user)
@@ -834,7 +834,7 @@ def export_actions_view(request):
             'auxiliary_taxon',
         )
         if not manager_user.is_superuser:
-            qs = qs.filter(_technician_visibility_q(manager_user))
+            qs = qs.filter(_technician_visibility_q(manager_user)).distinct()
     else:
         qs = PlantAction.objects.filter(user=effective_user).select_related(
             'user',

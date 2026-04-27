@@ -158,8 +158,8 @@ def my_records_view(request):
     if technician_scope:
         if not manager_user.is_superuser:
             visibility_q = _technician_visibility_q(manager_user)
-            base_records = base_records.filter(visibility_q)
-            base_actions = base_actions.filter(visibility_q)
+            base_records = base_records.filter(visibility_q).distinct()
+            base_actions = base_actions.filter(visibility_q).distinct()
         export_scope_all = True
     else:
         base_records = base_records.filter(user=effective_user)
@@ -409,7 +409,7 @@ def record_delete_view(request, record_id):
     records = ScoutingRecord.objects.select_related('user', 'user__profile')
     if technician_scope:
         if not manager_user.is_superuser:
-            records = records.filter(_technician_visibility_q(manager_user))
+            records = records.filter(_technician_visibility_q(manager_user)).distinct()
     else:
         records = records.filter(user=effective_user)
 
@@ -435,7 +435,7 @@ def action_delete_view(request, action_id):
     actions = PlantAction.objects.select_related('user', 'user__profile')
     if technician_scope:
         if not manager_user.is_superuser:
-            actions = actions.filter(_technician_visibility_q(manager_user))
+            actions = actions.filter(_technician_visibility_q(manager_user)).distinct()
     else:
         actions = actions.filter(user=effective_user)
 
