@@ -80,6 +80,7 @@
   }
   .chart-card--aphid { border-top: 4px solid #0d6efd; }
   .chart-card--aux { border-top: 4px solid #f59f00; }
+  .chart-card--aux-detail { border-top: 4px solid #198754; }
   .chart-card--pest { border-top: 4px solid #dc3545; }
   .filters-group,
   .series-selector-list,
@@ -490,6 +491,39 @@
       </div>
     </section>
 
+    <section class="card chart-card chart-card--aux-detail">
+      <div class="card-body p-4">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title-group">
+              <span class="panel-title-badge panel-title-badge--aux">auxiliaire</span>
+              <h2 class="panel-title">Détail auxiliaires</h2>
+            </div>
+            <p class="panel-subtitle">Auxiliaires / plant par type d'auxiliaire.</p>
+          </div>
+        </div>
+        {% if displayed_series %}
+          <div class="comparison-meta mb-3">
+            {% for series in displayed_series %}
+              <button
+                type="button"
+                class="compare-pill compare-pill-button {% if forloop.first %}is-active{% endif %}"
+                data-auxiliary-series="{{ series.id }}"
+              >
+                {{ series.name }}
+              </button>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% if displayed_series and chart_labels and auxiliary_detail_datasets %}
+          <div id="auxiliaryEmptyState" class="empty-chart d-none">Aucun auxiliaire détaillé observé sur cette série.</div>
+          <div class="chart-wrap" id="auxiliaryChartWrap"><canvas id="auxiliaryDetailChart"></canvas></div>
+        {% else %}
+          <div class="empty-chart">Aucune présence d'auxiliaires détaillés sur les séries affichées.</div>
+        {% endif %}
+      </div>
+    </section>
+
     <section class="card chart-card chart-card--pest">
       <div class="card-body p-4">
         <div class="panel-head">
@@ -607,6 +641,7 @@ setupAutoDashboardSubmit('producer-dashboard-form');
 {{ chart_labels|json_script:"compare-labels-data" }}
 {{ aphid_datasets|json_script:"compare-aphid-datasets" }}
 {{ aux_datasets|json_script:"compare-aux-datasets" }}
+{{ auxiliary_detail_datasets|json_script:"compare-auxiliary-detail-datasets" }}
 {{ other_pest_datasets|json_script:"compare-other-pest-datasets" }}
 {{ action_cards|json_script:"compare-action-markers" }}
 <script>
@@ -745,7 +780,7 @@ function makeSeriesChart(canvasId, labels, datasets, yTitle, yAxisOptions = {}, 
   });
 }
 
-function buildOtherPestDatasets(rawDatasets, seriesId) {
+function buildTaxonDatasets(rawDatasets, seriesId) {
   return (rawDatasets || [])
     .filter(dataset => dataset.isReference || String(dataset.seriesId) === String(seriesId))
     .map(dataset => ({
@@ -788,11 +823,23 @@ function buildOtherPestActionDatasets(rawActions, seriesId) {
   return buildActionMarkerDatasets(rawActions, activeOtherPestLabels, [seriesId]);
 }
 
+function buildAuxiliaryActionDatasets(rawActions, seriesId) {
+  return buildActionMarkerDatasets(rawActions, activeAuxiliaryLabels, [seriesId]);
+}
+
 const labels = readJsonScript('compare-labels-data');
 const aphidRawDatasets = readJsonScript('compare-aphid-datasets') || [];
 const actionMarkers = readJsonScript('compare-action-markers') || [];
 makeSeriesChart('aphidChart', labels, aphidRawDatasets, '% feuilles infestees', { min: 0, max: 100 }, actionMarkers);
 makeSeriesChart('auxChart', labels, readJsonScript('compare-aux-datasets'), 'Auxiliaires / plant', {}, actionMarkers);
+const auxiliaryRawDatasets = readJsonScript('compare-auxiliary-detail-datasets') || [];
+const auxiliaryLabelsBySeries = buildSeriesRecordLabelsMap(aphidRawDatasets, labels);
+const auxiliaryButtons = Array.from(document.querySelectorAll('[data-auxiliary-series]'));
+const auxiliaryCanvas = document.getElementById('auxiliaryDetailChart');
+const auxiliaryWrap = document.getElementById('auxiliaryChartWrap');
+const auxiliaryEmptyState = document.getElementById('auxiliaryEmptyState');
+let auxiliaryChart = null;
+let activeAuxiliaryLabels = labels;
 const otherPestRawDatasets = readJsonScript('compare-other-pest-datasets') || [];
 const otherPestLabelsBySeries = buildSeriesRecordLabelsMap(aphidRawDatasets, labels);
 const otherPestButtons = Array.from(document.querySelectorAll('[data-other-pest-series]'));
@@ -802,10 +849,99 @@ const otherPestEmptyState = document.getElementById('otherPestEmptyState');
 let otherPestChart = null;
 let activeOtherPestLabels = labels;
 
+function renderAuxiliaryChart(seriesId) {
+  if (!auxiliaryCanvas) return;
+  activeAuxiliaryLabels = auxiliaryLabelsBySeries[String(seriesId)] || labels;
+  const datasets = buildTaxonDatasets(auxiliaryRawDatasets, seriesId).map(dataset => ({
+    ...dataset,
+    data: activeAuxiliaryLabels.map(label => dataset.data[labels.indexOf(label)]),
+  }));
+  const actionDatasets = buildAuxiliaryActionDatasets(actionMarkers, seriesId);
+  if (auxiliaryChart) {
+    auxiliaryChart.destroy();
+    auxiliaryChart = null;
+  }
+  if (!datasets.length && !actionDatasets.length) {
+    auxiliaryWrap?.classList.add('d-none');
+    auxiliaryEmptyState?.classList.remove('d-none');
+    return;
+  }
+  auxiliaryWrap?.classList.remove('d-none');
+  auxiliaryEmptyState?.classList.add('d-none');
+  auxiliaryChart = new Chart(auxiliaryCanvas, {
+    type: 'line',
+    data: {
+      labels: activeAuxiliaryLabels,
+      datasets: datasets.concat(actionDatasets),
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            boxWidth: 14,
+            usePointStyle: true,
+            filter(legendItem, data) {
+              return !data.datasets?.[legendItem.datasetIndex]?.isActionMarker;
+            },
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label(context) {
+              const dataset = context.dataset || {};
+              if (dataset.isActionMarker && dataset.actionMeta) {
+                const action = dataset.actionMeta;
+                const lines = [
+                  `${action.series_name} | ${action.type_name}`,
+                  `${action.date} | ${action.scope}`,
+                ];
+                if (action.details && action.details !== 'Sans detail complementaire') {
+                  lines.push(action.details);
+                }
+                return lines;
+              }
+              const value = context.parsed?.y ?? context.raw;
+              return `${dataset.label}: ${value}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: 'Semaine',
+          },
+        },
+        y: {
+          beginAtZero: true,
+          min: 0,
+          title: {
+            display: true,
+            text: 'Auxiliaires / plant',
+          },
+        },
+        yActions: {
+          position: 'right',
+          min: 0,
+          max: 1,
+          display: false,
+          grid: {
+            drawOnChartArea: false,
+          },
+        },
+      },
+    },
+  });
+}
+
 function renderOtherPestChart(seriesId) {
   if (!otherPestCanvas) return;
   activeOtherPestLabels = otherPestLabelsBySeries[String(seriesId)] || labels;
-  const datasets = buildOtherPestDatasets(otherPestRawDatasets, seriesId).map(dataset => ({
+  const datasets = buildTaxonDatasets(otherPestRawDatasets, seriesId).map(dataset => ({
     ...dataset,
     data: activeOtherPestLabels.map((label, index) => dataset.data[labels.indexOf(label)]),
   }));
@@ -892,6 +1028,13 @@ function renderOtherPestChart(seriesId) {
   });
 }
 
+function setActiveAuxiliarySeries(seriesId) {
+  auxiliaryButtons.forEach(button => {
+    button.classList.toggle('is-active', button.dataset.auxiliarySeries === String(seriesId));
+  });
+  renderAuxiliaryChart(seriesId);
+}
+
 function setActiveOtherPestSeries(seriesId) {
   otherPestButtons.forEach(button => {
     button.classList.toggle('is-active', button.dataset.otherPestSeries === String(seriesId));
@@ -906,6 +1049,16 @@ if (otherPestButtons.length) {
   setActiveOtherPestSeries(defaultSeriesId);
   otherPestButtons.forEach(button => {
     button.addEventListener('click', () => setActiveOtherPestSeries(button.dataset.otherPestSeries));
+  });
+}
+
+if (auxiliaryButtons.length) {
+  const defaultSeriesId = auxiliaryRawDatasets.length
+    ? String(auxiliaryRawDatasets[0].seriesId)
+    : auxiliaryButtons[0].dataset.auxiliarySeries;
+  setActiveAuxiliarySeries(defaultSeriesId);
+  auxiliaryButtons.forEach(button => {
+    button.addEventListener('click', () => setActiveAuxiliarySeries(button.dataset.auxiliarySeries));
   });
 }
 </script>
