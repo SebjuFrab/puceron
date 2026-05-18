@@ -17,6 +17,8 @@ urlpatterns = [
     path('comptes/producteur/<int:producer_id>/modifier/', views.producer_update_view, name='producer_update'),
     path('mes-series/', views.my_series_view, name='my_series'),
     path('mes-recommandations/', views.my_recommendations_view, name='my_recommendations'),
+    path('mes-bulletins/', views.my_bulletins_view, name='my_bulletins'),
+    path('mes-bulletins/<int:recipient_id>/', views.my_bulletin_detail_view, name='my_bulletin_detail'),
     path('saisie/', views.record_create_view, name='record_create'),
     path('saisie/action/', views.action_create_view, name='action_create'),
     path(
@@ -44,6 +46,21 @@ urlpatterns = [
         'technicien/gestion-producteurs/',
         views.technician_producer_management_view,
         name='technician_producer_management',
+    ),
+    path(
+        'technicien/bulletins/',
+        views.technician_bulletin_list_view,
+        name='technician_bulletin_list',
+    ),
+    path(
+        'technicien/bulletins/nouveau/',
+        views.technician_bulletin_create_view,
+        name='technician_bulletin_create',
+    ),
+    path(
+        'technicien/bulletins/<int:bulletin_id>/',
+        views.technician_bulletin_detail_view,
+        name='technician_bulletin_detail',
     ),
     path(
         'super-admin/controle-technicien/<int:technician_id>/',

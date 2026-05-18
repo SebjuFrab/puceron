@@ -289,12 +289,21 @@
           {% if show_producer_nav %}
             <li class="nav-item"><a class="nav-link" href="{% url 'my_series' %}">Mes séries</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'my_recommendations' %}">Mes recommandations</a></li>
+            <li class="nav-item">
+              <a class="nav-link d-inline-flex align-items-center gap-1" href="{% url 'my_bulletins' %}">
+                Bulletins
+                {% if pending_bulletin_count %}
+                  <span class="badge rounded-pill text-bg-warning">{{ pending_bulletin_count }}</span>
+                {% endif %}
+              </a>
+            </li>
           {% endif %}
           {% if show_producer_nav or show_technician_nav %}
             <li class="nav-item"><a class="nav-link" href="{% url 'my_records' %}">Mes saisies</a></li>
           {% endif %}
           {% if show_technician_nav %}
             <li class="nav-item"><a class="nav-link" href="{% url 'technician_records' %}">Vue technicien</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'technician_bulletin_list' %}">Bulletins</a></li>
             <li class="nav-item">
               <a class="nav-link d-inline-flex align-items-center gap-1" href="{% url 'technician_producer_management' %}">
                 Gestion producteurs

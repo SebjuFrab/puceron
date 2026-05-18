@@ -1,14 +1,25 @@
 from datetime import date
 from decimal import Decimal
+import tempfile
 
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory, TestCase
+from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from .models import (
+    BulletinAttachment,
+    BulletinMessage,
+    BulletinMessageType,
+    BulletinPriority,
+    BulletinRecipient,
     ConductType,
     Crop,
+    Department,
     DecisionRule,
+    NotificationDelivery,
+    NotificationPreference,
     PlantSeries,
     ProducerTechnicianAssignment,
     RecommendationDismissReason,
@@ -587,6 +598,340 @@ class TechnicianCoFollowWorkflowTests(TestCase):
         records = response.context['records']
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0].id, record.id)
+
+
+class TechnicianBulletinWorkflowTests(TestCase):
+    def setUp(self):
+        self.tmp_media = tempfile.TemporaryDirectory()
+        self.media_override = override_settings(MEDIA_ROOT=self.tmp_media.name)
+        self.media_override.enable()
+        self.technician = get_user_model().objects.create_user(
+            username='tech-bulletin',
+            password='secret',
+        )
+        UserProfile.objects.create(
+            user=self.technician,
+            role=UserProfile.ROLE_TECHNICIAN,
+            license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+        )
+        self.producer_profile_1 = self._create_producer_profile('producer-bulletin-1', 'Ferme Bulletin 1')
+        self.producer_profile_2 = self._create_producer_profile('producer-bulletin-2', 'Ferme Bulletin 2')
+        self.bulletin_type = BulletinMessageType.objects.create(
+            code='bsv-test',
+            label='BSV test',
+            display_order=1,
+        )
+        self.priority = BulletinPriority.objects.create(
+            code='watch-test',
+            label='Vigilance test',
+            display_order=1,
+        )
+
+    def tearDown(self):
+        self.media_override.disable()
+        self.tmp_media.cleanup()
+
+    def _create_producer_profile(self, username, farm_name):
+        producer = get_user_model().objects.create_user(
+            username=username,
+            password='secret',
+        )
+        profile = UserProfile.objects.create(
+            user=producer,
+            role=UserProfile.ROLE_PRODUCER,
+            farm_name=farm_name,
+            assigned_technician=self.technician,
+        )
+        ProducerTechnicianAssignment.objects.create(
+            producer_profile=profile,
+            technician=self.technician,
+            is_active=True,
+        )
+        return profile
+
+    def test_technician_can_create_bulletin_for_selected_producers(self):
+        self.client.force_login(self.technician)
+
+        response = self.client.post(
+            reverse('technician_bulletin_create'),
+            {
+                'title': 'Vigilance pucerons',
+                'types': [str(self.bulletin_type.id)],
+                'priority': str(self.priority.id),
+                'crops': [],
+                'departments': [],
+                'valid_until': '',
+                'body': 'Surveillez les foyers sous abris cette semaine.',
+                'producers': [str(self.producer_profile_1.id)],
+            },
+        )
+
+        bulletin = BulletinMessage.objects.get()
+        self.assertRedirects(response, reverse('technician_bulletin_detail', args=[bulletin.id]))
+        self.assertEqual(bulletin.author, self.technician)
+        self.assertEqual(bulletin.status, BulletinMessage.STATUS_SENT)
+        self.assertIsNotNone(bulletin.sent_at)
+        self.assertEqual(list(bulletin.types.values_list('id', flat=True)), [self.bulletin_type.id])
+        self.assertEqual(bulletin.priority, self.priority)
+        self.assertEqual(
+            list(bulletin.recipients.values_list('producer_profile_id', flat=True)),
+            [self.producer_profile_1.id],
+        )
+
+    def test_create_page_displays_configurable_multiple_choices(self):
+        self.client.force_login(self.technician)
+
+        response = self.client.get(reverse('technician_bulletin_create'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Types')
+        self.assertContains(response, self.bulletin_type.label)
+        self.assertContains(response, 'Priorite')
+        self.assertContains(response, self.priority.label)
+        self.assertContains(response, 'class="choice-widget"')
+        self.assertNotContains(response, 'class="form-check-input"')
+        self.assertContains(response, 'quill@2.0.3')
+        self.assertContains(response, 'emoji-picker-element@1.29.1')
+
+    def test_technician_can_save_multiple_types_crops_and_departments(self):
+        second_type = BulletinMessageType.objects.create(
+            code='alerte-test',
+            label='Alerte test',
+            display_order=2,
+        )
+        crop_1 = Crop.objects.create(name='Aubergine bulletin test')
+        crop_2 = Crop.objects.create(name='Concombre bulletin test')
+        department_1 = Department.objects.create(code='97', name='Departement test 97')
+        department_2 = Department.objects.create(code='98', name='Departement test 98')
+        self.client.force_login(self.technician)
+
+        response = self.client.post(
+            reverse('technician_bulletin_create'),
+            {
+                'title': 'Bulletin multi choix',
+                'types': [str(self.bulletin_type.id), str(second_type.id)],
+                'priority': str(self.priority.id),
+                'crops': [str(crop_1.id), str(crop_2.id)],
+                'departments': [str(department_1.id), str(department_2.id)],
+                'valid_until': '',
+                'body': '<p>Message multi choix.</p>',
+                'producers': [str(self.producer_profile_1.id)],
+            },
+        )
+
+        bulletin = BulletinMessage.objects.get(title='Bulletin multi choix')
+        self.assertRedirects(response, reverse('technician_bulletin_detail', args=[bulletin.id]))
+        self.assertSetEqual(set(bulletin.types.values_list('id', flat=True)), {self.bulletin_type.id, second_type.id})
+        self.assertSetEqual(set(bulletin.crops.values_list('id', flat=True)), {crop_1.id, crop_2.id})
+        self.assertSetEqual(
+            set(bulletin.departments.values_list('id', flat=True)),
+            {department_1.id, department_2.id},
+        )
+
+    def test_bulletin_body_keeps_safe_rich_text_only(self):
+        self.client.force_login(self.technician)
+
+        self.client.post(
+            reverse('technician_bulletin_create'),
+            {
+                'title': 'Message riche',
+                'types': [str(self.bulletin_type.id)],
+                'priority': str(self.priority.id),
+                'crops': [],
+                'departments': [],
+                'valid_until': '',
+                'body': (
+                    '<h2>Point rapide</h2><p><strong>Important</strong> <em>vite</em> '
+                    '<script>alert(1)</script>'
+                    '<a href="javascript:alert(1)">bad</a> '
+                    '<a href="https://example.test">ok</a> '
+                    '<span style="color: rgb(255, 0, 0); position: absolute">rouge</span></p>'
+                ),
+                'producers': [str(self.producer_profile_1.id)],
+            },
+        )
+
+        bulletin = BulletinMessage.objects.get(title='Message riche')
+        self.assertIn('<h2>Point rapide</h2>', bulletin.body)
+        self.assertIn('<strong>Important</strong>', bulletin.body)
+        self.assertIn('<em>vite</em>', bulletin.body)
+        self.assertIn('href="https://example.test"', bulletin.body)
+        self.assertIn('style="color: rgb(255, 0, 0)"', bulletin.body)
+        self.assertNotIn('<script', bulletin.body)
+        self.assertNotIn('alert(1)', bulletin.body)
+        self.assertNotIn('javascript:', bulletin.body)
+        self.assertNotIn('position', bulletin.body)
+
+    def test_bulletin_creation_saves_photos_and_attachments(self):
+        self.client.force_login(self.technician)
+        photo = SimpleUploadedFile('foyer.jpg', b'photo-content', content_type='image/jpeg')
+        attachment = SimpleUploadedFile('note.pdf', b'pdf-content', content_type='application/pdf')
+
+        response = self.client.post(
+            reverse('technician_bulletin_create'),
+            {
+                'title': 'Bulletin avec fichiers',
+                'types': [str(self.bulletin_type.id)],
+                'priority': str(self.priority.id),
+                'crops': [],
+                'departments': [],
+                'valid_until': '',
+                'body': '<p>Voir les fichiers.</p>',
+                'producers': [str(self.producer_profile_1.id)],
+                'photos': [photo],
+                'attachments': [attachment],
+            },
+        )
+
+        bulletin = BulletinMessage.objects.get(title='Bulletin avec fichiers')
+        self.assertRedirects(response, reverse('technician_bulletin_detail', args=[bulletin.id]))
+        self.assertEqual(bulletin.attachments.count(), 2)
+        self.assertTrue(
+            BulletinAttachment.objects.filter(
+                bulletin=bulletin,
+                original_name='foyer.jpg',
+                attachment_type=BulletinAttachment.TYPE_PHOTO,
+            ).exists()
+        )
+        self.assertTrue(
+            BulletinAttachment.objects.filter(
+                bulletin=bulletin,
+                original_name='note.pdf',
+                attachment_type=BulletinAttachment.TYPE_FILE,
+            ).exists()
+        )
+
+    def test_bulletin_detail_exposes_opening_and_acknowledgement_stats(self):
+        bulletin = BulletinMessage.objects.create(
+            author=self.technician,
+            created_by=self.technician,
+            title='Alerte pucerons',
+            body='Message de test',
+            priority=self.priority,
+            status=BulletinMessage.STATUS_SENT,
+        )
+        bulletin.types.add(self.bulletin_type)
+        recipient_1 = BulletinRecipient.objects.create(
+            bulletin=bulletin,
+            producer_profile=self.producer_profile_1,
+        )
+        recipient_2 = BulletinRecipient.objects.create(
+            bulletin=bulletin,
+            producer_profile=self.producer_profile_2,
+        )
+        recipient_1.mark_opened()
+        recipient_2.mark_opened()
+        recipient_2.mark_acknowledged(self.producer_profile_2.user)
+
+        self.client.force_login(self.technician)
+        response = self.client.get(reverse('technician_bulletin_detail', args=[bulletin.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['stats']['recipient_count'], 2)
+        self.assertEqual(response.context['stats']['not_opened_count'], 0)
+        self.assertEqual(response.context['stats']['opened_without_ack_count'], 1)
+        self.assertEqual(response.context['stats']['acknowledged_count'], 1)
+        self.assertContains(response, 'Ouvert sans confirmation')
+        self.assertContains(response, 'Pris connaissance')
+
+    def test_producer_can_list_open_and_acknowledge_bulletin(self):
+        bulletin = BulletinMessage.objects.create(
+            author=self.technician,
+            created_by=self.technician,
+            title='Bulletin producteur',
+            body='<p>Message producteur.</p>',
+            priority=self.priority,
+            status=BulletinMessage.STATUS_SENT,
+        )
+        bulletin.types.add(self.bulletin_type)
+        recipient = BulletinRecipient.objects.create(
+            bulletin=bulletin,
+            producer_profile=self.producer_profile_1,
+        )
+        self.client.force_login(self.producer_profile_1.user)
+
+        list_response = self.client.get(reverse('my_bulletins'))
+        self.assertEqual(list_response.status_code, 200)
+        self.assertContains(list_response, 'Bulletin producteur')
+
+        detail_response = self.client.get(reverse('my_bulletin_detail', args=[recipient.id]))
+        self.assertEqual(detail_response.status_code, 200)
+        recipient.refresh_from_db()
+        self.assertIsNotNone(recipient.first_opened_at)
+        self.assertEqual(recipient.open_count, 1)
+        self.assertIsNone(recipient.acknowledged_at)
+
+        ack_response = self.client.post(reverse('my_bulletin_detail', args=[recipient.id]))
+        self.assertRedirects(ack_response, reverse('my_bulletin_detail', args=[recipient.id]))
+        recipient.refresh_from_db()
+        self.assertIsNotNone(recipient.acknowledged_at)
+        self.assertEqual(recipient.acknowledged_by, self.producer_profile_1.user)
+
+    def test_producer_can_update_bulletin_notification_preferences(self):
+        self.client.force_login(self.producer_profile_1.user)
+
+        response = self.client.post(
+            reverse('my_profile'),
+            {
+                'farm_name': self.producer_profile_1.farm_name,
+                'first_name': '',
+                'last_name': '',
+                'email': 'prod-notif@example.test',
+                'phone': '',
+                'street_address': '',
+                'postal_code': '',
+                'city': '',
+                'latitude': '',
+                'longitude': '',
+                'bulletin_email_urgent_only': 'on',
+            },
+        )
+
+        self.assertRedirects(response, reverse('my_profile'))
+        preference = NotificationPreference.objects.get(user=self.producer_profile_1.user)
+        self.assertFalse(preference.bulletin_email_enabled)
+        self.assertTrue(preference.bulletin_email_urgent_only)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_bulletin_email_respects_producer_preferences(self):
+        self.producer_profile_1.user.email = 'producer-email@example.test'
+        self.producer_profile_1.user.save(update_fields=['email'])
+        NotificationPreference.objects.update_or_create(
+            user=self.producer_profile_1.user,
+            defaults={
+                'bulletin_email_enabled': True,
+                'bulletin_email_urgent_only': False,
+            },
+        )
+        self.client.force_login(self.technician)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse('technician_bulletin_create'),
+                {
+                    'title': 'Bulletin email',
+                    'types': [str(self.bulletin_type.id)],
+                    'priority': str(self.priority.id),
+                    'crops': [],
+                    'departments': [],
+                    'valid_until': '',
+                    'body': '<p>Message email.</p>',
+                    'producers': [str(self.producer_profile_1.id)],
+                },
+            )
+
+        bulletin = BulletinMessage.objects.get(title='Bulletin email')
+        self.assertRedirects(response, reverse('technician_bulletin_detail', args=[bulletin.id]))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('Bulletin email', mail.outbox[0].subject)
+        self.assertEqual(
+            NotificationDelivery.objects.filter(
+                recipient__bulletin=bulletin,
+                channel=NotificationDelivery.CHANNEL_EMAIL,
+                status=NotificationDelivery.STATUS_SENT,
+            ).count(),
+            1,
+        )
 
 
 class SuperAdminTechnicianManagementTests(TestCase):

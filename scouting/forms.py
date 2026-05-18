@@ -1,16 +1,28 @@
 ﻿from django import forms
+import html
+import os
+import re
+from html.parser import HTMLParser
+from urllib.parse import urlparse
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 from django.db.models import Q
+from django.utils.html import strip_tags
 
 from .models import (
     ActionType,
     AphidSpecies,
     AuxiliaryTaxon,
+    BulletinAttachment,
+    BulletinMessage,
+    BulletinMessageType,
+    BulletinPriority,
     ConductType,
     Crop,
     Department,
     Molecule,
+    NotificationPreference,
     OtherPestTaxon,
     PlantAction,
     ProducerTechnicianAssignment,
@@ -29,6 +41,144 @@ from .view_access import _sync_producer_technicians
 
 User = get_user_model()
 
+BULLETIN_MAX_PHOTOS = 8
+BULLETIN_MAX_ATTACHMENTS = 8
+BULLETIN_MAX_PHOTO_SIZE = 8 * 1024 * 1024
+BULLETIN_MAX_ATTACHMENT_SIZE = 15 * 1024 * 1024
+BULLETIN_PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+BULLETIN_ATTACHMENT_EXTENSIONS = {
+    '.csv',
+    '.doc',
+    '.docx',
+    '.jpg',
+    '.jpeg',
+    '.pdf',
+    '.png',
+    '.ppt',
+    '.pptx',
+    '.txt',
+    '.webp',
+    '.xls',
+    '.xlsx',
+    '.zip',
+}
+
+
+_ALLOWED_RICH_TEXT_TAGS = {
+    'a',
+    'b',
+    'blockquote',
+    'br',
+    'code',
+    'div',
+    'em',
+    'h1',
+    'h2',
+    'h3',
+    'i',
+    'li',
+    'ol',
+    'p',
+    'pre',
+    's',
+    'span',
+    'strong',
+    'sub',
+    'sup',
+    'u',
+    'ul',
+}
+_DROP_RICH_TEXT_CONTENT_TAGS = {'script', 'style', 'iframe', 'object', 'embed'}
+_ALLOWED_COLOR_RE = re.compile(
+    r'^(#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?|rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\))$'
+)
+
+
+def _clean_rich_text_href(value):
+    value = (value or '').strip()
+    if not value:
+        return ''
+    parsed = urlparse(value)
+    if parsed.scheme and parsed.scheme.lower() not in {'http', 'https', 'mailto', 'tel'}:
+        return ''
+    if not parsed.scheme and not value.startswith('/'):
+        return ''
+    return value
+
+
+def _clean_rich_text_style(value):
+    clean_rules = []
+    for rule in (value or '').split(';'):
+        if ':' not in rule:
+            continue
+        property_name, property_value = [part.strip().lower() for part in rule.split(':', 1)]
+        if property_name not in {'color', 'background-color'}:
+            continue
+        if _ALLOWED_COLOR_RE.match(property_value):
+            clean_rules.append(f'{property_name}: {property_value}')
+    return '; '.join(clean_rules)
+
+
+class _RichTextSanitizer(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+        self.drop_depth = 0
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if tag in _DROP_RICH_TEXT_CONTENT_TAGS:
+            self.drop_depth += 1
+            return
+        if self.drop_depth or tag not in _ALLOWED_RICH_TEXT_TAGS:
+            return
+        clean_attrs = []
+        attrs_dict = {name.lower(): value for name, value in attrs}
+        if tag == 'a':
+            href = _clean_rich_text_href(attrs_dict.get('href'))
+            if href:
+                clean_attrs.extend(
+                    [
+                        ('href', href),
+                        ('target', '_blank'),
+                        ('rel', 'noopener noreferrer'),
+                    ]
+                )
+        elif tag == 'span':
+            style = _clean_rich_text_style(attrs_dict.get('style'))
+            if style:
+                clean_attrs.append(('style', style))
+        if tag == 'br':
+            self.parts.append('<br>')
+            return
+        attrs_html = ''.join(
+            f' {name}="{html.escape(value, quote=True)}"' for name, value in clean_attrs
+        )
+        self.parts.append(f'<{tag}{attrs_html}>')
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag in _DROP_RICH_TEXT_CONTENT_TAGS:
+            self.drop_depth = max(self.drop_depth - 1, 0)
+            return
+        if self.drop_depth or tag not in _ALLOWED_RICH_TEXT_TAGS or tag == 'br':
+            return
+        self.parts.append(f'</{tag}>')
+
+    def handle_data(self, data):
+        if not self.drop_depth:
+            self.parts.append(html.escape(data))
+
+    def get_html(self):
+        return ''.join(self.parts).strip()
+
+
+def sanitize_bulletin_body(value):
+    sanitizer = _RichTextSanitizer()
+    sanitizer.feed(value or '')
+    sanitizer.close()
+    return sanitizer.get_html()
+
 
 class TechnicianChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
@@ -41,6 +191,199 @@ class ProducerChoiceField(forms.ModelMultipleChoiceField):
         if profile and profile.farm_name:
             return f'{profile.farm_name} ({obj.username})'
         return display_user_name(obj)
+
+
+class ProducerProfileChoiceField(forms.ModelMultipleChoiceField):
+    def label_from_instance(self, obj):
+        label = obj.farm_name or display_user_name(obj.user)
+        details = []
+        if obj.city:
+            details.append(obj.city)
+        if obj.department:
+            details.append(obj.department)
+        if details:
+            return f'{label} ({", ".join(details)})'
+        return label
+
+
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultipleFileField(forms.FileField):
+    widget = MultipleFileInput
+
+    def clean(self, data, initial=None):
+        if not data:
+            return []
+        if not isinstance(data, (list, tuple)):
+            data = [data]
+        return [super(MultipleFileField, self).clean(item, initial) for item in data]
+
+
+def _uploaded_file_extension(uploaded_file):
+    return os.path.splitext(uploaded_file.name or '')[1].lower()
+
+
+def _validate_uploaded_files(uploaded_files, *, max_count, max_size, allowed_extensions, label):
+    uploaded_files = uploaded_files or []
+    if len(uploaded_files) > max_count:
+        raise forms.ValidationError(f'{label}: maximum {max_count} fichier(s).')
+    for uploaded_file in uploaded_files:
+        extension = _uploaded_file_extension(uploaded_file)
+        if extension not in allowed_extensions:
+            allowed = ', '.join(sorted(allowed_extensions))
+            raise forms.ValidationError(f'{uploaded_file.name}: format non autorise. Formats acceptes: {allowed}.')
+        if uploaded_file.size > max_size:
+            max_size_mb = max_size // (1024 * 1024)
+            raise forms.ValidationError(f'{uploaded_file.name}: fichier trop lourd, maximum {max_size_mb} Mo.')
+    return uploaded_files
+
+
+class BulletinMessageForm(forms.ModelForm):
+    producers = ProducerProfileChoiceField(
+        queryset=UserProfile.objects.none(),
+        widget=forms.CheckboxSelectMultiple,
+        label='Destinataires',
+    )
+    photos = MultipleFileField(
+        required=False,
+        label='Photos',
+        widget=MultipleFileInput(
+            attrs={
+                'accept': 'image/jpeg,image/png,image/webp,image/gif',
+                'multiple': True,
+            }
+        ),
+    )
+    attachments = MultipleFileField(
+        required=False,
+        label='Pieces jointes',
+        widget=MultipleFileInput(
+            attrs={
+                'accept': '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.jpg,.jpeg,.png,.webp',
+                'multiple': True,
+            }
+        ),
+    )
+
+    class Meta:
+        model = BulletinMessage
+        fields = [
+            'title',
+            'types',
+            'priority',
+            'crops',
+            'departments',
+            'valid_until',
+            'body',
+        ]
+        widgets = {
+            'types': forms.CheckboxSelectMultiple,
+            'crops': forms.CheckboxSelectMultiple,
+            'departments': forms.CheckboxSelectMultiple,
+            'valid_until': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+            'body': forms.Textarea(attrs={'rows': 7}),
+        }
+        labels = {
+            'title': 'Titre',
+            'types': 'Types',
+            'priority': 'Priorite',
+            'crops': 'Cultures',
+            'departments': 'Departements',
+            'valid_until': "Valable jusqu'au",
+            'body': 'Message',
+        }
+
+    def __init__(self, *args, **kwargs):
+        producer_queryset = kwargs.pop('producer_queryset', UserProfile.objects.none())
+        super().__init__(*args, **kwargs)
+        self.fields['producers'].queryset = producer_queryset
+        self.fields['types'].queryset = BulletinMessageType.objects.filter(is_active=True).order_by(
+            'display_order',
+            'label',
+        )
+        self.fields['priority'].queryset = BulletinPriority.objects.filter(is_active=True).order_by(
+            'display_order',
+            'label',
+        )
+        self.fields['crops'].queryset = Crop.objects.filter(is_active=True).order_by('name')
+        self.fields['departments'].queryset = Department.objects.filter(is_active=True).order_by('code')
+        self.fields['types'].required = True
+        self.fields['priority'].required = True
+        self.fields['crops'].required = False
+        self.fields['departments'].required = False
+        self.fields['valid_until'].required = False
+        self.fields['valid_until'].input_formats = ['%Y-%m-%d']
+        self.fields['title'].widget.attrs.update(
+            {
+                'placeholder': 'Ex. Vigilance pucerons sous abris',
+                'maxlength': 180,
+            }
+        )
+        for field_name, field in self.fields.items():
+            if field_name == 'producers':
+                continue
+            if isinstance(field.widget, forms.Select):
+                field.widget.attrs['class'] = 'form-select'
+            elif isinstance(field.widget, forms.CheckboxSelectMultiple):
+                field.widget.attrs['class'] = 'choice-widget'
+            else:
+                field.widget.attrs['class'] = 'form-control'
+        if not self.is_bound:
+            default_type = self.fields['types'].queryset.filter(code=BulletinMessageType.CODE_BSV).first()
+            default_priority = self.fields['priority'].queryset.filter(code=BulletinPriority.CODE_INFO).first()
+            if default_type:
+                self.fields['types'].initial = [default_type.pk]
+            if default_priority:
+                self.fields['priority'].initial = default_priority.pk
+            self.fields['producers'].initial = list(producer_queryset.values_list('pk', flat=True))
+        body_classes = self.fields['body'].widget.attrs.get('class', '')
+        self.fields['body'].widget.attrs['class'] = f'{body_classes} rich-editor-source'.strip()
+
+    def clean_body(self):
+        body = sanitize_bulletin_body(self.cleaned_data.get('body') or '')
+        self.sanitized_body = body
+        text_content = strip_tags(body).replace('\xa0', '').strip()
+        if not text_content:
+            raise forms.ValidationError('Renseignez un message.')
+        return body
+
+    def clean_photos(self):
+        photos = self.cleaned_data.get('photos') or []
+        return _validate_uploaded_files(
+            photos,
+            max_count=BULLETIN_MAX_PHOTOS,
+            max_size=BULLETIN_MAX_PHOTO_SIZE,
+            allowed_extensions=BULLETIN_PHOTO_EXTENSIONS,
+            label='Photos',
+        )
+
+    def clean_attachments(self):
+        attachments = self.cleaned_data.get('attachments') or []
+        return _validate_uploaded_files(
+            attachments,
+            max_count=BULLETIN_MAX_ATTACHMENTS,
+            max_size=BULLETIN_MAX_ATTACHMENT_SIZE,
+            allowed_extensions=BULLETIN_ATTACHMENT_EXTENSIONS,
+            label='Pieces jointes',
+        )
+
+    def attachment_objects(self, bulletin):
+        for uploaded_file in self.cleaned_data.get('photos') or []:
+            yield BulletinAttachment(
+                bulletin=bulletin,
+                file=uploaded_file,
+                original_name=uploaded_file.name,
+                attachment_type=BulletinAttachment.TYPE_PHOTO,
+            )
+        for uploaded_file in self.cleaned_data.get('attachments') or []:
+            yield BulletinAttachment(
+                bulletin=bulletin,
+                file=uploaded_file,
+                original_name=uploaded_file.name,
+                attachment_type=BulletinAttachment.TYPE_FILE,
+            )
 
 
 class ScoutingRecordForm(forms.ModelForm):
@@ -134,6 +477,14 @@ class UserProfileForm(forms.ModelForm):
     email = forms.EmailField(required=False, label='Email')
     first_name = forms.CharField(required=False, max_length=150, label='PrÃ©nom')
     last_name = forms.CharField(required=False, max_length=150, label='Nom')
+    bulletin_email_enabled = forms.BooleanField(
+        required=False,
+        label='Recevoir un email quand un nouveau bulletin est envoye',
+    )
+    bulletin_email_urgent_only = forms.BooleanField(
+        required=False,
+        label='Recevoir seulement les bulletins urgents par email',
+    )
 
     class Meta:
         model = UserProfile
@@ -179,6 +530,15 @@ class UserProfileForm(forms.ModelForm):
         self.fields['last_name'].widget.attrs['class'] = 'form-control'
         self.fields['first_name'].initial = self.user.first_name if self.user else ''
         self.fields['last_name'].initial = self.user.last_name if self.user else ''
+        if self.instance and self.instance.role == UserProfile.ROLE_PRODUCER and self.user:
+            notification_preference = NotificationPreference.objects.get_or_create(user=self.user)[0]
+            self.fields['bulletin_email_enabled'].initial = notification_preference.bulletin_email_enabled
+            self.fields['bulletin_email_urgent_only'].initial = notification_preference.bulletin_email_urgent_only
+            self.fields['bulletin_email_enabled'].widget.attrs['class'] = 'form-check-input'
+            self.fields['bulletin_email_urgent_only'].widget.attrs['class'] = 'form-check-input'
+        else:
+            self.fields.pop('bulletin_email_enabled', None)
+            self.fields.pop('bulletin_email_urgent_only', None)
         active_departments = list(Department.objects.filter(is_active=True).order_by('code'))
         department_choices = [('', '---------')] + [(d.code, d.label) for d in active_departments]
         current_department = (self.instance.department or '').strip() if self.instance else ''
@@ -220,6 +580,20 @@ class UserProfileForm(forms.ModelForm):
             if self.user is not None:
                 self.user.save(update_fields=['email', 'first_name', 'last_name'])
             profile.save()
+            if (
+                self.user is not None
+                and profile.role == UserProfile.ROLE_PRODUCER
+                and 'bulletin_email_enabled' in self.cleaned_data
+            ):
+                notification_preference = NotificationPreference.objects.get_or_create(user=self.user)[0]
+                notification_preference.bulletin_email_enabled = self.cleaned_data.get('bulletin_email_enabled', False)
+                notification_preference.bulletin_email_urgent_only = self.cleaned_data.get(
+                    'bulletin_email_urgent_only',
+                    False,
+                )
+                notification_preference.save(
+                    update_fields=['bulletin_email_enabled', 'bulletin_email_urgent_only', 'updated_at']
+                )
         return profile
 
 

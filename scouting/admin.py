@@ -10,6 +10,11 @@ from .models import (
     AccessControlSettings,
     ActionType,
     AphidSpecies,
+    BulletinAttachment,
+    BulletinMessage,
+    BulletinMessageType,
+    BulletinPriority,
+    BulletinRecipient,
     AuxiliaryCount,
     AuxiliaryTaxon,
     ConductType,
@@ -20,6 +25,8 @@ from .models import (
     LeafAuxiliaryObservation,
     LeafObservation,
     Molecule,
+    NotificationPreference,
+    NotificationDelivery,
     OtherPestTaxon,
     LeafOtherPestObservation,
     PlantSeries,
@@ -49,27 +56,34 @@ ADMIN_APP_ORDER = {
 ADMIN_MODEL_ORDER = {
     'scouting': {
         'UserProfile': 10,
-        'ProducerTechnicianAssignment': 20,
-        'TechnicianCoFollowRequest': 30,
-        'TechnicianStructure': 40,
-        'PlantSeries': 50,
-        'ScoutingRecord': 60,
-        'PlantAction': 70,
-        'Department': 80,
-        'Crop': 90,
-        'ConductType': 100,
-        'Variety': 110,
-        'ServicePlant': 120,
-        'AuxiliaryTaxon': 130,
-        'AphidSpecies': 140,
-        'OtherPestTaxon': 150,
-        'Molecule': 160,
-        'RecommendationDismissReason': 170,
-        'ActionType': 180,
-        'DecisionRule': 190,
-        'DecisionLever': 200,
-        'AccessControlSettings': 210,
-        'LeafObservation': 220,
+        'NotificationPreference': 20,
+        'ProducerTechnicianAssignment': 30,
+        'TechnicianCoFollowRequest': 40,
+        'BulletinMessage': 50,
+        'BulletinMessageType': 60,
+        'BulletinPriority': 70,
+        'BulletinAttachment': 80,
+        'BulletinRecipient': 90,
+        'NotificationDelivery': 100,
+        'TechnicianStructure': 110,
+        'PlantSeries': 120,
+        'ScoutingRecord': 130,
+        'PlantAction': 140,
+        'Department': 150,
+        'Crop': 160,
+        'ConductType': 170,
+        'Variety': 180,
+        'ServicePlant': 190,
+        'AuxiliaryTaxon': 200,
+        'AphidSpecies': 210,
+        'OtherPestTaxon': 220,
+        'Molecule': 230,
+        'RecommendationDismissReason': 240,
+        'ActionType': 250,
+        'DecisionRule': 260,
+        'DecisionLever': 270,
+        'AccessControlSettings': 280,
+        'LeafObservation': 290,
     },
     'auth': {
         'User': 10,
@@ -81,7 +95,25 @@ SCOUTING_ADMIN_GROUPS = [
     (
         'users',
         'Utilisateurs',
-        ['UserProfile', 'ProducerTechnicianAssignment', 'TechnicianCoFollowRequest', 'TechnicianStructure'],
+        [
+            'UserProfile',
+            'NotificationPreference',
+            'ProducerTechnicianAssignment',
+            'TechnicianCoFollowRequest',
+            'TechnicianStructure',
+        ],
+    ),
+    (
+        'bulletins',
+        'Bulletins techniciens',
+        [
+            'BulletinMessage',
+            'BulletinMessageType',
+            'BulletinPriority',
+            'BulletinAttachment',
+            'BulletinRecipient',
+            'NotificationDelivery',
+        ],
     ),
     ('observations', 'Observations', ['PlantSeries', 'ScoutingRecord', 'LeafObservation']),
     (
@@ -359,6 +391,15 @@ class UserProfileAdmin(admin.ModelAdmin):
         return getattr(obj, '_observation_count', 0)
 
 
+@admin.register(NotificationPreference)
+class NotificationPreferenceAdmin(admin.ModelAdmin):
+    list_display = ('user', 'bulletin_email_enabled', 'bulletin_email_urgent_only', 'updated_at')
+    list_filter = ('bulletin_email_enabled', 'bulletin_email_urgent_only')
+    search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name')
+    autocomplete_fields = ('user',)
+    readonly_fields = ('updated_at',)
+
+
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
     list_display = ('code', 'name', 'is_active')
@@ -429,6 +470,150 @@ class TechnicianCoFollowRequestAdmin(admin.ModelAdmin):
     @admin.display(description='Nb producteurs')
     def producer_count(self, obj):
         return obj.items.count()
+
+
+class BulletinRecipientInline(admin.TabularInline):
+    model = BulletinRecipient
+    extra = 0
+    readonly_fields = (
+        'producer_profile',
+        'first_opened_at',
+        'last_opened_at',
+        'open_count',
+        'acknowledged_at',
+        'acknowledged_by',
+        'created_at',
+    )
+    fields = (
+        'producer_profile',
+        'first_opened_at',
+        'last_opened_at',
+        'open_count',
+        'acknowledged_at',
+        'acknowledged_by',
+        'created_at',
+    )
+    can_delete = False
+
+
+class BulletinAttachmentInline(admin.TabularInline):
+    model = BulletinAttachment
+    extra = 0
+    readonly_fields = ('created_at',)
+    fields = ('file', 'original_name', 'attachment_type', 'created_at')
+
+
+@admin.register(BulletinMessageType)
+class BulletinMessageTypeAdmin(admin.ModelAdmin):
+    list_display = ('label', 'code', 'display_order', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('label', 'code')
+    ordering = ('display_order', 'label')
+
+
+@admin.register(BulletinPriority)
+class BulletinPriorityAdmin(admin.ModelAdmin):
+    list_display = ('label', 'code', 'display_order', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('label', 'code')
+    ordering = ('display_order', 'label')
+
+
+@admin.register(BulletinMessage)
+class BulletinMessageAdmin(admin.ModelAdmin):
+    list_display = (
+        'title',
+        'author',
+        'type_names',
+        'priority',
+        'crop_names',
+        'department_names',
+        'status',
+        'recipient_count',
+        'opened_count',
+        'acknowledged_count',
+        'sent_at',
+    )
+    list_filter = ('status', 'types', 'priority', 'crops', 'departments', 'sent_at')
+    search_fields = (
+        'title',
+        'body',
+        'author__username',
+        'author__first_name',
+        'author__last_name',
+        'types__label',
+        'types__code',
+        'recipients__producer_profile__farm_name',
+        'recipients__producer_profile__user__username',
+    )
+    autocomplete_fields = ('author', 'created_by', 'priority')
+    filter_horizontal = ('types', 'crops', 'departments')
+    readonly_fields = ('created_at', 'updated_at', 'sent_at')
+    inlines = (BulletinAttachmentInline, BulletinRecipientInline)
+
+    @admin.display(description='Types')
+    def type_names(self, obj):
+        return obj.type_labels or '-'
+
+    @admin.display(description='Cultures')
+    def crop_names(self, obj):
+        return obj.crop_labels or '-'
+
+    @admin.display(description='Departements')
+    def department_names(self, obj):
+        return obj.department_labels or '-'
+
+    @admin.display(description='Destinataires')
+    def recipient_count(self, obj):
+        return obj.recipients.count()
+
+    @admin.display(description='Ouverts')
+    def opened_count(self, obj):
+        return obj.recipients.filter(first_opened_at__isnull=False).count()
+
+    @admin.display(description='Pris connaissance')
+    def acknowledged_count(self, obj):
+        return obj.recipients.filter(acknowledged_at__isnull=False).count()
+
+
+@admin.register(BulletinRecipient)
+class BulletinRecipientAdmin(admin.ModelAdmin):
+    list_display = (
+        'bulletin',
+        'producer_profile',
+        'first_opened_at',
+        'open_count',
+        'acknowledged_at',
+    )
+    list_filter = ('bulletin__status', 'first_opened_at', 'acknowledged_at')
+    search_fields = (
+        'bulletin__title',
+        'producer_profile__farm_name',
+        'producer_profile__user__username',
+    )
+    autocomplete_fields = ('bulletin', 'producer_profile', 'acknowledged_by')
+    readonly_fields = ('created_at',)
+
+
+@admin.register(BulletinAttachment)
+class BulletinAttachmentAdmin(admin.ModelAdmin):
+    list_display = ('original_name', 'bulletin', 'attachment_type', 'created_at')
+    list_filter = ('attachment_type', 'created_at')
+    search_fields = ('original_name', 'file', 'bulletin__title')
+    autocomplete_fields = ('bulletin',)
+    readonly_fields = ('created_at',)
+
+
+@admin.register(NotificationDelivery)
+class NotificationDeliveryAdmin(admin.ModelAdmin):
+    list_display = ('recipient', 'channel', 'status', 'created_at', 'sent_at')
+    list_filter = ('channel', 'status', 'created_at', 'sent_at')
+    search_fields = (
+        'recipient__bulletin__title',
+        'recipient__producer_profile__farm_name',
+        'recipient__producer_profile__user__username',
+    )
+    autocomplete_fields = ('recipient',)
 
 
 @admin.register(AccessControlSettings)

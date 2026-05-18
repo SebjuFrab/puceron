@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .producer-bulletin-detail {
+    border: 1px solid #d8e9df;
+    border-radius: 8px;
+  }
+  .producer-bulletin-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .producer-bulletin-body {
+    line-height: 1.55;
+  }
+  .producer-photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.65rem;
+  }
+  .producer-photo-link {
+    display: block;
+    border: 1px solid #d8e9df;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f7fbf8;
+  }
+  .producer-photo-link img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+  }
+  .producer-file-list {
+    display: grid;
+    gap: 0.45rem;
+  }
+  .producer-file-link {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.75rem;
+    border: 1px solid #d8e9df;
+    border-radius: 8px;
+    background: #ffffff;
+    text-decoration: none;
+    color: #124b32;
+    font-weight: 700;
+  }
+  .producer-file-link:hover,
+  .producer-file-link:focus {
+    background: #edf8f1;
+    color: #124b32;
+  }
+  @media (max-width: 575.98px) {
+    .producer-bulletin-actions .btn,
+    .producer-bulletin-actions form {
+      width: 100%;
+    }
+  }
+</style>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+  <div>
+    <h1 class="h3 mb-1">{{ bulletin.title }}</h1>
+    <div class="text-muted">
+      {% if bulletin.sent_at %}
+        Envoye le {{ bulletin.sent_at|date:"d/m/Y H:i" }}
+      {% else %}
+        Cree le {{ bulletin.created_at|date:"d/m/Y H:i" }}
+      {% endif %}
+      par {{ bulletin.author.get_full_name|default:bulletin.author.username }}
+    </div>
+  </div>
+  <a href="{% url 'my_bulletins' %}" class="btn btn-outline-secondary">Retour</a>
+</div>
+
+<div class="card producer-bulletin-detail shadow-sm mb-4">
+  <div class="card-body p-3 p-lg-4">
+    <div class="producer-bulletin-meta mb-3">
+      {% if bulletin.type_labels %}<span class="badge rounded-pill text-bg-success">{{ bulletin.type_labels }}</span>{% endif %}
+      {% if bulletin.priority_label %}<span class="badge rounded-pill text-bg-warning">{{ bulletin.priority_label }}</span>{% endif %}
+      {% if bulletin.crop_labels %}<span class="badge rounded-pill text-bg-light border">{{ bulletin.crop_labels }}</span>{% endif %}
+      {% if bulletin.department_labels %}<span class="badge rounded-pill text-bg-light border">{{ bulletin.department_labels }}</span>{% endif %}
+      {% if bulletin.valid_until %}<span class="badge rounded-pill text-bg-light border">Jusqu'au {{ bulletin.valid_until|date:"d/m/Y" }}</span>{% endif %}
+    </div>
+    <div class="producer-bulletin-body">{{ bulletin.body|safe }}</div>
+  </div>
+</div>
+
+{% if photos or files %}
+  <div class="card producer-bulletin-detail shadow-sm mb-4">
+    <div class="card-body p-3 p-lg-4">
+      {% if photos %}
+        <h2 class="h5 mb-3">Photos</h2>
+        <div class="producer-photo-grid mb-4">
+          {% for attachment in photos %}
+            <a class="producer-photo-link" href="{{ attachment.file.url }}" target="_blank" rel="noopener noreferrer">
+              <img src="{{ attachment.file.url }}" alt="{{ attachment.original_name|default:'Photo du bulletin' }}">
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% if files %}
+        <h2 class="h5 mb-3">Pieces jointes</h2>
+        <div class="producer-file-list">
+          {% for attachment in files %}
+            <a class="producer-file-link" href="{{ attachment.file.url }}" target="_blank" rel="noopener noreferrer">
+              <span>{{ attachment.original_name|default:attachment.file.name }}</span>
+              <span class="small text-muted">Ouvrir</span>
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+<div class="card producer-bulletin-detail shadow-sm">
+  <div class="card-body p-3 p-lg-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 producer-bulletin-actions">
+      <div>
+        {% if recipient.acknowledged_at %}
+          <div class="fw-semibold text-success">Prise de connaissance enregistree</div>
+          <div class="small text-muted">{{ recipient.acknowledged_at|date:"d/m/Y H:i" }}</div>
+        {% else %}
+          <div class="fw-semibold">Confirmer au technicien que vous avez pris connaissance du bulletin.</div>
+        {% endif %}
+      </div>
+      {% if not recipient.acknowledged_at %}
+        <form method="post">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-success">J'ai pris connaissance</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,7 +1,7 @@
 from django.db import OperationalError, ProgrammingError
 from wagtail.models import Site
 
-from .models import SiteContentSettings, TechnicianCoFollowRequest, UserProfile
+from .models import BulletinRecipient, SiteContentSettings, TechnicianCoFollowRequest, UserProfile
 from .view_access import (
     _active_technician_profiles_for_producer,
     _can_manage_producers,
@@ -52,6 +52,7 @@ def viewer_flags(request):
             'effective_access_message': '',
             'active_producer_technicians': [],
             'pending_cofollow_request_count': 0,
+            'pending_bulletin_count': 0,
             'site_content_settings': site_content_settings,
         }
 
@@ -71,8 +72,13 @@ def viewer_flags(request):
             status=TechnicianCoFollowRequest.STATUS_PENDING,
         ).count()
     active_producer_technicians = []
+    pending_bulletin_count = 0
     if effective_profile.role == UserProfile.ROLE_PRODUCER:
         active_producer_technicians = _active_technician_profiles_for_producer(effective_profile)
+        pending_bulletin_count = BulletinRecipient.objects.filter(
+            producer_profile=effective_profile,
+            acknowledged_at__isnull=True,
+        ).count()
     return {
         'viewer_profile': effective_profile,
         'real_viewer_profile': real_profile,
@@ -88,5 +94,6 @@ def viewer_flags(request):
         'effective_access_message': restriction['message'] if restriction else '',
         'active_producer_technicians': active_producer_technicians,
         'pending_cofollow_request_count': pending_cofollow_request_count,
+        'pending_bulletin_count': pending_bulletin_count,
         'site_content_settings': site_content_settings,
     }

@@ -7,7 +7,7 @@ from django.urls import reverse
 
 from .decision_engine import evaluate_record_recommendation
 from .forms import PlantSeriesForm, RecommendationDismissForm
-from .models import PlantSeries, RecommendationResponse, ScoutingRecord, Variety
+from .models import BulletinRecipient, PlantSeries, RecommendationResponse, ScoutingRecord, UserProfile, Variety
 from .view_access import _effective_access_restriction, _effective_profile, _effective_user, _is_technician, _show_producer_interface
 from .view_recommendation_support import (
     _dismiss_reasons_queryset,
@@ -200,6 +200,71 @@ def my_recommendations_view(request):
         {
             'recommendation_cards': recommendation_cards,
             'dismiss_reasons': _dismiss_reasons_queryset(),
+        },
+    )
+
+
+def _producer_bulletin_recipients_queryset(request):
+    effective_profile = _effective_profile(request)
+    if effective_profile.role != UserProfile.ROLE_PRODUCER:
+        return BulletinRecipient.objects.none()
+    return (
+        BulletinRecipient.objects.filter(producer_profile=effective_profile)
+        .select_related('bulletin', 'bulletin__author', 'bulletin__priority')
+        .prefetch_related(
+            'bulletin__types',
+            'bulletin__crops',
+            'bulletin__departments',
+            'bulletin__attachments',
+        )
+        .order_by('-bulletin__sent_at', '-bulletin__created_at')
+    )
+
+
+@login_required
+def my_bulletins_view(request):
+    if (request.user.is_superuser or _is_technician(request.user)) and not _show_producer_interface(request):
+        messages.error(request, 'Les bulletins producteur sont accessibles depuis un compte producteur.')
+        return redirect('technician_records')
+
+    recipients = list(_producer_bulletin_recipients_queryset(request))
+    for recipient in recipients:
+        recipient.photo_count = sum(1 for attachment in recipient.bulletin.attachments.all() if attachment.is_photo)
+        recipient.file_count = sum(1 for attachment in recipient.bulletin.attachments.all() if not attachment.is_photo)
+
+    return render(
+        request,
+        'scouting/my_bulletins.html',
+        {
+            'recipients': recipients,
+        },
+    )
+
+
+@login_required
+def my_bulletin_detail_view(request, recipient_id):
+    if (request.user.is_superuser or _is_technician(request.user)) and not _show_producer_interface(request):
+        messages.error(request, 'Les bulletins producteur sont accessibles depuis un compte producteur.')
+        return redirect('technician_records')
+
+    recipient = get_object_or_404(_producer_bulletin_recipients_queryset(request), id=recipient_id)
+    if request.method == 'POST':
+        recipient.mark_acknowledged(_effective_user(request))
+        messages.success(request, 'Prise de connaissance enregistree.')
+        return redirect('my_bulletin_detail', recipient.id)
+
+    recipient.mark_opened()
+    bulletin = recipient.bulletin
+    photos = [attachment for attachment in bulletin.attachments.all() if attachment.is_photo]
+    files = [attachment for attachment in bulletin.attachments.all() if not attachment.is_photo]
+    return render(
+        request,
+        'scouting/my_bulletin_detail.html',
+        {
+            'recipient': recipient,
+            'bulletin': bulletin,
+            'photos': photos,
+            'files': files,
         },
     )
 
