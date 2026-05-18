@@ -6,10 +6,12 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
+from django.db import transaction
 from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.html import strip_tags
 from django.utils import timezone
 
 try:
@@ -18,9 +20,13 @@ except Exception:  # pragma: no cover
     Workbook = None
 
 from .decision_engine import evaluate_record_recommendation
-from .forms import TechnicianCoFollowRequestForm, TechnicianDeactivationForm
+from .forms import BulletinMessageForm, TechnicianCoFollowRequestForm, TechnicianDeactivationForm
 from .models import (
     AuxiliaryTaxon,
+    BulletinMessage,
+    BulletinRecipient,
+    NotificationDelivery,
+    NotificationPreference,
     PlantAction,
     PlantSeries,
     ProducerTechnicianAssignment,
@@ -63,6 +69,233 @@ def _active_technician_names_for_profile(profile):
         seen.add(name)
         names.append(name)
     return names
+
+
+def _require_bulletin_technician(request):
+    manager_user = _manager_user(request)
+    manager_profile = _get_profile(manager_user)
+    if not _is_technician(manager_user):
+        messages.error(request, 'Acces reserve aux techniciens.')
+        return None, None, redirect('dashboard')
+    if request.user.is_superuser and manager_user == request.user:
+        messages.error(
+            request,
+            'Selectionnez un technicien en mode controle pour gerer ses bulletins.',
+        )
+        return None, None, redirect('technician_records')
+    if (not request.user.is_superuser) and not manager_profile.has_active_license:
+        messages.error(request, manager_profile.deactivation_message or 'Votre licence technicien est inactive.')
+        return None, None, redirect('dashboard')
+    return manager_user, manager_profile, None
+
+
+def _bulletin_producer_queryset(manager_user):
+    return _accessible_producer_profiles(manager_user).select_related('user').distinct()
+
+
+def _send_bulletin_email_notifications(request, recipient_ids):
+    recipients = (
+        BulletinRecipient.objects.filter(id__in=recipient_ids)
+        .select_related('bulletin', 'bulletin__priority', 'producer_profile', 'producer_profile__user')
+        .prefetch_related('bulletin__types')
+    )
+    for recipient in recipients:
+        producer_user = recipient.producer_profile.user
+        delivery = NotificationDelivery.objects.create(
+            recipient=recipient,
+            channel=NotificationDelivery.CHANNEL_EMAIL,
+            status=NotificationDelivery.STATUS_PENDING,
+        )
+        if not producer_user.email:
+            delivery.status = NotificationDelivery.STATUS_SKIPPED
+            delivery.error = 'Email producteur non renseigne.'
+            delivery.save(update_fields=['status', 'error'])
+            continue
+        preference = NotificationPreference.objects.get_or_create(user=producer_user)[0]
+        if not preference.wants_bulletin_email(recipient.bulletin):
+            delivery.status = NotificationDelivery.STATUS_SKIPPED
+            delivery.error = 'Desactive par le producteur.'
+            delivery.save(update_fields=['status', 'error'])
+            continue
+
+        detail_url = request.build_absolute_uri(reverse('my_bulletin_detail', args=[recipient.id]))
+        body_preview = strip_tags(recipient.bulletin.body or '').strip()
+        if len(body_preview) > 700:
+            body_preview = f'{body_preview[:700]}...'
+        try:
+            send_mail(
+                subject=f'Nouveau bulletin PUCERON: {recipient.bulletin.title}',
+                message=(
+                    f'Un nouveau bulletin est disponible dans PUCERON.\n\n'
+                    f'Titre: {recipient.bulletin.title}\n'
+                    f'Types: {recipient.bulletin.type_labels or "-"}\n'
+                    f'Priorite: {recipient.bulletin.priority_label or "-"}\n\n'
+                    f'{body_preview}\n\n'
+                    f'Ouvrir le bulletin: {detail_url}'
+                ),
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                recipient_list=[producer_user.email],
+                fail_silently=False,
+            )
+        except Exception as exc:
+            delivery.status = NotificationDelivery.STATUS_FAILED
+            delivery.error = str(exc)
+            delivery.save(update_fields=['status', 'error'])
+            continue
+
+        delivery.status = NotificationDelivery.STATUS_SENT
+        delivery.sent_at = timezone.now()
+        delivery.save(update_fields=['status', 'sent_at'])
+
+
+@login_required
+def technician_bulletin_list_view(request):
+    manager_user, manager_profile, error_response = _require_bulletin_technician(request)
+    if error_response:
+        return error_response
+
+    bulletins = list(
+        BulletinMessage.objects.filter(author=manager_user)
+        .select_related('author', 'priority')
+        .prefetch_related('types', 'crops', 'departments')
+        .annotate(
+            recipient_count=Count('recipients', distinct=True),
+            opened_count=Count(
+                'recipients',
+                filter=Q(recipients__first_opened_at__isnull=False),
+                distinct=True,
+            ),
+            acknowledged_count=Count(
+                'recipients',
+                filter=Q(recipients__acknowledged_at__isnull=False),
+                distinct=True,
+            ),
+        )
+    )
+    for bulletin in bulletins:
+        bulletin.pending_acknowledgement_count = max(
+            bulletin.recipient_count - bulletin.acknowledged_count,
+            0,
+        )
+
+    return render(
+        request,
+        'scouting/technician_bulletin_list.html',
+        {
+            'bulletins': bulletins,
+            'manager_user': manager_user,
+            'manager_profile': manager_profile,
+        },
+    )
+
+
+@login_required
+def technician_bulletin_create_view(request):
+    manager_user, manager_profile, error_response = _require_bulletin_technician(request)
+    if error_response:
+        return error_response
+
+    producer_queryset = _bulletin_producer_queryset(manager_user)
+    has_available_producers = producer_queryset.exists()
+    if request.method == 'POST':
+        form = BulletinMessageForm(request.POST, request.FILES, producer_queryset=producer_queryset)
+        if form.is_valid():
+            with transaction.atomic():
+                bulletin = form.save(commit=False)
+                bulletin.author = manager_user
+                bulletin.created_by = request.user
+                bulletin.status = BulletinMessage.STATUS_SENT
+                bulletin.sent_at = timezone.now()
+                bulletin.save()
+                form.save_m2m()
+                for attachment in form.attachment_objects(bulletin):
+                    attachment.save()
+                producers = list(form.cleaned_data['producers'])
+                BulletinRecipient.objects.bulk_create(
+                    [
+                        BulletinRecipient(
+                            bulletin=bulletin,
+                            producer_profile=producer_profile,
+                        )
+                        for producer_profile in producers
+                    ]
+                )
+                recipient_ids = list(
+                    BulletinRecipient.objects.filter(
+                        bulletin=bulletin,
+                        producer_profile__in=producers,
+                    ).values_list('id', flat=True)
+                )
+                transaction.on_commit(lambda: _send_bulletin_email_notifications(request, recipient_ids))
+            messages.success(request, 'Bulletin envoye aux producteurs selectionnes.')
+            return redirect('technician_bulletin_detail', bulletin.id)
+        editor_body = getattr(form, 'sanitized_body', '')
+    else:
+        form = BulletinMessageForm(producer_queryset=producer_queryset)
+        editor_body = ''
+
+    return render(
+        request,
+        'scouting/technician_bulletin_form.html',
+        {
+            'form': form,
+            'manager_user': manager_user,
+            'manager_profile': manager_profile,
+            'has_available_producers': has_available_producers,
+            'editor_body': editor_body,
+        },
+    )
+
+
+@login_required
+def technician_bulletin_detail_view(request, bulletin_id):
+    manager_user, manager_profile, error_response = _require_bulletin_technician(request)
+    if error_response:
+        return error_response
+
+    bulletin = get_object_or_404(
+        BulletinMessage.objects.select_related('author', 'priority').prefetch_related(
+            'types',
+            'crops',
+            'departments',
+            'attachments',
+        ),
+        pk=bulletin_id,
+        author=manager_user,
+    )
+    photos = [attachment for attachment in bulletin.attachments.all() if attachment.is_photo]
+    files = [attachment for attachment in bulletin.attachments.all() if not attachment.is_photo]
+    recipients = list(
+        bulletin.recipients.select_related(
+            'producer_profile',
+            'producer_profile__user',
+            'acknowledged_by',
+        )
+    )
+    recipient_count = len(recipients)
+    opened_count = sum(1 for recipient in recipients if recipient.first_opened_at)
+    acknowledged_count = sum(1 for recipient in recipients if recipient.acknowledged_at)
+    stats = {
+        'recipient_count': recipient_count,
+        'not_opened_count': max(recipient_count - opened_count, 0),
+        'opened_count': opened_count,
+        'opened_without_ack_count': max(opened_count - acknowledged_count, 0),
+        'acknowledged_count': acknowledged_count,
+    }
+
+    return render(
+        request,
+        'scouting/technician_bulletin_detail.html',
+        {
+            'bulletin': bulletin,
+            'recipients': recipients,
+            'photos': photos,
+            'files': files,
+            'stats': stats,
+            'manager_user': manager_user,
+            'manager_profile': manager_profile,
+        },
+    )
 
 
 @login_required

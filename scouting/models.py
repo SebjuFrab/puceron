@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Q, Sum
+from django.db.models import F, Q, Sum
 from django.templatetags.static import static
 from django.utils import timezone
 from wagtail import blocks
@@ -518,6 +518,305 @@ class TechnicianCoFollowRequestItem(models.Model):
 
     def __str__(self):
         return f'{self.request_id} - {self.producer_profile}'
+
+
+class NotificationPreference(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notification_preference',
+        verbose_name='Utilisateur',
+    )
+    bulletin_email_enabled = models.BooleanField(
+        default=True,
+        verbose_name='Recevoir les bulletins par email',
+    )
+    bulletin_email_urgent_only = models.BooleanField(
+        default=False,
+        verbose_name='Limiter aux bulletins urgents',
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mis a jour le')
+
+    class Meta:
+        verbose_name = 'Preference de notification'
+        verbose_name_plural = 'Preferences de notification'
+
+    def __str__(self):
+        return f'Notifications - {display_user_name(self.user)}'
+
+    def wants_bulletin_email(self, bulletin):
+        if not self.bulletin_email_enabled:
+            return False
+        if self.bulletin_email_urgent_only:
+            return bool(bulletin.priority_id and bulletin.priority.code == 'urgent')
+        return True
+
+
+class BulletinMessageType(models.Model):
+    CODE_BSV = 'bsv'
+    CODE_ALERT = 'alert'
+    CODE_ADVICE = 'advice'
+    CODE_REMINDER = 'reminder'
+
+    code = models.SlugField(max_length=50, unique=True, verbose_name='Code')
+    label = models.CharField(max_length=120, unique=True, verbose_name='Libelle')
+    display_order = models.PositiveSmallIntegerField(default=1, verbose_name="Ordre d'affichage")
+    is_active = models.BooleanField(default=True, verbose_name='Actif')
+
+    class Meta:
+        ordering = ['display_order', 'label']
+        verbose_name = 'Type de bulletin'
+        verbose_name_plural = 'Types de bulletin'
+
+    def __str__(self):
+        return self.label
+
+
+class BulletinPriority(models.Model):
+    CODE_INFO = 'info'
+    CODE_WATCH = 'watch'
+    CODE_URGENT = 'urgent'
+
+    code = models.SlugField(max_length=50, unique=True, verbose_name='Code')
+    label = models.CharField(max_length=120, unique=True, verbose_name='Libelle')
+    display_order = models.PositiveSmallIntegerField(default=1, verbose_name="Ordre d'affichage")
+    is_active = models.BooleanField(default=True, verbose_name='Actif')
+
+    class Meta:
+        ordering = ['display_order', 'label']
+        verbose_name = 'Priorite de bulletin'
+        verbose_name_plural = 'Priorites de bulletin'
+
+    def __str__(self):
+        return self.label
+
+
+class BulletinMessage(models.Model):
+    STATUS_DRAFT = 'draft'
+    STATUS_SENT = 'sent'
+    STATUS_ARCHIVED = 'archived'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Brouillon'),
+        (STATUS_SENT, 'Envoye'),
+        (STATUS_ARCHIVED, 'Archive'),
+    ]
+
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='authored_bulletins',
+        verbose_name='Technicien auteur',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_bulletins',
+        verbose_name='Cree par',
+    )
+    title = models.CharField(max_length=180, verbose_name='Titre')
+    body = models.TextField(verbose_name='Message')
+    types = models.ManyToManyField(
+        BulletinMessageType,
+        related_name='bulletins',
+        verbose_name='Types',
+    )
+    priority = models.ForeignKey(
+        BulletinPriority,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='bulletins',
+        verbose_name='Priorite',
+    )
+    crops = models.ManyToManyField(
+        'Crop',
+        blank=True,
+        related_name='bulletin_messages',
+        verbose_name='Cultures',
+    )
+    departments = models.ManyToManyField(
+        'Department',
+        blank=True,
+        related_name='bulletin_messages',
+        verbose_name='Departements',
+    )
+    valid_until = models.DateField(null=True, blank=True, verbose_name="Valable jusqu'au")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_DRAFT,
+        verbose_name='Statut',
+    )
+    sent_at = models.DateTimeField(null=True, blank=True, verbose_name='Envoye le')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Cree le')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mis a jour le')
+
+    class Meta:
+        ordering = ['-sent_at', '-created_at']
+        verbose_name = 'Bulletin technicien'
+        verbose_name_plural = 'Bulletins techniciens'
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def type_labels(self):
+        return ', '.join(str(message_type) for message_type in self.types.all())
+
+    @property
+    def priority_label(self):
+        return str(self.priority) if self.priority_id else ''
+
+    @property
+    def crop_labels(self):
+        return ', '.join(str(crop) for crop in self.crops.all())
+
+    @property
+    def department_labels(self):
+        return ', '.join(str(department) for department in self.departments.all())
+
+
+class BulletinAttachment(models.Model):
+    TYPE_PHOTO = 'photo'
+    TYPE_FILE = 'file'
+    TYPE_CHOICES = [
+        (TYPE_PHOTO, 'Photo'),
+        (TYPE_FILE, 'Piece jointe'),
+    ]
+
+    bulletin = models.ForeignKey(
+        BulletinMessage,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+        verbose_name='Bulletin',
+    )
+    file = models.FileField(upload_to='bulletins/attachments/', verbose_name='Fichier')
+    original_name = models.CharField(max_length=255, blank=True, verbose_name='Nom original')
+    attachment_type = models.CharField(max_length=20, choices=TYPE_CHOICES, verbose_name='Type')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Ajoute le')
+
+    class Meta:
+        ordering = ['attachment_type', 'original_name', 'id']
+        verbose_name = 'Fichier de bulletin'
+        verbose_name_plural = 'Fichiers de bulletin'
+
+    def __str__(self):
+        return self.original_name or self.file.name
+
+    @property
+    def is_photo(self):
+        return self.attachment_type == self.TYPE_PHOTO
+
+
+class BulletinRecipient(models.Model):
+    bulletin = models.ForeignKey(
+        BulletinMessage,
+        on_delete=models.CASCADE,
+        related_name='recipients',
+        verbose_name='Bulletin',
+    )
+    producer_profile = models.ForeignKey(
+        UserProfile,
+        on_delete=models.CASCADE,
+        related_name='bulletin_recipients',
+        verbose_name='Producteur',
+    )
+    first_opened_at = models.DateTimeField(null=True, blank=True, verbose_name='Premiere ouverture')
+    last_opened_at = models.DateTimeField(null=True, blank=True, verbose_name='Derniere ouverture')
+    open_count = models.PositiveIntegerField(default=0, verbose_name="Nombre d'ouvertures")
+    acknowledged_at = models.DateTimeField(null=True, blank=True, verbose_name='Pris connaissance le')
+    acknowledged_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='acknowledged_bulletins',
+        verbose_name='Pris connaissance par',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Ajoute le')
+
+    class Meta:
+        ordering = ['producer_profile__farm_name', 'producer_profile__user__username']
+        verbose_name = 'Destinataire de bulletin'
+        verbose_name_plural = 'Destinataires de bulletin'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['bulletin', 'producer_profile'],
+                name='unique_bulletin_recipient_per_producer',
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.bulletin} - {self.producer_profile}'
+
+    def mark_opened(self, *, at=None):
+        opened_at = at or timezone.now()
+        updates = {
+            'last_opened_at': opened_at,
+            'open_count': F('open_count') + 1,
+        }
+        if self.first_opened_at is None:
+            updates['first_opened_at'] = opened_at
+        BulletinRecipient.objects.filter(pk=self.pk).update(**updates)
+        self.refresh_from_db(fields=['first_opened_at', 'last_opened_at', 'open_count'])
+
+    def mark_acknowledged(self, user, *, at=None):
+        if self.acknowledged_at:
+            return
+        self.acknowledged_at = at or timezone.now()
+        self.acknowledged_by = user
+        self.save(update_fields=['acknowledged_at', 'acknowledged_by'])
+
+
+class NotificationDelivery(models.Model):
+    CHANNEL_IN_APP = 'in_app'
+    CHANNEL_EMAIL = 'email'
+    CHANNEL_PUSH = 'push'
+    CHANNEL_SMS = 'sms'
+    CHANNEL_CHOICES = [
+        (CHANNEL_IN_APP, 'Application'),
+        (CHANNEL_EMAIL, 'Email'),
+        (CHANNEL_PUSH, 'Push'),
+        (CHANNEL_SMS, 'SMS'),
+    ]
+
+    STATUS_PENDING = 'pending'
+    STATUS_SENT = 'sent'
+    STATUS_FAILED = 'failed'
+    STATUS_SKIPPED = 'skipped'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'En attente'),
+        (STATUS_SENT, 'Envoyee'),
+        (STATUS_FAILED, 'Echec'),
+        (STATUS_SKIPPED, 'Ignoree'),
+    ]
+
+    recipient = models.ForeignKey(
+        BulletinRecipient,
+        on_delete=models.CASCADE,
+        related_name='notification_deliveries',
+        verbose_name='Destinataire',
+    )
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, verbose_name='Canal')
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        verbose_name='Statut',
+    )
+    error = models.TextField(blank=True, verbose_name='Erreur')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creee le')
+    sent_at = models.DateTimeField(null=True, blank=True, verbose_name='Envoyee le')
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Livraison de notification'
+        verbose_name_plural = 'Livraisons de notification'
+
+    def __str__(self):
+        return f'{self.recipient_id} - {self.channel} - {self.status}'
 
 
 class InfoPage(models.Model):

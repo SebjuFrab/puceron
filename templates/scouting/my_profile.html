@@ -106,6 +106,29 @@
             {{ form.phone }}
           </div>
 
+          {% if form.bulletin_email_enabled %}
+          <div class="col-12">
+            <div class="tech-contact-card">
+              <div class="small text-uppercase text-success fw-semibold mb-2">Notifications bulletins</div>
+              <div class="form-check mb-2">
+                {{ form.bulletin_email_enabled }}
+                <label class="form-check-label" for="id_bulletin_email_enabled">
+                  Recevoir un email quand un nouveau bulletin est envoye
+                </label>
+              </div>
+              <div class="form-check">
+                {{ form.bulletin_email_urgent_only }}
+                <label class="form-check-label" for="id_bulletin_email_urgent_only">
+                  Recevoir seulement les bulletins urgents par email
+                </label>
+              </div>
+              <div class="form-text mt-2">
+                Les bulletins restent toujours visibles dans l onglet Bulletins. L email utilise est celui de votre profil.
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
           {% if profile.role == 'producer' and not profile_user.is_superuser %}
           <div class="col-12">
             <div class="tech-contact-card">

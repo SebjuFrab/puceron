@@ -1,0 +1,352 @@
+{% extends 'base.html' %}
+{% block head_extras %}
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<style>
+  .bulletin-form-card {
+    border: 1px solid #d8e9df;
+    border-radius: 8px;
+  }
+  .choice-list,
+  .recipient-list {
+    max-height: 360px;
+    overflow: auto;
+    border: 1px solid #d8e9df;
+    border-radius: 8px;
+    padding: 0.35rem;
+    background: #ffffff;
+  }
+  .choice-list {
+    max-height: 190px;
+  }
+  .choice-list > div,
+  .recipient-list > div {
+    display: grid;
+    gap: 0.2rem;
+  }
+  .choice-widget {
+    display: grid;
+    gap: 0.2rem;
+  }
+  .choice-list label,
+  .recipient-list label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0.65rem 0.55rem;
+    border-radius: 8px;
+    line-height: 1.25;
+  }
+  .choice-list label:has(input:checked),
+  .recipient-list label:has(input:checked) {
+    background: #edf8f1;
+  }
+  .choice-list input[type="checkbox"],
+  .recipient-list input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    margin-top: 0.05rem;
+  }
+  .rich-editor-source {
+    display: none;
+  }
+  .quill-editor-wrap {
+    position: relative;
+    border: 1px solid #d8e9df;
+    border-radius: 8px;
+    background: #ffffff;
+  }
+  .quill-editor-wrap .ql-toolbar.ql-snow {
+    border: 0;
+    border-bottom: 1px solid #d8e9df;
+    border-radius: 8px 8px 0 0;
+    background: #f7fbf8;
+  }
+  .quill-editor-wrap .ql-container.ql-snow {
+    border: 0;
+    border-radius: 0 0 8px 8px;
+    font-size: 1rem;
+  }
+  .quill-editor-wrap .ql-editor {
+    min-height: 230px;
+    line-height: 1.45;
+  }
+  .ql-emoji {
+    font-weight: 800;
+  }
+  .quill-emoji-panel {
+    position: absolute;
+    right: 0.6rem;
+    top: 3rem;
+    z-index: 20;
+    display: none;
+    width: min(360px, calc(100vw - 2rem));
+    height: 330px;
+    border: 1px solid #d8e9df;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 16px 34px rgba(15, 81, 50, 0.2);
+    overflow: hidden;
+  }
+  .quill-emoji-panel.is-open {
+    display: block;
+  }
+  .quill-emoji-panel emoji-picker {
+    width: 100%;
+    height: 100%;
+    --border-size: 0;
+    --border-radius: 0;
+    --indicator-color: #198754;
+  }
+  .file-upload-box {
+    border: 1px solid #d8e9df;
+    border-radius: 8px;
+    padding: 0.85rem;
+    background: #ffffff;
+  }
+  .file-upload-box .form-control {
+    border-radius: 8px;
+  }
+  .file-upload-hint {
+    margin-top: 0.45rem;
+    color: #62736b;
+    font-size: 0.84rem;
+  }
+  @media (max-width: 575.98px) {
+    .bulletin-form-actions .btn {
+      width: 100%;
+    }
+    .quill-editor-wrap .ql-toolbar.ql-snow {
+      padding: 0.35rem;
+    }
+    .quill-emoji-panel {
+      left: 0.5rem;
+      right: 0.5rem;
+      top: 3.25rem;
+      width: auto;
+      height: 300px;
+    }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-xl-9">
+    <div class="card bulletin-form-card shadow-sm">
+      <div class="card-body p-3 p-lg-4">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+          <div>
+            <h1 class="h4 mb-1">Nouveau bulletin</h1>
+            <p class="text-muted mb-0">Envoi aux producteurs actuellement rattaches au technicien.</p>
+          </div>
+          <a href="{% url 'technician_bulletin_list' %}" class="btn btn-outline-secondary btn-sm">Retour</a>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" class="row g-3">
+          {% csrf_token %}
+          <div class="col-12">
+            <label class="form-label" for="id_title">Titre</label>
+            {{ form.title }}
+            {% if form.title.errors %}<div class="text-danger small mt-1">{{ form.title.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Types</label>
+            <div class="choice-list">
+              {{ form.types }}
+            </div>
+            {% if form.types.errors %}<div class="text-danger small mt-1">{{ form.types.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="id_priority">Priorite</label>
+            {{ form.priority }}
+            {% if form.priority.errors %}<div class="text-danger small mt-1">{{ form.priority.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="id_valid_until">Valable jusqu'au</label>
+            {{ form.valid_until }}
+            {% if form.valid_until.errors %}<div class="text-danger small mt-1">{{ form.valid_until.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Cultures</label>
+            <div class="choice-list">
+              {% if form.crops.field.queryset %}
+                {{ form.crops }}
+              {% else %}
+                <div class="text-muted p-2">Aucune culture active.</div>
+              {% endif %}
+            </div>
+            {% if form.crops.errors %}<div class="text-danger small mt-1">{{ form.crops.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Departements</label>
+            <div class="choice-list">
+              {% if form.departments.field.queryset %}
+                {{ form.departments }}
+              {% else %}
+                <div class="text-muted p-2">Aucun departement actif.</div>
+              {% endif %}
+            </div>
+            {% if form.departments.errors %}<div class="text-danger small mt-1">{{ form.departments.errors }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="id_body">Message</label>
+            {{ form.body }}
+            <div class="quill-editor-wrap">
+              <div id="bulletin-quill-toolbar">
+                <span class="ql-formats">
+                  <select class="ql-header">
+                    <option selected></option>
+                    <option value="1">Titre 1</option>
+                    <option value="2">Titre 2</option>
+                    <option value="3">Titre 3</option>
+                  </select>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-bold" type="button"></button>
+                  <button class="ql-italic" type="button"></button>
+                  <button class="ql-underline" type="button"></button>
+                  <button class="ql-strike" type="button"></button>
+                </span>
+                <span class="ql-formats">
+                  <select class="ql-color"></select>
+                  <select class="ql-background"></select>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-list" value="ordered" type="button"></button>
+                  <button class="ql-list" value="bullet" type="button"></button>
+                  <button class="ql-blockquote" type="button"></button>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-link" type="button"></button>
+                  <button class="ql-clean" type="button"></button>
+                  <button class="ql-emoji" type="button" title="Emoji">☺</button>
+                </span>
+              </div>
+              <div id="bulletin-rich-editor"
+                   data-placeholder="Redigez le message du bulletin...">{% if editor_body %}{{ editor_body|safe }}{% endif %}</div>
+              <div class="quill-emoji-panel" id="bulletin-emoji-panel" aria-label="Emojis">
+                <emoji-picker locale="fr"></emoji-picker>
+              </div>
+            </div>
+            {% if form.body.errors %}<div class="text-danger small mt-1">{{ form.body.errors }}</div>{% endif %}
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label" for="id_photos">Photos</label>
+            <div class="file-upload-box">
+              {{ form.photos }}
+              <div class="file-upload-hint">JPG, PNG, WEBP ou GIF. Maximum 8 photos, 8 Mo par photo.</div>
+            </div>
+            {% if form.photos.errors %}<div class="text-danger small mt-1">{{ form.photos.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_attachments">Pieces jointes</label>
+            <div class="file-upload-box">
+              {{ form.attachments }}
+              <div class="file-upload-hint">PDF, Word, Excel, PowerPoint, texte, CSV, ZIP ou image. Maximum 8 fichiers, 15 Mo par fichier.</div>
+            </div>
+            {% if form.attachments.errors %}<div class="text-danger small mt-1">{{ form.attachments.errors }}</div>{% endif %}
+          </div>
+
+          <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+              <label class="form-label mb-0">Destinataires</label>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="bulletin-select-all">Tout selectionner</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="bulletin-clear-all">Tout deselectionner</button>
+              </div>
+            </div>
+            <div class="recipient-list">
+              {% if has_available_producers %}
+                {{ form.producers }}
+              {% else %}
+                <div class="text-muted p-2">Aucun producteur actif sur ce perimetre technicien.</div>
+              {% endif %}
+            </div>
+            {% if form.producers.errors %}<div class="text-danger small mt-1">{{ form.producers.errors }}</div>{% endif %}
+          </div>
+
+          {% if form.non_field_errors %}
+            <div class="col-12 text-danger small">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="col-12 d-flex gap-2 flex-wrap bulletin-form-actions">
+            <button type="submit" class="btn btn-success" {% if not has_available_producers %}disabled{% endif %}>Envoyer le bulletin</button>
+            <a href="{% url 'technician_bulletin_list' %}" class="btn btn-outline-secondary">Annuler</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1.29.1/index.js"></script>
+<script>
+const bulletinCheckboxes = Array.from(document.querySelectorAll('input[name="producers"]'));
+document.getElementById('bulletin-select-all')?.addEventListener('click', function() {
+  bulletinCheckboxes.forEach(function(input) { input.checked = true; });
+});
+document.getElementById('bulletin-clear-all')?.addEventListener('click', function() {
+  bulletinCheckboxes.forEach(function(input) { input.checked = false; });
+});
+
+(function setupRichEditor() {
+  const source = document.getElementById('id_body');
+  const editorEl = document.getElementById('bulletin-rich-editor');
+  const emojiPanel = document.getElementById('bulletin-emoji-panel');
+  const emojiPicker = emojiPanel?.querySelector('emoji-picker');
+  if (!source || !editorEl || typeof Quill === 'undefined') return;
+
+  const quill = new Quill(editorEl, {
+    theme: 'snow',
+    placeholder: editorEl.dataset.placeholder || '',
+    modules: {
+      toolbar: {
+        container: '#bulletin-quill-toolbar',
+        handlers: {
+          emoji: function() {
+            emojiPanel?.classList.toggle('is-open');
+          },
+        },
+      },
+    },
+  });
+
+  if (source.value.trim() && !editorEl.querySelector('.ql-editor')?.textContent.trim()) {
+    quill.clipboard.dangerouslyPasteHTML(source.value);
+  }
+
+  function editorHtml() {
+    if (!quill.getText().trim()) return '';
+    if (typeof quill.getSemanticHTML === 'function') {
+      return quill.getSemanticHTML();
+    }
+    return quill.root.innerHTML;
+  }
+
+  function syncSource() {
+    source.value = editorHtml();
+  }
+
+  quill.on('text-change', syncSource);
+  source.closest('form')?.addEventListener('submit', syncSource);
+  emojiPicker?.addEventListener('emoji-click', function(event) {
+    const emoji = event.detail.unicode;
+    const range = quill.getSelection(true);
+    quill.insertText(range.index, emoji, 'user');
+    quill.setSelection(range.index + emoji.length, 0, 'user');
+    emojiPanel?.classList.remove('is-open');
+    syncSource();
+  });
+  document.addEventListener('click', function(event) {
+    if (!emojiPanel) return;
+    const emojiButton = document.querySelector('.ql-emoji');
+    if (emojiPanel.contains(event.target) || emojiButton?.contains(event.target)) return;
+    emojiPanel.classList.remove('is-open');
+  });
+  syncSource();
+})();
+</script>
+{% endblock %}

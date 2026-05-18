@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% block head_extras %}
+<style>
+  .bulletin-list {
+    display: grid;
+    gap: 0.9rem;
+  }
+  .bulletin-card {
+    border: 1px solid #d8e9df;
+    border-radius: 8px;
+  }
+  .bulletin-card__title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #124b32;
+  }
+  .bulletin-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .bulletin-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+  .bulletin-stat {
+    border: 1px solid #e0e8e3;
+    border-radius: 8px;
+    padding: 0.55rem;
+    background: #fbfdfb;
+  }
+  .bulletin-stat__value {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: 900;
+    color: #124b32;
+    line-height: 1;
+  }
+  .bulletin-stat__label {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.75rem;
+    color: #62736b;
+  }
+  @media (max-width: 575.98px) {
+    .bulletin-actions {
+      width: 100%;
+    }
+    .bulletin-actions .btn {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+  <div>
+    <h1 class="h4 mb-1">Bulletins</h1>
+    <p class="text-muted mb-0">Messages envoyes aux producteurs rattaches a {{ manager_user.get_full_name|default:manager_user.username }}.</p>
+  </div>
+  <div class="bulletin-actions d-flex gap-2 flex-wrap">
+    <a href="{% url 'technician_bulletin_create' %}" class="btn btn-success">Nouveau bulletin</a>
+    <a href="{% url 'technician_records' %}" class="btn btn-outline-secondary">Vue technicien</a>
+  </div>
+</div>
+
+{% if bulletins %}
+  <div class="bulletin-list">
+    {% for bulletin in bulletins %}
+      <div class="card bulletin-card shadow-sm">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+            <div>
+              <div class="bulletin-card__title">{{ bulletin.title }}</div>
+              <div class="small text-muted">
+                {% if bulletin.sent_at %}
+                  Envoye le {{ bulletin.sent_at|date:"d/m/Y H:i" }}
+                {% else %}
+                  Cree le {{ bulletin.created_at|date:"d/m/Y H:i" }}
+                {% endif %}
+              </div>
+            </div>
+            <span class="badge rounded-pill text-bg-light border">{{ bulletin.get_status_display }}</span>
+          </div>
+
+          <div class="bulletin-meta mb-3">
+            {% if bulletin.type_labels %}<span class="badge rounded-pill text-bg-success">{{ bulletin.type_labels }}</span>{% endif %}
+            {% if bulletin.priority_label %}<span class="badge rounded-pill text-bg-warning">{{ bulletin.priority_label }}</span>{% endif %}
+            {% if bulletin.crop_labels %}<span class="badge rounded-pill text-bg-light border">{{ bulletin.crop_labels }}</span>{% endif %}
+            {% if bulletin.department_labels %}<span class="badge rounded-pill text-bg-light border">{{ bulletin.department_labels }}</span>{% endif %}
+            {% if bulletin.valid_until %}<span class="badge rounded-pill text-bg-light border">Jusqu'au {{ bulletin.valid_until|date:"d/m/Y" }}</span>{% endif %}
+          </div>
+
+          <div class="bulletin-stat-grid mb-3">
+            <div class="bulletin-stat">
+              <span class="bulletin-stat__value">{{ bulletin.recipient_count }}</span>
+              <span class="bulletin-stat__label">Destinataires</span>
+            </div>
+            <div class="bulletin-stat">
+              <span class="bulletin-stat__value">{{ bulletin.opened_count }}</span>
+              <span class="bulletin-stat__label">Ouverts</span>
+            </div>
+            <div class="bulletin-stat">
+              <span class="bulletin-stat__value">{{ bulletin.acknowledged_count }}</span>
+              <span class="bulletin-stat__label">Pris connaissance</span>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center gap-2">
+            <div class="small text-muted">{{ bulletin.pending_acknowledgement_count }} en attente de confirmation</div>
+            <a href="{% url 'technician_bulletin_detail' bulletin.id %}" class="btn btn-sm btn-outline-success">Voir les stats</a>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h2 class="h5">Aucun bulletin</h2>
+      <p class="text-muted mb-3">Aucun message n'a encore ete envoye depuis ce compte technicien.</p>
+      <a href="{% url 'technician_bulletin_create' %}" class="btn btn-success">Creer un bulletin</a>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
