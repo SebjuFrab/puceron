@@ -14,6 +14,7 @@ from .models import (
     BulletinMessageType,
     BulletinPriority,
     BulletinRecipient,
+    AuxiliaryTaxon,
     ConductType,
     Crop,
     Department,
@@ -22,6 +23,7 @@ from .models import (
     NotificationPreference,
     PlantSeries,
     ProducerTechnicianAssignment,
+    QuickRecordAuxiliaryCount,
     RecommendationDismissReason,
     RecommendationResponse,
     ScoutingRecord,
@@ -283,8 +285,19 @@ class TechnicianDashboardComparisonTests(TestCase):
         self.producer_2 = self._create_producer('producer-dashboard-2', 'GAEC B')
         self.series_1 = self._create_series(self.producer_1, 'Serie 1')
         self.series_2 = self._create_series(self.producer_2, 'Serie 2')
-        self._create_record(self.producer_1, self.series_1, Decimal('40.00'), 4)
-        self._create_record(self.producer_2, self.series_2, Decimal('60.00'), 2)
+        self.syrphe, _ = AuxiliaryTaxon.objects.get_or_create(
+            code='syrphes',
+            defaults={'name': 'Syrphes', 'display_order': 1},
+        )
+        self.coccinelle, _ = AuxiliaryTaxon.objects.get_or_create(
+            code='coccinelles',
+            defaults={'name': 'Coccinelles', 'display_order': 2},
+        )
+        self.record_1 = self._create_record(self.producer_1, self.series_1, Decimal('40.00'), 4)
+        self.record_2 = self._create_record(self.producer_2, self.series_2, Decimal('60.00'), 2)
+        QuickRecordAuxiliaryCount.objects.create(record=self.record_1, taxon=self.syrphe, count=3)
+        QuickRecordAuxiliaryCount.objects.create(record=self.record_1, taxon=self.coccinelle, count=1)
+        QuickRecordAuxiliaryCount.objects.create(record=self.record_2, taxon=self.syrphe, count=5)
 
     def _create_producer(self, username, farm_name):
         producer = get_user_model().objects.create_user(
@@ -377,6 +390,30 @@ class TechnicianDashboardComparisonTests(TestCase):
         aux_reference = next(dataset for dataset in context['aux_datasets'] if dataset['label'] == 'Moyenne du groupe')
         self.assertEqual(aphid_reference['data'], [40.0])
         self.assertEqual(aux_reference['data'], [0.4])
+
+    def test_auxiliary_detail_datasets_are_added_by_series_and_taxon(self):
+        context = self._context(
+            crop=str(self.crop.id),
+            year='2026',
+            organic_mode='bio',
+            comparison_mode='average',
+        )
+
+        datasets = context['auxiliary_detail_datasets']
+        series_syrphe = next(
+            dataset
+            for dataset in datasets
+            if dataset['seriesId'] == self.series_1.id and dataset['taxonId'] == self.syrphe.id
+        )
+        reference_syrphe = next(
+            dataset
+            for dataset in datasets
+            if dataset['seriesId'] == 'reference' and dataset['taxonId'] == self.syrphe.id
+        )
+
+        self.assertEqual(series_syrphe['label'], 'Syrphes')
+        self.assertEqual(series_syrphe['data'], [0.3])
+        self.assertEqual(reference_syrphe['data'], [0.4])
 
     def test_producer_selection_reselects_all_varieties_and_series_when_none_are_explicitly_unchecked(self):
         context = self._context(

@@ -1,13 +1,17 @@
 from collections import defaultdict
 from statistics import median
 
-from django.db.models import Count
+from django.db.models import Count, Sum
 
 from .models import (
+    AUXILIARY_SPECIES,
+    AuxiliaryTaxon,
     LeafObservation,
+    LeafAuxiliaryObservation,
     LeafOtherPestObservation,
     PlantAction,
     PlantSeries,
+    QuickRecordAuxiliaryCount,
     QuickRecordOtherPestCount,
     ScoutingRecord,
 )
@@ -36,6 +40,18 @@ OTHER_PEST_CHART_COLORS = [
     '#1c7ed6',
     '#2b8a3e',
     '#495057',
+]
+
+AUXILIARY_CHART_COLORS = [
+    '#198754',
+    '#f59f00',
+    '#0d6efd',
+    '#7b2cbf',
+    '#0ca678',
+    '#c2255c',
+    '#d9480f',
+    '#2b8a3e',
+    '#1c7ed6',
 ]
 
 ORGANIC_MODE_LABELS = {
@@ -108,6 +124,59 @@ def _reference_chart_dataset(weeks, values_by_week, label, color='#495057'):
     }
 
 
+def _taxon_reference_datasets(raw_datasets, weeks, label, fallback_name, dataset_prefix):
+    if not raw_datasets or not weeks or not label:
+        return []
+
+    values_by_taxon = defaultdict(lambda: defaultdict(list))
+    meta_by_taxon = {}
+    for dataset in raw_datasets:
+        taxon_id = dataset.get('taxonId')
+        if not taxon_id:
+            continue
+        meta_by_taxon.setdefault(
+            taxon_id,
+            {
+                'name': dataset.get('label', f'{fallback_name} {taxon_id}'),
+                'color': dataset.get('borderColor', '#495057'),
+            },
+        )
+        for index, week in enumerate(weeks):
+            if index >= len(dataset.get('data', [])):
+                continue
+            value = dataset['data'][index]
+            if value is None:
+                continue
+            values_by_taxon[taxon_id][week].append(value)
+
+    aggregator = _average if label == 'Moyenne du groupe' else _median
+    datasets = []
+    for taxon_id, week_values in values_by_taxon.items():
+        taxon_meta = meta_by_taxon.get(taxon_id, {})
+        datasets.append(
+            {
+                'id': f'{dataset_prefix}-reference-{taxon_id}',
+                'seriesId': 'reference',
+                'taxonId': taxon_id,
+                'label': f"{taxon_meta.get('name', f'{fallback_name} {taxon_id}')} ({label})",
+                'data': [aggregator(week_values.get(week, [])) for week in weeks],
+                'borderColor': taxon_meta.get('color', '#495057'),
+                'backgroundColor': taxon_meta.get('color', '#495057'),
+                'borderDash': [8, 6],
+                'pointRadius': 5,
+                'pointHoverRadius': 7,
+                'pointStyle': 'rectRot',
+                'pointBackgroundColor': '#ffffff',
+                'pointBorderColor': taxon_meta.get('color', '#495057'),
+                'pointBorderWidth': 3,
+                'borderWidth': 3,
+                'tension': 0.18,
+                'isReference': True,
+            }
+        )
+    return datasets
+
+
 def _average(values):
     if not values:
         return None
@@ -125,6 +194,138 @@ def _contiguous_week_range(observed_weeks):
     if not observed_weeks:
         return []
     return list(range(observed_weeks[0], observed_weeks[-1] + 1))
+
+
+def _record_auxiliary_divisor(record):
+    if record.entry_mode == 'quick' and record.observed_plants_count:
+        return record.observed_plants_count
+    if record.plant_series_id and record.plant_series:
+        return record.plant_series.plants_count or 10
+    return record.observed_plants_count or 10
+
+
+def _auxiliary_chart_datasets(records, weeks):
+    scoped_records = [record for record in records if record.week in weeks]
+    record_ids = [record.id for record in scoped_records]
+    if not record_ids or not weeks:
+        return []
+
+    record_weeks_by_series = defaultdict(set)
+    records_by_id = {}
+    for record in scoped_records:
+        records_by_id[record.id] = record
+        record_weeks_by_series[record.plant_series_id].add(record.week)
+
+    taxa = list(AuxiliaryTaxon.objects.order_by('display_order', 'name'))
+    taxon_by_code = {taxon.code: taxon for taxon in taxa}
+    taxon_names = {taxon.id: taxon.name for taxon in taxa}
+    taxon_orders = {taxon.id: taxon.display_order or 0 for taxon in taxa}
+
+    totals_by_record_and_taxon = defaultdict(lambda: defaultdict(int))
+    records_with_structured_auxiliaries = set()
+
+    quick_rows = list(
+        QuickRecordAuxiliaryCount.objects.filter(record_id__in=record_ids)
+        .values('record_id', 'taxon_id', 'taxon__name', 'taxon__display_order')
+        .annotate(total=Sum('count'))
+        .order_by('taxon__display_order', 'taxon__name', 'taxon_id')
+    )
+    detailed_rows = list(
+        LeafAuxiliaryObservation.objects.filter(leaf_observation__record_id__in=record_ids)
+        .values(
+            'leaf_observation__record_id',
+            'taxon_id',
+            'taxon__name',
+            'taxon__display_order',
+        )
+        .annotate(total=Sum('count'))
+        .order_by('taxon__display_order', 'taxon__name', 'taxon_id')
+    )
+
+    for row in quick_rows:
+        record_id = row['record_id']
+        taxon_id = row['taxon_id']
+        totals_by_record_and_taxon[record_id][taxon_id] += row['total'] or 0
+        records_with_structured_auxiliaries.add(record_id)
+        taxon_names[taxon_id] = row['taxon__name']
+        taxon_orders[taxon_id] = row['taxon__display_order'] or 0
+
+    for row in detailed_rows:
+        record_id = row['leaf_observation__record_id']
+        taxon_id = row['taxon_id']
+        totals_by_record_and_taxon[record_id][taxon_id] += row['total'] or 0
+        records_with_structured_auxiliaries.add(record_id)
+        taxon_names[taxon_id] = row['taxon__name']
+        taxon_orders[taxon_id] = row['taxon__display_order'] or 0
+
+    legacy_record_ids = [
+        record.id
+        for record in scoped_records
+        if record.entry_mode != 'quick' and record.id not in records_with_structured_auxiliaries
+    ]
+    if legacy_record_ids:
+        legacy_sums = {code: Sum(code) for code, _ in AUXILIARY_SPECIES}
+        for row in (
+            LeafObservation.objects.filter(record_id__in=legacy_record_ids)
+            .values('record_id')
+            .annotate(**legacy_sums)
+        ):
+            record_id = row['record_id']
+            for code, _ in AUXILIARY_SPECIES:
+                taxon = taxon_by_code.get(code)
+                if not taxon:
+                    continue
+                total = row.get(code) or 0
+                if total:
+                    totals_by_record_and_taxon[record_id][taxon.id] += total
+
+    if not totals_by_record_and_taxon:
+        return []
+
+    values_by_series_and_taxon = defaultdict(lambda: defaultdict(dict))
+    for record_id, totals_by_taxon in totals_by_record_and_taxon.items():
+        record = records_by_id.get(record_id)
+        if not record:
+            continue
+        divisor = _record_auxiliary_divisor(record) or 10
+        for taxon_id, total in totals_by_taxon.items():
+            values_by_series_and_taxon[record.plant_series_id][taxon_id][record.week] = round(total / float(divisor), 2)
+
+    ordered_taxon_ids = sorted(
+        {taxon_id for taxon_map in values_by_series_and_taxon.values() for taxon_id in taxon_map.keys()},
+        key=lambda taxon_id: (taxon_orders.get(taxon_id, 999), taxon_names.get(taxon_id, '').lower(), taxon_id),
+    )
+    color_by_taxon_id = {
+        taxon_id: AUXILIARY_CHART_COLORS[index % len(AUXILIARY_CHART_COLORS)]
+        for index, taxon_id in enumerate(ordered_taxon_ids)
+    }
+
+    datasets = []
+    for series_id in sorted(values_by_series_and_taxon.keys()):
+        for taxon_id in ordered_taxon_ids:
+            values = values_by_series_and_taxon[series_id].get(taxon_id)
+            if not values:
+                continue
+            color = color_by_taxon_id[taxon_id]
+            datasets.append(
+                {
+                    'id': f'auxiliary-{series_id}-{taxon_id}',
+                    'seriesId': series_id,
+                    'taxonId': taxon_id,
+                    'label': taxon_names.get(taxon_id, f'Auxiliaire {taxon_id}'),
+                    'data': [
+                        values.get(week, 0) if week in record_weeks_by_series.get(series_id, set()) else None
+                        for week in weeks
+                    ],
+                    'borderColor': color,
+                    'backgroundColor': color,
+                }
+            )
+    return datasets
+
+
+def _reference_auxiliary_datasets(raw_datasets, weeks, label):
+    return _taxon_reference_datasets(raw_datasets, weeks, label, 'Auxiliaire', 'auxiliary')
 
 
 def _other_pest_chart_datasets(records, weeks):
@@ -294,6 +495,7 @@ def _producer_dashboard_context(request):
             'chart_labels': [],
             'aphid_datasets': [],
             'aux_datasets': [],
+            'auxiliary_detail_datasets': [],
             'other_pest_datasets': [],
             'action_cards': [],
             'available_years': [],
@@ -536,6 +738,12 @@ def _producer_dashboard_context(request):
         )
 
     displayed_records = [record for record in records if record.plant_series_id in displayed_series_ids]
+    auxiliary_detail_datasets = _auxiliary_chart_datasets(displayed_records, weeks)
+    if comparison_label and comparison_records:
+        comparison_auxiliary_source = _auxiliary_chart_datasets(comparison_records, weeks)
+        auxiliary_detail_datasets.extend(
+            _reference_auxiliary_datasets(comparison_auxiliary_source, weeks, comparison_label)
+        )
     other_pest_datasets = _other_pest_chart_datasets(displayed_records, weeks)
     if comparison_label and comparison_records:
         comparison_other_pest_source = _other_pest_chart_datasets(comparison_records, weeks)
@@ -558,6 +766,7 @@ def _producer_dashboard_context(request):
         'chart_labels': [f'S{week}' for week in weeks],
         'aphid_datasets': aphid_datasets,
         'aux_datasets': aux_datasets,
+        'auxiliary_detail_datasets': auxiliary_detail_datasets,
         'other_pest_datasets': other_pest_datasets,
         'action_cards': action_cards,
         'record_count': len(displayed_records),
@@ -594,6 +803,7 @@ def _technician_dashboard_context(request):
             'chart_labels': [],
             'aphid_datasets': [],
             'aux_datasets': [],
+            'auxiliary_detail_datasets': [],
             'other_pest_datasets': [],
             'action_cards': [],
             'available_years': [],
@@ -814,6 +1024,12 @@ def _technician_dashboard_context(request):
         )
 
     displayed_records = [record for record in records if record.plant_series_id in displayed_series_ids]
+    auxiliary_detail_datasets = _auxiliary_chart_datasets(displayed_records, weeks)
+    if comparison_label and comparison_records:
+        comparison_auxiliary_source = _auxiliary_chart_datasets(comparison_records, weeks)
+        auxiliary_detail_datasets.extend(
+            _reference_auxiliary_datasets(comparison_auxiliary_source, weeks, comparison_label)
+        )
     other_pest_datasets = _other_pest_chart_datasets(displayed_records, weeks)
     if comparison_label and comparison_records:
         comparison_other_pest_source = _other_pest_chart_datasets(comparison_records, weeks)
@@ -839,6 +1055,7 @@ def _technician_dashboard_context(request):
         'chart_labels': [f'S{week}' for week in weeks],
         'aphid_datasets': aphid_datasets,
         'aux_datasets': aux_datasets,
+        'auxiliary_detail_datasets': auxiliary_detail_datasets,
         'other_pest_datasets': other_pest_datasets,
         'action_cards': action_cards,
         'record_count': len(displayed_records),
