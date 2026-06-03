@@ -1636,10 +1636,7 @@ class PlantAction(models.Model):
     def clean(self):
         errors = {}
         category = self.action_type.category if self.action_type_id else None
-        if category == 'treatment':
-            if not self.molecule_id:
-                errors['molecule'] = 'Choisissez une molecule pour un traitement.'
-        elif self.molecule_id:
+        if category != 'treatment' and self.molecule_id:
             errors['molecule'] = 'La molecule est reservee aux actions de type traitement.'
         if category == 'release':
             if not self.auxiliary_taxon_id:

@@ -1136,10 +1136,7 @@ class PlantActionForm(forms.ModelForm):
         auxiliary_taxon = cleaned.get('auxiliary_taxon')
         if not action_type:
             return cleaned
-        if action_type.category == 'treatment':
-            if not molecule:
-                self.add_error('molecule', 'Choisissez une molecule.')
-        elif molecule:
+        if action_type.category != 'treatment' and molecule:
             self.add_error('molecule', 'La molecule est reservee au type traitement.')
         if action_type.category == 'release':
             if not auxiliary_taxon:
