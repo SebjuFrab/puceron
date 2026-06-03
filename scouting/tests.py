@@ -9,6 +9,7 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from .models import (
+    ActionType,
     BulletinAttachment,
     BulletinMessage,
     BulletinMessageType,
@@ -21,6 +22,7 @@ from .models import (
     DecisionRule,
     NotificationDelivery,
     NotificationPreference,
+    PlantAction,
     PlantSeries,
     ProducerTechnicianAssignment,
     QuickRecordAuxiliaryCount,
@@ -260,6 +262,68 @@ class PlantSeriesServicePlantTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Choisissez au moins une plante de service.')
+
+
+class PlantActionEntryTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser(
+            username='admin-action-entry',
+            email='admin-action-entry@example.test',
+            password='secret',
+        )
+        self.producer = get_user_model().objects.create_user(
+            username='producer-action-entry',
+            password='secret',
+        )
+        UserProfile.objects.create(
+            user=self.producer,
+            role=UserProfile.ROLE_PRODUCER,
+            department='29',
+        )
+        self.crop = Crop.objects.create(name='Concombre action test')
+        self.conduct_type = ConductType.objects.create(name='Conduite action test')
+        self.variety = Variety.objects.create(
+            crop=self.crop,
+            name='Variete action test',
+            created_by=self.producer,
+        )
+        self.series = PlantSeries.objects.create(
+            user=self.producer,
+            name='Serie action test',
+            crop=self.crop,
+            conduct_type=self.conduct_type,
+            organic_mode='bio',
+            variety=self.variety,
+            year=2026,
+            plants_count=10,
+            leaves_per_plant=3,
+        )
+        self.treatment_type = ActionType.objects.create(
+            name='Traitement action test',
+            category='treatment',
+        )
+
+    def test_treatment_action_can_be_created_without_molecule(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse('action_create'),
+            {
+                'plant_series': str(self.series.id),
+                'action_date': '2026-04-23',
+                'action_type': str(self.treatment_type.id),
+                'scope': 'general',
+                'molecule': '',
+                'auxiliary_taxon': '',
+                'notes': 'Traitement sans molecule precisee.',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], reverse('record_create'))
+        action = PlantAction.objects.get()
+        self.assertEqual(action.action_type, self.treatment_type)
+        self.assertIsNone(action.molecule_id)
 
 
 class TechnicianDashboardComparisonTests(TestCase):
