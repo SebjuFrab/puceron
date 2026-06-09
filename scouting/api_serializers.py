@@ -185,7 +185,7 @@ class ScoutingRecordSerializer(serializers.ModelSerializer):
         series = attrs.get('plant_series')
         if series and not user.is_superuser:
             if profile.role == UserProfile.ROLE_PRODUCER and series.user_id != user.id:
-                raise serializers.ValidationError('Cette serie ne vous appartient pas.')
+                raise serializers.ValidationError('Cette série ne vous appartient pas.')
             if profile.role == UserProfile.ROLE_TECHNICIAN:
                 owner_profile = UserProfile.objects.get_or_create(user=series.user)[0]
                 has_assignment = owner_profile.technician_assignments.filter(
@@ -194,7 +194,7 @@ class ScoutingRecordSerializer(serializers.ModelSerializer):
                     technician__profile__license_status=UserProfile.LICENSE_STATUS_ACTIVE,
                 ).exists()
                 if not has_assignment:
-                    raise serializers.ValidationError("Cette serie n'est pas rattachee a votre compte technicien.")
+                    raise serializers.ValidationError("Cette série n'est pas rattachée à votre compte technicien.")
         return attrs
 
 

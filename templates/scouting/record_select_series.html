@@ -157,7 +157,7 @@
       <h1 class="series-title">Choisir une série de plants</h1>
       <p class="series-sub">Sélectionnez la série à observer avant de démarrer le comptage.</p>
       {% if is_technician %}
-      <p class="series-sub"><b>Mode technicien :</b> saisie pour les producteurs explicitement rattaches.</p>
+      <p class="series-sub"><b>Mode technicien :</b> saisie pour les producteurs explicitement rattachés.</p>
       {% endif %}
     </div>
     <div class="d-flex gap-2 align-items-center flex-wrap">
@@ -168,7 +168,7 @@
 
   {% if recommendation_record and recommendation_result and recommendation_result.rule and recommendation_result.is_open %}
     <div class="decision-card">
-      <div class="small text-uppercase text-success fw-semibold mb-1">Dernier comptage enregistre</div>
+      <div class="small text-uppercase text-success fw-semibold mb-1">Dernier comptage enregistré</div>
       <div class="decision-title">
         {{ recommendation_result.rule.title }}
       </div>
@@ -187,8 +187,8 @@
     </div>
   {% elif recommendation_record and recommendation_result and not recommendation_result.rule %}
     <div class="decision-card">
-      <div class="small text-uppercase text-success fw-semibold mb-1">Dernier comptage enregistre</div>
-      <div class="decision-title">Aucune preconisation correspondante</div>
+      <div class="small text-uppercase text-success fw-semibold mb-1">Dernier comptage enregistré</div>
+      <div class="decision-title">Aucune préconisation correspondante</div>
       <div class="text-muted mb-2">
         Série : <b>{{ recommendation_record.plant_series.name|default:"-" }}</b>
         {% if recommendation_record.plant_series %} | Année {{ recommendation_record.plant_series.year }}{% endif %}

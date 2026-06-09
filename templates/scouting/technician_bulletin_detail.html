@@ -97,9 +97,9 @@
     <h1 class="h4 mb-1">{{ bulletin.title }}</h1>
     <div class="text-muted">
       {% if bulletin.sent_at %}
-        Envoye le {{ bulletin.sent_at|date:"d/m/Y H:i" }}
+        Envoyé le {{ bulletin.sent_at|date:"d/m/Y H:i" }}
       {% else %}
-        Cree le {{ bulletin.created_at|date:"d/m/Y H:i" }}
+        Créé le {{ bulletin.created_at|date:"d/m/Y H:i" }}
       {% endif %}
     </div>
   </div>
@@ -136,7 +136,7 @@
         </div>
       {% endif %}
       {% if files %}
-        <h2 class="h5 mb-3">Pieces jointes</h2>
+        <h2 class="h5 mb-3">Pièces jointes</h2>
         <div class="bulletin-file-list">
           {% for attachment in files %}
             <a class="bulletin-file-link" href="{{ attachment.file.url }}" target="_blank" rel="noopener noreferrer">
@@ -194,7 +194,7 @@
           {% elif recipient.first_opened_at %}
             <span class="badge rounded-pill text-bg-warning">Ouvert sans confirmation</span>
             <div class="small text-muted mt-1">
-              Premiere ouverture {{ recipient.first_opened_at|date:"d/m/Y H:i" }}
+              Première ouverture {{ recipient.first_opened_at|date:"d/m/Y H:i" }}
               {% if recipient.open_count > 1 %} - {{ recipient.open_count }} ouvertures{% endif %}
             </div>
           {% else %}
@@ -203,7 +203,7 @@
         </div>
       </div>
     {% empty %}
-      <div class="text-muted">Aucun destinataire enregistre pour ce bulletin.</div>
+      <div class="text-muted">Aucun destinataire enregistré pour ce bulletin.</div>
     {% endfor %}
   </div>
 </div>

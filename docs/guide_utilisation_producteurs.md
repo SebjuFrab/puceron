@@ -5,28 +5,28 @@
 L'outil `PUCERON` permet de :
 
 - suivre les pucerons sur vos cultures sous abri,
-- suivre les auxiliaires observes sur les feuilles,
-- enregistrer les actions realisees sur la culture,
-- visualiser l'evolution de vos series dans le temps,
+- suivre les auxiliaires observés sur les feuilles,
+- enregistrer les actions réalisées sur la culture,
+- visualiser l'évolution de vos séries dans le temps,
 - consulter les recommandations en cours.
 
-L'outil est pense pour une utilisation sur telephone, directement dans la serre ou le tunnel.
+L'outil est pensé pour une utilisation sur téléphone, directement dans la serre ou le tunnel.
 
-## 2. Premiere connexion
+## 2. Première connexion
 
-### Si votre compte a ete cree par import
+### Si votre compte a été créé par import
 
-Lors de la premiere connexion, utilisez `Mot de passe oublie ?` sur la page de connexion.
+Lors de la première connexion, utilisez `Mot de passe oublié ?` sur la page de connexion.
 
-Etapes :
+Étapes :
 
 1. ouvrez la page de connexion,
-2. cliquez sur `Mot de passe oublie ?`,
+2. cliquez sur `Mot de passe oublié ?`,
 3. saisissez votre adresse mail,
-4. ouvrez le mail recu,
-5. definissez votre mot de passe.
+4. ouvrez le mail reçu,
+5. définissez votre mot de passe.
 
-### Si vous avez deja un mot de passe
+### Si vous avez déjà un mot de passe
 
 Connectez-vous simplement avec :
 
@@ -40,13 +40,13 @@ En tant que producteur, vous utilisez surtout les onglets suivants :
 - `Saisir`
 - `Dashboard`
 - `Mon profil`
-- `Mes series`
+- `Mes séries`
 - `Mes recommandations`
-- `Mes donnees`
+- `Mes données`
 
 ## 4. Mon profil
 
-Dans `Mon profil`, vous pouvez verifier ou mettre a jour :
+Dans `Mon profil`, vous pouvez vérifier ou mettre à jour :
 
 - votre nom de ferme,
 - votre adresse,
@@ -57,52 +57,52 @@ Dans `Mon profil`, vous pouvez verifier ou mettre a jour :
 - votre mobile,
 - votre photo ou logo.
 
-Le nom et les coordonnees de votre technicien referent sont affiches en lecture seule.
+Le nom et les coordonnées de votre technicien référent sont affichés en lecture seule.
 
 Conseil :
 
-- verifiez bien l'adresse et le point GPS avant de commencer a saisir des donnees.
+- vérifiez bien l'adresse et le point GPS avant de commencer à saisir des données.
 
-## 5. Creer une serie de plants
+## 5. Créer une série de plants
 
-Avant de saisir un comptage, il faut creer au moins une `serie de plants` dans `Mes series`.
+Avant de saisir un comptage, il faut créer au moins une `série de plants` dans `Mes séries`.
 
-Pour chaque serie, vous renseignez :
+Pour chaque série, vous renseignez :
 
-- un nom de serie,
+- un nom de série,
 - la culture,
 - la conduite,
-- la variete,
-- l'annee,
+- la variété,
+- l'année,
 - le mode de conduite : `Bio (AB)` ou `Non bio`,
 - le nombre de plants suivis,
 - le nombre de feuilles par plant.
 
-Par defaut, une serie correspond generalement a :
+Par défaut, une série correspond généralement a :
 
 - `10 plants`
 - `3 feuilles par plant`
 
-Vous pouvez aussi ajouter une photo de la serie.
+Vous pouvez aussi ajouter une photo de la série.
 
 ## 6. Realiser un comptage
 
-### Etape 1 : choisir la serie
+### Étape 1 : choisir la série
 
-Dans `Saisir`, commencez par choisir la serie observee.
+Dans `Saisir`, commencez par choisir la série observée.
 
-### Etape 2 : choisir le type de saisie
+### Étape 2 : choisir le type de saisie
 
 Deux choix sont proposes :
 
 - `Effectuer un comptage`
-- `Renseigner une action preventive ou curative`
+- `Renseigner une action préventive ou curative`
 
 Pour un comptage pucerons/auxiliaires, choisissez `Effectuer un comptage`.
 
-### Etape 3 : saisir plant par plant
+### Étape 3 : saisir plant par plant
 
-La saisie se fait plant par plant, feuille par feuille.
+Là saisie se fait plant par plant, feuille par feuille.
 
 Pour chaque feuille :
 
@@ -113,15 +113,15 @@ Pour chaque feuille :
 Vous pouvez :
 
 - cliquer sur `puceron` si la feuille est consideree comme infestee,
-- cliquer sur `aux` pour ajouter un ou plusieurs auxiliaires observes.
+- cliquer sur `aux` pour ajouter un ou plusieurs auxiliaires observés.
 
-### Regle pour les pucerons
+### Règle pour les pucerons
 
 La feuille est comptee `avec presence de puceron` si vous observez :
 
 - `plus de 5 pucerons sur la feuille`
 
-### Regle pour les auxiliaires
+### Règle pour les auxiliaires
 
 Pour chaque feuille, vous pouvez saisir :
 
@@ -143,7 +143,7 @@ Quand le plant est termine :
 
 ### Fin de comptage
 
-Apres le dernier plant, l'ecran de fin de saisie apparait.
+Après le dernier plant, l'écran de fin de saisie apparaît.
 
 Vous pouvez alors renseigner :
 
@@ -152,26 +152,26 @@ Vous pouvez alors renseigner :
 
 Puis cliquez sur `Enregistrer le comptage`.
 
-## 7. Saisir une action preventive ou curative
+## 7. Saisir une action préventive ou curative
 
-Dans `Saisir`, apres avoir choisi la serie, vous pouvez enregistrer une action realisee sur la culture.
+Dans `Saisir`, apres avoir choisi la série, vous pouvez enregistrer une action réalisée sur la culture.
 
-Les types d'action possibles sont parametres dans l'outil, par exemple :
+Les types d'action possibles sont paramètres dans l'outil, par exemple :
 
 - action manuelle,
 - traitement,
-- lacher d'auxiliaires.
+- lâcher d'auxiliaires.
 
-Selon le type choisi, l'outil peut demander des informations complementaires, par exemple :
+Selon le type choisi, l'outil peut demander des informations complémentaires, par exemple :
 
-- la portee : `Localisee` ou `Generalisee`,
-- la molecule,
-- l'auxiliaire lache,
+- la portée : `Localisée` ou `Généralisée`,
+- la molécule,
+- l'auxiliaire lâché,
 - des details.
 
 ## 8. Consulter les recommandations
 
-Apres un comptage, l'outil peut afficher une recommandation selon :
+Après un comptage, l'outil peut afficher une recommandation selon :
 
 - la culture,
 - la semaine d'observation,
@@ -180,9 +180,9 @@ Apres un comptage, l'outil peut afficher une recommandation selon :
 
 Les recommandations sont visibles :
 
-- juste apres la saisie,
+- juste apres là saisie,
 - dans `Mes recommandations`,
-- dans `Mes series`.
+- dans `Mes séries`.
 
 Pour chaque recommandation, vous pouvez :
 
@@ -193,12 +193,12 @@ Si vous choisissez `Ne pas suivre`, vous pouvez indiquer un motif.
 
 ## 9. Dashboard
 
-Dans `Dashboard`, vous visualisez l'evolution de vos series.
+Dans `Dashboard`, vous visualisez l'évolution de vos séries.
 
 Le dashboard producteur affiche :
 
-- toutes vos series d'une meme culture,
-- pour une meme annee,
+- toutes vos séries d'une même culture,
+- pour une même année,
 - sur deux graphes :
   - `Taux d'infestation`
   - `Auxiliaires / plant`
@@ -206,16 +206,16 @@ Le dashboard producteur affiche :
 Vous pouvez :
 
 - changer la culture,
-- changer l'annee,
-- masquer temporairement certaines series.
+- changer l'année,
+- masquer temporairement certaines séries.
 
 Important :
 
 - le graphe `Taux d'infestation` reste toujours sur une echelle de `0 a 100 %`.
 
-## 10. Mes donnees
+## 10. Mes données
 
-Dans `Mes donnees`, vous retrouvez :
+Dans `Mes données`, vous retrouvez :
 
 - vos comptages,
 - vos actions preventives ou curatives.
@@ -223,8 +223,8 @@ Dans `Mes donnees`, vous retrouvez :
 Vous pouvez :
 
 - relire vos saisies,
-- modifier un comptage deja enregistre,
-- exporter vos donnees en Excel.
+- modifier un comptage déjà enregistré,
+- exporter vos données en Excel.
 
 ## 11. Mes recommandations
 
@@ -232,7 +232,7 @@ La page `Mes recommandations` regroupe les recommandations en cours.
 
 Vous pouvez y voir :
 
-- la serie concernee,
+- la série concernée,
 - le score obtenu,
 - la recommandation,
 - les leviers proposes.
@@ -244,20 +244,20 @@ Vous pouvez aussi :
 
 ## 12. En cas de probleme reseau
 
-Si la connexion est faible ou coupee :
+Si la connexion'est faible ou coupee :
 
-- le brouillon de saisie peut etre conserve localement sur le telephone,
-- vous pourrez reprendre la saisie quand la connexion revient.
+- le brouillon de saisie peut être conservé localement sur le téléphone,
+- vous pourrez reprendre là saisie quand la connexion revient.
 
-En revanche, la saisie n'est enregistree dans l'outil qu'une fois l'envoi final valide.
+En revanche, là saisie n'est enregistrée dans l'outil qu'une fois l'envoi final validé.
 
 ## 13. Bonnes pratiques de saisie
 
-- faites le comptage toujours selon le meme protocole,
-- respectez le nombre de plants et de feuilles prevu dans la serie,
+- faites le comptage toujours selon le même protocole,
+- respectez le nombre de plants et de feuilles prévu dans la série,
 - saisissez les observations au plus proche du terrain,
-- utilisez le commentaire si un point doit etre signale,
-- verifiez la bonne serie avant de commencer.
+- utilisez le commentaire si un point doit être signalé,
+- vérifiez la bonne série avant de commencer.
 
 ## 14. Rappel du protocole
 
@@ -269,11 +269,11 @@ Le protocole standard est le suivant :
    - une feuille milieu,
    - une feuille haute,
 3. indiquer `presence` de puceron si la feuille porte `plus de 5 pucerons`,
-4. compter les auxiliaires observes sur ces memes feuilles.
+4. compter les auxiliaires observés sur ces memes feuilles.
 
 ## 15. Besoin d'aide
 
 En cas de doute :
 
 - consultez les pages d'information de l'outil,
-- ou contactez votre technicien referent.
+- ou contactez votre technicien référent.

@@ -13,7 +13,7 @@
         <p class="text-muted mb-3">
           Statut: <strong>{{ request_obj.get_status_display }}</strong>
           |
-          Creee le {{ request_obj.created_at|date:"d/m/Y H:i" }}
+          Créée le {{ request_obj.created_at|date:"d/m/Y H:i" }}
           {% if request_obj.responded_at %}
             |
             Traitee le {{ request_obj.responded_at|date:"d/m/Y H:i" }}
@@ -63,18 +63,18 @@
               </div>
             </div>
             <div class="col-12 d-flex gap-2">
-              <button type="submit" class="btn btn-success">Valider ma decision</button>
+              <button type="submit" class="btn btn-success">Valider ma décision</button>
               <a href="{% url 'technician_records' %}" class="btn btn-outline-secondary">Annuler</a>
             </div>
           </form>
         {% else %}
-          <h2 class="h6 mt-1">Decision enregistree</h2>
+          <h2 class="h6 mt-1">Décision enregistrée</h2>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead>
                 <tr>
                   <th>Producteur</th>
-                  <th>Decision</th>
+                  <th>Décision</th>
                   <th>Traite le</th>
                 </tr>
               </thead>

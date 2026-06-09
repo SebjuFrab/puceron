@@ -941,8 +941,8 @@ function renderPrimarySpeciesDetail(speciesId) {
   document.getElementById('primaryAphidSpeciesDetailTitle').textContent = species.vernacularName || species.label;
   document.getElementById('primaryAphidSpeciesDetailLatin').textContent = species.latinName || '';
   document.getElementById('primaryAphidSpeciesDetailMolecules').textContent = species.moleculesLabel || 'Aucune molécule renseignée.';
-  document.getElementById('primaryAphidSpeciesDetailAuxiliaries').textContent = species.auxiliariesLabel || 'Aucun auxiliaire renseigne.';
-  document.getElementById('primaryAphidSpeciesDetailDescription').textContent = species.description || 'Aucune description renseignee.';
+  document.getElementById('primaryAphidSpeciesDetailAuxiliaries').textContent = species.auxiliariesLabel || 'Aucun auxiliaire renseigné.';
+  document.getElementById('primaryAphidSpeciesDetailDescription').textContent = species.description || 'Aucune description renseignée.';
 }
 function setPrimarySpeciesChoice(speciesId, options = {}) {
   const value = String(speciesId || '');
@@ -1017,8 +1017,8 @@ function renderAphidSpeciesDetail(speciesId) {
   document.getElementById('aphidSpeciesDetailTitle').textContent = species.vernacularName || species.label;
   document.getElementById('aphidSpeciesDetailLatin').textContent = species.latinName || '';
   document.getElementById('aphidSpeciesDetailMolecules').textContent = species.moleculesLabel || 'Aucune molécule renseignée.';
-  document.getElementById('aphidSpeciesDetailAuxiliaries').textContent = species.auxiliariesLabel || 'Aucun auxiliaire renseigne.';
-  document.getElementById('aphidSpeciesDetailDescription').textContent = species.description || 'Aucune description renseignee.';
+  document.getElementById('aphidSpeciesDetailAuxiliaries').textContent = species.auxiliariesLabel || 'Aucun auxiliaire renseigné.';
+  document.getElementById('aphidSpeciesDetailDescription').textContent = species.description || 'Aucune description renseignée.';
 }
 function selectAphidSpeciesCard(speciesId) {
   aphidSpeciesSelectedInput.value = String(speciesId || '');
@@ -1064,7 +1064,7 @@ function updateConnectivityUI() {
     return;
   }
   offlineStatus.classList.remove('d-none');
-  offlineStatus.textContent = 'Hors ligne: la saisie est en brouillon local sur ce telephone.';
+  offlineStatus.textContent = 'Hors ligne : la saisie est en brouillon local sur ce téléphone.';
 }
 function collectDraftData() {
   const aphids = {};
@@ -1095,7 +1095,7 @@ function saveDraft() {
   try {
     localStorage.setItem(draftStorageKey, JSON.stringify(collectDraftData()));
     if (!navigator.onLine) {
-      showDraftStatus('Brouillon hors ligne enregistre sur ce telephone.', 'warning');
+      showDraftStatus('Brouillon hors ligne enregistré sur ce téléphone.', 'warning');
     }
   } catch (e) {}
 }
@@ -1172,7 +1172,7 @@ function applyDraftData(draft, options = {}) {
   updatePlantDisplay();
   refreshPrimarySpeciesPrompt();
   if (!quiet) {
-    showDraftStatus('Brouillon restaure depuis ce telephone.', 'info');
+    showDraftStatus('Brouillon restauré depuis ce téléphone.', 'info');
   }
   if (setDirty) {
     isDirty = true;
@@ -1522,7 +1522,7 @@ if (mainForm) {
       event.preventDefault();
       allowUnload = false;
       saveDraft();
-      showDraftStatus('Hors ligne: envoi impossible. Le brouillon est garde localement.', 'warning');
+      showDraftStatus('Hors ligne : envoi impossible. Le brouillon est gardé localement.', 'warning');
       return;
     }
     if (draftTimer) clearTimeout(draftTimer);

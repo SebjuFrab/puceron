@@ -72,7 +72,7 @@
           <div class="d-flex gap-2 flex-wrap mb-3">
             <span class="badge rounded-pill text-bg-light border">Lignes : {{ summary.total }}</span>
             <span class="badge rounded-pill text-bg-success">Crees : {{ summary.created }}</span>
-            <span class="badge rounded-pill text-bg-primary">Mis a jour : {{ summary.updated }}</span>
+            <span class="badge rounded-pill text-bg-primary">Mis à jour : {{ summary.updated }}</span>
             <span class="badge rounded-pill text-bg-danger">Erreurs : {{ summary.errors }}</span>
             <span class="badge rounded-pill text-bg-success">GPS calcules : {{ summary.gps_found }}</span>
             <span class="badge rounded-pill text-bg-warning">GPS sans correspondance : {{ summary.gps_missing }}</span>
@@ -90,7 +90,7 @@
                   <th>Technicien</th>
                   <th>Premiere connexion</th>
                   <th>GPS</th>
-                  <th>Detail</th>
+                  <th>Détail</th>
                 </tr>
               </thead>
               <tbody>
@@ -99,9 +99,9 @@
                     <td>{{ row.line }}</td>
                     <td>
                       {% if row.status == 'created' %}
-                        <span class="badge text-bg-success">Cree</span>
+                        <span class="badge text-bg-success">Créé</span>
                       {% elif row.status == 'updated' %}
-                        <span class="badge text-bg-primary">Mis a jour</span>
+                        <span class="badge text-bg-primary">Mis à jour</span>
                       {% else %}
                         <span class="badge text-bg-danger">Erreur</span>
                       {% endif %}

@@ -250,7 +250,7 @@ def my_bulletin_detail_view(request, recipient_id):
     recipient = get_object_or_404(_producer_bulletin_recipients_queryset(request), id=recipient_id)
     if request.method == 'POST':
         recipient.mark_acknowledged(_effective_user(request))
-        messages.success(request, 'Prise de connaissance enregistree.')
+        messages.success(request, 'Prise de connaissance enregistrée.')
         return redirect('my_bulletin_detail', recipient.id)
 
     recipient.mark_opened()

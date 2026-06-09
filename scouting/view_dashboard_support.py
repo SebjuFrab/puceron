@@ -87,7 +87,7 @@ def _serialize_action_details(action):
         parts.append(action.auxiliary_taxon.name)
     if action.notes:
         parts.append(action.notes)
-    return ' | '.join(parts) if parts else 'Sans detail complementaire'
+    return ' | '.join(parts) if parts else 'Sans détail complémentaire'
 
 
 
@@ -691,7 +691,7 @@ def _producer_dashboard_context(request):
     comparison_aggregator = _average if comparison_mode == 'average' else _median
     comparison_label = {
         'average': 'Moyenne du groupe',
-        'median': 'Mediane du groupe',
+        'median': 'Médiane du groupe',
     }.get(comparison_mode)
     if comparison_label and comparison_records:
         aphid_reference_map = {
@@ -817,7 +817,7 @@ def _technician_dashboard_context(request):
             'producer_filter_submitted': False,
             'variety_filter_submitted': False,
             'comparison_mode': 'median',
-            'comparison_mode_label': 'Mediane du groupe',
+            'comparison_mode_label': 'Médiane du groupe',
             'comparison_match_count': 0,
         }
 
@@ -973,7 +973,7 @@ def _technician_dashboard_context(request):
     comparison_aggregator = _average if comparison_mode == 'average' else _median
     comparison_label = {
         'average': 'Moyenne du groupe',
-        'median': 'Mediane du groupe',
+        'median': 'Médiane du groupe',
     }.get(comparison_mode)
     if comparison_label and comparison_records:
         aphid_reference_map = {

@@ -80,8 +80,8 @@ def _serialize_aphid_species(aphid_species_list):
                 'vernacularName': species.vernacular_name,
                 'latinName': species.latin_name,
                 'photoUrl': species.photo.url if species.photo else '',
-                'moleculesLabel': molecules or 'Aucune molecule renseignee.',
-                'auxiliariesLabel': auxiliaries or 'Aucun auxiliaire renseigne.',
+                'moleculesLabel': molecules or 'Aucune molécule renseignée.',
+                'auxiliariesLabel': auxiliaries or 'Aucun auxiliaire renseigné.',
                 'description': species.description or '',
             }
         )
@@ -517,7 +517,7 @@ def _record_form_context(
         'hide_mobile_record_cta': True,
         'aphid_species_options': _serialize_aphid_species(aphid_species_list),
         'default_aphid_species_id': default_aphid_species.id if default_aphid_species else '',
-        'default_aphid_species_label': str(default_aphid_species) if default_aphid_species else 'Non determine',
+        'default_aphid_species_label': str(default_aphid_species) if default_aphid_species else 'Non déterminé',
     }
 
 
@@ -571,7 +571,7 @@ def record_create_view(request):
             record = form.save(commit=False)
             selected_series = form.cleaned_data['plant_series']
             if not selected_series:
-                form.add_error('plant_series', 'S?lectionnez une s?rie de plants.')
+                form.add_error('plant_series', 'Sélectionnez une série de plants.')
                 return render(
                     request,
                     'scouting/record_select_series.html',
@@ -602,7 +602,7 @@ def record_create_view(request):
                     default_aphid_species=default_aphid_species,
                 )
                 if record is not None:
-                    messages.success(request, 'Comptage rapide enregistr?.')
+                    messages.success(request, 'Comptage rapide enregistré.')
                     return redirect(f"{reverse('record_create')}?recommendation_record={record.id}")
             else:
                 record.crop = selected_series.crop.name
@@ -629,7 +629,7 @@ def record_create_view(request):
                 if len(observed_species_ids) > 1 and primary_species is None:
                     form.add_error(
                         None,
-                        "Plusieurs esp?ces de pucerons ont ?t? renseign?es. Choisissez l'esp?ce principale ? la fin du comptage.",
+                        "Plusieurs espèces de pucerons ont été renseignées. Choisissez l'espèce principale à la fin du comptage.",
                     )
                 if not form.errors:
                     try:
@@ -648,9 +648,9 @@ def record_create_view(request):
                             record.primary_aphid_species = primary_species
                             record.save(update_fields=['primary_aphid_species'])
                     except IntegrityError:
-                        form.add_error(None, 'Un comptage existe d?j? pour cette s?rie et cette semaine.')
+                        form.add_error(None, 'Un comptage existe déjà pour cette série et cette semaine.')
                     else:
-                        messages.success(request, 'Comptage enregistr?.')
+                        messages.success(request, 'Comptage enregistré.')
                         return redirect(f"{reverse('record_create')}?recommendation_record={record.id}")
     else:
         today = datetime.date.today()
@@ -979,7 +979,7 @@ def record_update_view(request, record_id):
     else:
         record = get_object_or_404(queryset, id=record_id, user=effective_user)
     if not record.plant_series:
-        messages.error(request, 'Cette saisie ne peut pas ?tre modifi?e (s?rie manquante).')
+        messages.error(request, 'Cette saisie ne peut pas être modifiée (série manquante).')
         if editor_is_technician and not acting_as_producer:
             return redirect('technician_records')
         return redirect('my_records')
@@ -1042,7 +1042,7 @@ def record_update_view(request, record_id):
                 if len(observed_species_ids) > 1 and primary_species is None:
                     form.add_error(
                         None,
-                        "Plusieurs esp?ces de pucerons ont ?t? renseign?es. Choisissez l'esp?ce principale ? la fin du comptage.",
+                        "Plusieurs espèces de pucerons ont été renseignées. Choisissez l'espèce principale à la fin du comptage.",
                     )
                 if not form.errors:
                     try:
@@ -1061,12 +1061,12 @@ def record_update_view(request, record_id):
                             updated.primary_aphid_species = primary_species
                             updated.save(update_fields=['primary_aphid_species'])
                     except IntegrityError:
-                        form.add_error(None, 'Une autre saisie existe d?j? pour cette s?rie et cette semaine.')
+                        form.add_error(None, 'Une autre saisie existe déjà pour cette série et cette semaine.')
                     else:
                         updated = updated
 
             if updated is not None and not form.errors:
-                messages.success(request, 'Saisie modifi?e.')
+                messages.success(request, 'Saisie modifiée.')
                 next_view = request.POST.get('next') or request.GET.get('next')
                 next_producer_id = request.POST.get('producer') or request.GET.get('producer')
                 if next_view == 'technician_records' and _is_technician(manager_user) and not acting_as_producer:

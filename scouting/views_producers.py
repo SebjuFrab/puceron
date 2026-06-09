@@ -28,12 +28,12 @@ from .views_support import (
 @login_required
 def producer_create_view(request):
     if _is_acting_as_producer(request):
-        messages.error(request, 'Quittez le mode producteur avant de gerer des comptes producteurs.')
+        messages.error(request, 'Quittez le mode producteur avant de gérer des comptes producteurs.')
         return redirect('dashboard')
 
     manager_user = _manager_user(request)
     if not _can_manage_producers(manager_user):
-        messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
+        messages.error(request, 'Accès réservé aux techniciens et au super-admin.')
         return redirect('dashboard')
     restriction = _effective_access_restriction(request, for_write=True)
     if restriction:
@@ -48,8 +48,8 @@ def producer_create_view(request):
             messages.success(
                 request,
                 (
-                    f'Compte producteur cree: {display_user_name(created_user)} '
-                    f'(identifiant: {created_user.username}, {technician_count} technicien(s) rattache(s)).'
+                    f'Compte producteur créé : {display_user_name(created_user)} '
+                    f'(identifiant: {created_user.username}, {technician_count} technicien(s) rattaché(s)).'
                 ),
             )
             return redirect('producer_create')
@@ -74,7 +74,7 @@ def producer_import_view(request):
 
     manager_user = _manager_user(request)
     if not _can_manage_producers(manager_user):
-        messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
+        messages.error(request, 'Accès réservé aux techniciens et au super-admin.')
         return redirect('dashboard')
     restriction = _effective_access_restriction(request, for_write=True)
     if restriction:
@@ -187,7 +187,7 @@ def producer_import_view(request):
         'Raison social',
         'Nom',
         'Prenom',
-        'Departement',
+        'Département',
         'mail',
         'Adresse',
         'code postal',
@@ -212,7 +212,7 @@ def producer_import_view(request):
 @login_required
 def producer_import_template_view(request):
     if not _can_manage_producers(_manager_user(request)):
-        messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
+        messages.error(request, 'Accès réservé aux techniciens et au super-admin.')
         return redirect('dashboard')
 
     output = StringIO()
@@ -221,7 +221,7 @@ def producer_import_template_view(request):
         'Raison social',
         'Nom',
         'Prenom',
-        'Departement',
+        'Département',
         'mail',
         'Adresse',
         'code postal',
@@ -259,7 +259,7 @@ def producer_update_view(request, producer_id):
 
     manager_user = _manager_user(request)
     if not _can_manage_producers(manager_user):
-        messages.error(request, 'Acces reserve aux techniciens et au super-admin.')
+        messages.error(request, 'Accès réservé aux techniciens et au super-admin.')
         return redirect('dashboard')
     restriction = _effective_access_restriction(request, for_write=True)
     if restriction:

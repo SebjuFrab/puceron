@@ -54,9 +54,9 @@
               <div class="producer-bulletin-title">{{ recipient.bulletin.title }}</div>
               <div class="small text-muted">
                 {% if recipient.bulletin.sent_at %}
-                  Envoye le {{ recipient.bulletin.sent_at|date:"d/m/Y H:i" }}
+                  Envoyé le {{ recipient.bulletin.sent_at|date:"d/m/Y H:i" }}
                 {% else %}
-                  Cree le {{ recipient.bulletin.created_at|date:"d/m/Y H:i" }}
+                  Créé le {{ recipient.bulletin.created_at|date:"d/m/Y H:i" }}
                 {% endif %}
                 par {{ recipient.bulletin.author.get_full_name|default:recipient.bulletin.author.username }}
               </div>
@@ -78,7 +78,7 @@
             {% if recipient.bulletin.crop_labels %}<span class="badge rounded-pill text-bg-light border">{{ recipient.bulletin.crop_labels }}</span>{% endif %}
             {% if recipient.bulletin.valid_until %}<span class="badge rounded-pill text-bg-light border">Jusqu'au {{ recipient.bulletin.valid_until|date:"d/m/Y" }}</span>{% endif %}
             {% if recipient.photo_count %}<span class="badge rounded-pill text-bg-light border">{{ recipient.photo_count }} photo{% if recipient.photo_count > 1 %}s{% endif %}</span>{% endif %}
-            {% if recipient.file_count %}<span class="badge rounded-pill text-bg-light border">{{ recipient.file_count }} piece{% if recipient.file_count > 1 %}s{% endif %} jointe{% if recipient.file_count > 1 %}s{% endif %}</span>{% endif %}
+            {% if recipient.file_count %}<span class="badge rounded-pill text-bg-light border">{{ recipient.file_count }} pièce{% if recipient.file_count > 1 %}s{% endif %} jointe{% if recipient.file_count > 1 %}s{% endif %}</span>{% endif %}
           </div>
 
           <div class="producer-bulletin-actions d-flex justify-content-end">
@@ -89,6 +89,6 @@
     {% endfor %}
   </div>
 {% else %}
-  <div class="alert alert-info mb-0">Aucun bulletin recu pour le moment.</div>
+  <div class="alert alert-info mb-0">Aucun bulletin reçu pour le moment.</div>
 {% endif %}
 {% endblock %}

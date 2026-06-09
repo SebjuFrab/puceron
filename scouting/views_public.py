@@ -121,7 +121,7 @@ def dashboard_view(request):
             request,
             'scouting/access_denied.html',
             {
-                'access_denied_title': 'Acces refuse',
+                'access_denied_title': 'Accès refusé',
                 'access_denied_message': restriction['message'],
             },
             status=403,

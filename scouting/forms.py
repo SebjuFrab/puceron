@@ -258,7 +258,7 @@ class BulletinMessageForm(forms.ModelForm):
     )
     attachments = MultipleFileField(
         required=False,
-        label='Pieces jointes',
+        label='Pièces jointes',
         widget=MultipleFileInput(
             attrs={
                 'accept': '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.jpg,.jpeg,.png,.webp',
@@ -288,9 +288,9 @@ class BulletinMessageForm(forms.ModelForm):
         labels = {
             'title': 'Titre',
             'types': 'Types',
-            'priority': 'Priorite',
+            'priority': 'Priorité',
             'crops': 'Cultures',
-            'departments': 'Departements',
+            'departments': 'Départements',
             'valid_until': "Valable jusqu'au",
             'body': 'Message',
         }
@@ -366,7 +366,7 @@ class BulletinMessageForm(forms.ModelForm):
             max_count=BULLETIN_MAX_ATTACHMENTS,
             max_size=BULLETIN_MAX_ATTACHMENT_SIZE,
             allowed_extensions=BULLETIN_ATTACHMENT_EXTENSIONS,
-            label='Pieces jointes',
+            label='Pièces jointes',
         )
 
     def attachment_objects(self, bulletin):
@@ -475,11 +475,11 @@ class QuickScoutingRecordForm(forms.ModelForm):
 class UserProfileForm(forms.ModelForm):
     department = forms.ChoiceField(required=False, label='Département')
     email = forms.EmailField(required=False, label='Email')
-    first_name = forms.CharField(required=False, max_length=150, label='PrÃ©nom')
+    first_name = forms.CharField(required=False, max_length=150, label='Prénom')
     last_name = forms.CharField(required=False, max_length=150, label='Nom')
     bulletin_email_enabled = forms.BooleanField(
         required=False,
-        label='Recevoir un email quand un nouveau bulletin est envoye',
+        label='Recevoir un email quand un nouveau bulletin est envoyé',
     )
     bulletin_email_urgent_only = forms.BooleanField(
         required=False,
@@ -511,7 +511,7 @@ class UserProfileForm(forms.ModelForm):
             'street_address': 'Adresse',
             'postal_code': 'Code postal',
             'city': 'Commune',
-            'department': 'DÃ©partement',
+            'department': 'Département',
             'structure': 'Structure',
             'latitude': 'Latitude',
             'longitude': 'Longitude',
@@ -564,7 +564,7 @@ class UserProfileForm(forms.ModelForm):
         if self.user is not None:
             qs = qs.exclude(id=self.user.id)
         if qs.exists():
-            raise forms.ValidationError('Cette adresse mail existe deja.')
+            raise forms.ValidationError('Cette adresse mail existe déjà.')
         return email
 
     def save(self, commit=True):
@@ -601,7 +601,7 @@ class ProducerAccountCreationForm(UserCreationForm):
     email = forms.EmailField(required=False, label='Email')
     technicians = forms.ModelMultipleChoiceField(
         queryset=User.objects.none(),
-        label='Techniciens rattaches',
+        label='Techniciens rattachés',
         required=True,
     )
     farm_name = forms.CharField(max_length=150, label='Nom de ferme')
@@ -650,17 +650,17 @@ class ProducerAccountCreationForm(UserCreationForm):
         if not email:
             return ''
         if User.objects.filter(email__iexact=email).exists():
-            raise forms.ValidationError('Cette adresse mail existe deja.')
+            raise forms.ValidationError('Cette adresse mail existe déjà.')
         return email
 
     def clean_technicians(self):
         technicians = list(self.cleaned_data['technicians'])
         if not technicians:
-            raise forms.ValidationError('Selectionnez au moins un technicien.')
+            raise forms.ValidationError('Sélectionnez au moins un technicien.')
         if not self.creator.is_superuser:
             ids = {technician.id for technician in technicians}
             if ids != {self.creator.id}:
-                raise forms.ValidationError('Un technicien ne peut creer que des comptes rattaches a lui-meme.')
+                raise forms.ValidationError('Un technicien ne peut créer que des comptes rattachés à lui-même.')
         return technicians
 
     def clean(self):
@@ -705,11 +705,11 @@ class ProducerAccountCreationForm(UserCreationForm):
 class ProducerProfileUpdateForm(forms.ModelForm):
     username = forms.CharField(max_length=150, label='Identifiant')
     email = forms.EmailField(required=False, label='Email')
-    first_name = forms.CharField(max_length=150, required=False, label='PrÃ©nom')
+    first_name = forms.CharField(max_length=150, required=False, label='Prénom')
     last_name = forms.CharField(max_length=150, required=False, label='Nom')
     technicians = forms.ModelMultipleChoiceField(
         queryset=User.objects.none(),
-        label='Techniciens rattaches',
+        label='Techniciens rattachés',
         required=True,
     )
 
@@ -792,7 +792,7 @@ class ProducerProfileUpdateForm(forms.ModelForm):
             raise forms.ValidationError("L'identifiant est obligatoire.")
         exists = User.objects.exclude(id=self.producer_user.id).filter(username__iexact=username).exists()
         if exists:
-            raise forms.ValidationError('Cet identifiant existe deja.')
+            raise forms.ValidationError('Cet identifiant existe déjà.')
         return username
 
     def clean_email(self):
@@ -801,17 +801,17 @@ class ProducerProfileUpdateForm(forms.ModelForm):
             return ''
         exists = User.objects.exclude(id=self.producer_user.id).filter(email__iexact=email).exists()
         if exists:
-            raise forms.ValidationError('Cette adresse mail existe deja.')
+            raise forms.ValidationError('Cette adresse mail existe déjà.')
         return email
 
     def clean_technicians(self):
         technicians = list(self.cleaned_data['technicians'])
         if not technicians:
-            raise forms.ValidationError('Selectionnez au moins un technicien.')
+            raise forms.ValidationError('Sélectionnez au moins un technicien.')
         if not self.editor.is_superuser:
             ids = {technician.id for technician in technicians}
             if ids != {self.editor.id}:
-                raise forms.ValidationError('Un technicien ne peut rattacher un producteur qu a lui-meme.')
+                raise forms.ValidationError('Un technicien ne peut rattacher un producteur qu’à lui-même.')
         return technicians
 
     def clean(self):
@@ -856,7 +856,7 @@ class ProducerImportForm(forms.Form):
     update_existing = forms.BooleanField(
         required=False,
         initial=True,
-        label='Mettre a jour les producteurs deja existants (recherche par email)',
+        label='Mettre à jour les producteurs déjà existants (recherche par email)',
     )
 
     def __init__(self, *args, **kwargs):
@@ -877,8 +877,8 @@ class TechnicianDeactivationForm(forms.Form):
     REASSIGN_MODE_SELECTED = 'selected'
     REASSIGN_MODE_ALL = 'all'
     REASSIGN_MODE_CHOICES = [
-        (REASSIGN_MODE_ALL, 'Reaffecter tous les producteurs selectionnes'),
-        (REASSIGN_MODE_SELECTED, 'Reaffecter seulement la selection'),
+        (REASSIGN_MODE_ALL, 'Réaffecter tous les producteurs sélectionnés'),
+        (REASSIGN_MODE_SELECTED, 'Réaffecter seulement la sélection'),
         (REASSIGN_MODE_NONE, 'Ne rien reaffecter'),
     ]
 
@@ -929,7 +929,7 @@ class TechnicianDeactivationForm(forms.Form):
         mode = cleaned.get('reassign_mode')
         target = cleaned.get('target_technician')
         if mode in {self.REASSIGN_MODE_ALL, self.REASSIGN_MODE_SELECTED} and target is None:
-            self.add_error('target_technician', 'Selectionnez un technicien cible.')
+            self.add_error('target_technician', 'Sélectionnez un technicien cible.')
         return cleaned
 
 
@@ -981,7 +981,7 @@ class TechnicianCoFollowRequestForm(forms.Form):
 
 
 class PlantSeriesForm(forms.ModelForm):
-    new_variety_name = forms.CharField(required=False, label='Nouvelle variÃ©tÃ© (si absente)')
+    new_variety_name = forms.CharField(required=False, label='Nouvelle variété (si absente)')
     service_plants = forms.ModelMultipleChoiceField(
         queryset=ServicePlant.objects.none(),
         required=False,
@@ -1008,19 +1008,19 @@ class PlantSeriesForm(forms.ModelForm):
             'is_active',
         ]
         labels = {
-            'name': 'Nom de la sÃ©rie',
+            'name': 'Nom de la série',
             'crop': 'Culture',
             'conduct_type': 'Conduite',
             'organic_mode': 'Mode de conduite',
-            'variety': 'VariÃ©tÃ©',
+            'variety': 'Variété',
             'greenhouse': 'Serre',
             'has_service_plants': 'Presence de plantes de service',
             'service_plants': 'Plantes de service',
-            'year': 'AnnÃ©e',
-            'planting_week': 'NumÃ©ro de la semaine de plantation',
+            'year': 'Année',
+            'planting_week': 'Numéro de la semaine de plantation',
             'plants_count': 'Nb plants',
             'leaves_per_plant': 'Nb feuilles / plant',
-            'is_active': 'SÃ©rie active',
+            'is_active': 'Série active',
         }
 
     def __init__(self, *args, **kwargs):
@@ -1060,9 +1060,9 @@ class PlantSeriesForm(forms.ModelForm):
         has_service_plants = cleaned.get('has_service_plants')
         service_plants = cleaned.get('service_plants')
         if variety and crop and variety.crop_id != crop.id:
-            self.add_error('variety', 'La variete doit appartenir a la culture choisie.')
+            self.add_error('variety', 'La variété doit appartenir à la culture choisie.')
         if not variety and not new_variety_name:
-            self.add_error('variety', 'Choisissez une variete ou renseignez une nouvelle variete.')
+            self.add_error('variety', 'Choisissez une variété ou renseignez une nouvelle variété.')
         if has_service_plants and not service_plants:
             self.add_error('service_plants', 'Choisissez au moins une plante de service.')
         if not has_service_plants:
@@ -1090,7 +1090,7 @@ class PlantActionForm(forms.ModelForm):
             'action_date': "Date d'action",
             'action_type': "Type d'action",
             'scope': 'Portée',
-            'auxiliary_taxon': 'Auxiliaire lache',
+            'auxiliary_taxon': 'Auxiliaire lâché',
             'notes': 'Détails',
         }
 
@@ -1137,12 +1137,12 @@ class PlantActionForm(forms.ModelForm):
         if not action_type:
             return cleaned
         if action_type.category != 'treatment' and molecule:
-            self.add_error('molecule', 'La molecule est reservee au type traitement.')
+            self.add_error('molecule', 'La molécule est réservée au type traitement.')
         if action_type.category == 'release':
             if not auxiliary_taxon:
-                self.add_error('auxiliary_taxon', 'Choisissez un auxiliaire a lacher.')
+                self.add_error('auxiliary_taxon', 'Choisissez un auxiliaire à lâcher.')
         elif auxiliary_taxon:
-            self.add_error('auxiliary_taxon', 'Cet auxiliaire est reserve au type lacher.')
+            self.add_error('auxiliary_taxon', 'Cet auxiliaire est réservé au type lâcher.')
         return cleaned
 
 
@@ -1150,12 +1150,12 @@ class RecommendationDismissForm(forms.Form):
     dismiss_reason = forms.ModelChoiceField(
         queryset=RecommendationDismissReason.objects.none(),
         required=False,
-        empty_label='Pourquoi ne pas suivre Ã© (facultatif)',
+        empty_label='Pourquoi ne pas suivre ? (facultatif)',
         label='Motif',
     )
     dismiss_note = forms.CharField(
         required=False,
-        label='Precision libre',
+        label='Précision libre',
         widget=forms.Textarea(attrs={'rows': 2}),
     )
 

@@ -84,7 +84,7 @@
             </label>
             {{ form.farm_name }}
             {% if profile.role == 'technician' %}
-              <div class="form-text">Nom affiche aux producteurs (optionnel).</div>
+              <div class="form-text">Nom affiché aux producteurs (optionnel).</div>
             {% endif %}
           </div>
 
@@ -113,7 +113,7 @@
               <div class="form-check mb-2">
                 {{ form.bulletin_email_enabled }}
                 <label class="form-check-label" for="id_bulletin_email_enabled">
-                  Recevoir un email quand un nouveau bulletin est envoye
+                  Recevoir un email quand un nouveau bulletin est envoyé
                 </label>
               </div>
               <div class="form-check">
@@ -123,7 +123,7 @@
                 </label>
               </div>
               <div class="form-text mt-2">
-                Les bulletins restent toujours visibles dans l onglet Bulletins. L email utilise est celui de votre profil.
+                Les bulletins restent toujours visibles dans l'onglet Bulletins. L'email utilisé est celui de votre profil.
               </div>
             </div>
           </div>
@@ -151,8 +151,8 @@
                         <div><strong>Adresse structure:</strong> {{ technician_profile.structure.address }}</div>
                       {% endif %}
                     {% endif %}
-                    <div><strong>Mobile:</strong> {% if technician_profile.phone %}{{ technician_profile.phone }}{% else %}Non renseigne{% endif %}</div>
-                    <div><strong>Email:</strong> {% if technician_profile.user.email %}{{ technician_profile.user.email }}{% else %}Non renseigne{% endif %}</div>
+                    <div><strong>Mobile:</strong> {% if technician_profile.phone %}{{ technician_profile.phone }}{% else %}Non renseigné{% endif %}</div>
+                    <div><strong>Email:</strong> {% if technician_profile.user.email %}{{ technician_profile.user.email }}{% else %}Non renseigné{% endif %}</div>
                     <div class="tech-contact-actions">
                       {% if technician_profile.phone %}
                         <a class="btn btn-outline-success btn-sm" href="tel:{{ technician_profile.phone|cut:' ' }}">Appeler</a>
@@ -164,13 +164,13 @@
                   </div>
                 {% endfor %}
               {% else %}
-                <div class="text-muted">Aucun technicien actif rattache.</div>
+                <div class="text-muted">Aucun technicien actif rattaché.</div>
               {% endif %}
             </div>
           </div>
           {% else %}
           <div class="col-md-4">
-            <label class="form-label" for="id_department">Departement</label>
+            <label class="form-label" for="id_department">Département</label>
             {{ form.department }}
           </div>
           {% if profile.role == 'technician' %}
@@ -203,7 +203,7 @@
                 {% if profile_has_coordinates %}
                   GPS: {{ profile.latitude }}, {{ profile.longitude }}
                 {% else %}
-                  Aucune coordonnee GPS enregistree.
+                  Aucune coordonnée GPS enregistrée.
                 {% endif %}
               </span>
             </div>
@@ -296,7 +296,7 @@ async function geocodeProfileAddress() {
 
 document.getElementById('profileGeocodeBtn')?.addEventListener('click', function() {
   geocodeProfileAddress().catch(function() {
-    profileCoordsLabel.textContent = 'La geolocalisation a echoue.';
+    profileCoordsLabel.textContent = 'La géolocalisation a échoué.';
   });
 });
 </script>

@@ -18,7 +18,7 @@ class SuperuserCmsOnlyMiddleware:
                 login_url = reverse('login')
                 return redirect(f'{login_url}?next={request.get_full_path()}')
             if not request.user.is_superuser:
-                messages.error(request, 'Le CMS est reserve au super-admin.')
+                messages.error(request, 'Le CMS est réservé au super-admin.')
                 return redirect('dashboard')
         return self.get_response(request)
 
@@ -50,7 +50,7 @@ class TechnicianLicenseBlockedMiddleware:
             request,
             'scouting/access_denied.html',
             {
-                'access_denied_title': 'Acces refuse',
+                'access_denied_title': 'Accès refusé',
                 'access_denied_message': message,
             },
             status=403,
