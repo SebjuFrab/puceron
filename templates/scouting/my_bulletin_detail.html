@@ -66,9 +66,9 @@
     <h1 class="h3 mb-1">{{ bulletin.title }}</h1>
     <div class="text-muted">
       {% if bulletin.sent_at %}
-        Envoye le {{ bulletin.sent_at|date:"d/m/Y H:i" }}
+        Envoyé le {{ bulletin.sent_at|date:"d/m/Y H:i" }}
       {% else %}
-        Cree le {{ bulletin.created_at|date:"d/m/Y H:i" }}
+        Créé le {{ bulletin.created_at|date:"d/m/Y H:i" }}
       {% endif %}
       par {{ bulletin.author.get_full_name|default:bulletin.author.username }}
     </div>
@@ -103,7 +103,7 @@
         </div>
       {% endif %}
       {% if files %}
-        <h2 class="h5 mb-3">Pieces jointes</h2>
+        <h2 class="h5 mb-3">Pièces jointes</h2>
         <div class="producer-file-list">
           {% for attachment in files %}
             <a class="producer-file-link" href="{{ attachment.file.url }}" target="_blank" rel="noopener noreferrer">
@@ -122,7 +122,7 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 producer-bulletin-actions">
       <div>
         {% if recipient.acknowledged_at %}
-          <div class="fw-semibold text-success">Prise de connaissance enregistree</div>
+          <div class="fw-semibold text-success">Prise de connaissance enregistrée</div>
           <div class="small text-muted">{{ recipient.acknowledged_at|date:"d/m/Y H:i" }}</div>
         {% else %}
           <div class="fw-semibold">Confirmer au technicien que vous avez pris connaissance du bulletin.</div>

@@ -875,7 +875,7 @@ function makeSeriesChart(canvasId, labels, datasets, yTitle, yAxisOptions = {}, 
                   `${action.producer_name} • ${action.series_name} • ${action.type_name}`,
                   `${action.date} • ${action.scope}`,
                 ];
-                if (action.details && action.details !== 'Sans detail complementaire') {
+                if (action.details && action.details !== 'Sans détail complémentaire') {
                   lines.push(action.details);
                 }
                 return lines;
@@ -995,7 +995,7 @@ function renderAuxiliaryChart(seriesId) {
                   `${action.producer_name} • ${action.series_name} • ${action.type_name}`,
                   `${action.date} • ${action.scope}`,
                 ];
-                if (action.details && action.details !== 'Sans detail complementaire') {
+                if (action.details && action.details !== 'Sans détail complémentaire') {
                   lines.push(action.details);
                 }
                 return lines;
@@ -1084,7 +1084,7 @@ function renderOtherPestChart(seriesId) {
                   `${action.producer_name} • ${action.series_name} • ${action.type_name}`,
                   `${action.date} • ${action.scope}`,
                 ];
-                if (action.details && action.details !== 'Sans detail complementaire') {
+                if (action.details && action.details !== 'Sans détail complémentaire') {
                   lines.push(action.details);
                 }
                 return lines;

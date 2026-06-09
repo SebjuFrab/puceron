@@ -46,15 +46,15 @@
           </div>
           {% if form.technicians.is_hidden %}
           <div class="col-md-6">
-            <label class="form-label">Techniciens rattaches</label>
+            <label class="form-label">Techniciens rattachés</label>
             <input type="text" class="form-control" value="{{ form.technician_display_names|join:', ' }}" readonly>
           </div>
             {{ form.technicians }}
           {% else %}
           <div class="col-md-6">
-            <label class="form-label" for="id_technicians">Techniciens rattaches</label>
+            <label class="form-label" for="id_technicians">Techniciens rattachés</label>
             {{ form.technicians }}
-            <div class="form-text">Selection multiple possible.</div>
+            <div class="form-text">Sélection multiple possible.</div>
           </div>
           {% endif %}
 
@@ -83,7 +83,7 @@
                 {% if profile_has_coordinates %}
                   GPS: {{ producer_profile.latitude }}, {{ producer_profile.longitude }}
                 {% else %}
-                  Aucune coordonnee GPS enregistree.
+                  Aucune coordonnée GPS enregistrée.
                 {% endif %}
               </span>
             </div>
@@ -191,7 +191,7 @@ async function geocodeProducerAddress() {
 
 document.getElementById('producerGeocodeBtn')?.addEventListener('click', function() {
   geocodeProducerAddress().catch(function() {
-    producerCoordsLabel.textContent = 'La geolocalisation a echoue.';
+    producerCoordsLabel.textContent = 'La géolocalisation a échoué.';
   });
 });
 </script>

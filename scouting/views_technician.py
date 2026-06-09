@@ -75,12 +75,12 @@ def _require_bulletin_technician(request):
     manager_user = _manager_user(request)
     manager_profile = _get_profile(manager_user)
     if not _is_technician(manager_user):
-        messages.error(request, 'Acces reserve aux techniciens.')
+        messages.error(request, 'Accès réservé aux techniciens.')
         return None, None, redirect('dashboard')
     if request.user.is_superuser and manager_user == request.user:
         messages.error(
             request,
-            'Selectionnez un technicien en mode controle pour gerer ses bulletins.',
+            'Sélectionnez un technicien en mode contrôle pour gérer ses bulletins.',
         )
         return None, None, redirect('technician_records')
     if (not request.user.is_superuser) and not manager_profile.has_active_license:
@@ -108,13 +108,13 @@ def _send_bulletin_email_notifications(request, recipient_ids):
         )
         if not producer_user.email:
             delivery.status = NotificationDelivery.STATUS_SKIPPED
-            delivery.error = 'Email producteur non renseigne.'
+            delivery.error = 'Email producteur non renseigné.'
             delivery.save(update_fields=['status', 'error'])
             continue
         preference = NotificationPreference.objects.get_or_create(user=producer_user)[0]
         if not preference.wants_bulletin_email(recipient.bulletin):
             delivery.status = NotificationDelivery.STATUS_SKIPPED
-            delivery.error = 'Desactive par le producteur.'
+            delivery.error = 'Désactivé par le producteur.'
             delivery.save(update_fields=['status', 'error'])
             continue
 
@@ -129,7 +129,7 @@ def _send_bulletin_email_notifications(request, recipient_ids):
                     f'Un nouveau bulletin est disponible dans PUCERON.\n\n'
                     f'Titre: {recipient.bulletin.title}\n'
                     f'Types: {recipient.bulletin.type_labels or "-"}\n'
-                    f'Priorite: {recipient.bulletin.priority_label or "-"}\n\n'
+                    f'Priorité: {recipient.bulletin.priority_label or "-"}\n\n'
                     f'{body_preview}\n\n'
                     f'Ouvrir le bulletin: {detail_url}'
                 ),
@@ -301,7 +301,7 @@ def technician_bulletin_detail_view(request, bulletin_id):
 @login_required
 def technician_records_view(request):
     if not _is_technician(request.user):
-        messages.error(request, 'Acces reserve aux techniciens.')
+        messages.error(request, 'Accès réservé aux techniciens.')
         return redirect('dashboard')
 
     manager_user = _manager_user(request)
@@ -458,12 +458,12 @@ def technician_producer_management_view(request):
     manager_user = _manager_user(request)
     manager_profile = _get_profile(manager_user)
     if not _is_technician(manager_user):
-        messages.error(request, 'Acces reserve aux techniciens.')
+        messages.error(request, 'Accès réservé aux techniciens.')
         return redirect('dashboard')
     if request.user.is_superuser and manager_user == request.user:
         messages.error(
             request,
-            'Selectionnez un technicien en mode controle pour acceder a la gestion des producteurs.',
+            'Sélectionnez un technicien en mode contrôle pour accéder à la gestion des producteurs.',
         )
         return redirect('technician_records')
     if (not request.user.is_superuser) and not manager_profile.has_active_license:
@@ -570,7 +570,7 @@ def producer_control_start_view(request, producer_id):
         return redirect('technician_records')
     manager_user = _manager_user(request)
     if not _is_technician(manager_user):
-        messages.error(request, 'Acces reserve aux techniciens.')
+        messages.error(request, 'Accès réservé aux techniciens.')
         return redirect('dashboard')
 
     if request.user.is_superuser and manager_user != request.user:
@@ -611,7 +611,7 @@ def technician_stop_follow_view(request, producer_id):
     manager_user = _manager_user(request)
     manager_profile = _get_profile(manager_user)
     if not _is_technician(manager_user):
-        messages.error(request, 'Acces reserve aux techniciens.')
+        messages.error(request, 'Accès réservé aux techniciens.')
         return redirect('dashboard')
     if (not request.user.is_superuser) and not manager_profile.has_active_license:
         messages.error(request, manager_profile.deactivation_message or 'Votre licence technicien est inactive.')
@@ -653,7 +653,7 @@ def technician_stop_follow_view(request, producer_id):
         message=explanation,
     )
 
-    messages.success(request, 'Arret de suivi enregistre.')
+    messages.success(request, 'Arrêt de suivi enregistré.')
     return redirect('technician_records')
 
 
@@ -662,7 +662,7 @@ def technician_cofollow_request_create_view(request):
     manager_user = _manager_user(request)
     manager_profile = _get_profile(manager_user)
     if not _is_technician(manager_user):
-        messages.error(request, 'Acces reserve aux techniciens.')
+        messages.error(request, 'Accès réservé aux techniciens.')
         return redirect('dashboard')
     if (not request.user.is_superuser) and not manager_profile.has_active_license:
         messages.error(request, manager_profile.deactivation_message or 'Votre licence technicien est inactive.')
@@ -670,7 +670,7 @@ def technician_cofollow_request_create_view(request):
     if request.user.is_superuser and manager_user == request.user:
         messages.error(
             request,
-            'Selectionnez un technicien en mode controle pour envoyer une demande de co-suivi.',
+            'Sélectionnez un technicien en mode contrôle pour envoyer une demande de co-suivi.',
         )
         return redirect('technician_records')
 
@@ -738,7 +738,7 @@ def technician_cofollow_review_view(request, request_id):
     )
 
     if not request.user.is_superuser and request.user.id != request_obj.target_technician_id:
-        messages.error(request, 'Acces reserve au technicien cible.')
+        messages.error(request, 'Accès réservé au technicien cible.')
         return redirect('dashboard')
 
     items = list(request_obj.items.all())
@@ -790,7 +790,7 @@ def technician_cofollow_review_view(request, request_id):
 @login_required
 def superadmin_technician_management_view(request):
     if not request.user.is_superuser:
-        messages.error(request, 'Acces reserve au super-admin.')
+        messages.error(request, 'Accès réservé au super-admin.')
         return redirect('dashboard')
 
     technician_profiles = list(
@@ -834,7 +834,7 @@ def technician_control_start_view(request, technician_id):
     if request.method != 'POST':
         return redirect('technician_records')
     if not request.user.is_superuser:
-        messages.error(request, 'Acces reserve au super-admin.')
+        messages.error(request, 'Accès réservé au super-admin.')
         return redirect('dashboard')
 
     technician_profile = get_object_or_404(_accessible_technician_profiles(request.user), user_id=technician_id)
@@ -854,7 +854,7 @@ def technician_control_stop_view(request):
     if request.method != 'POST':
         return redirect('technician_records')
     if not request.user.is_superuser:
-        messages.error(request, 'Acces reserve au super-admin.')
+        messages.error(request, 'Accès réservé au super-admin.')
         return redirect('dashboard')
 
     request.session.pop(ACTING_TECHNICIAN_SESSION_KEY, None)
@@ -871,7 +871,7 @@ def technician_control_stop_view(request):
 @login_required
 def technician_deactivate_view(request, technician_id):
     if not request.user.is_superuser:
-        messages.error(request, 'Acces reserve au super-admin.')
+        messages.error(request, 'Accès réservé au super-admin.')
         return redirect('dashboard')
 
     technician_profile = get_object_or_404(
@@ -944,8 +944,8 @@ def technician_deactivate_view(request, technician_id):
             messages.success(
                 request,
                 (
-                    f'Technicien desactive. Affectations fermees: {disabled_count}. '
-                    f'Reaffectations creees: {reassigned_count}.'
+                    f'Technicien désactivé. Affectations fermees: {disabled_count}. '
+                    f'Réaffectations creees: {reassigned_count}.'
                 ),
             )
             return redirect('technician_records')
@@ -996,7 +996,7 @@ def export_records_view(request):
     ws.title = 'Comptages'
     header = [
         'Utilisateur',
-        'Departement',
+        'Département',
         'Serie',
         'Culture',
         'Conduite',

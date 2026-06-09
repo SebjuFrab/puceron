@@ -57,7 +57,7 @@
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
   <div>
     <h1 class="h4 mb-1">Bulletins</h1>
-    <p class="text-muted mb-0">Messages envoyes aux producteurs rattaches a {{ manager_user.get_full_name|default:manager_user.username }}.</p>
+    <p class="text-muted mb-0">Messages envoyés aux producteurs rattachés à {{ manager_user.get_full_name|default:manager_user.username }}.</p>
   </div>
   <div class="bulletin-actions d-flex gap-2 flex-wrap">
     <a href="{% url 'technician_bulletin_create' %}" class="btn btn-success">Nouveau bulletin</a>
@@ -75,9 +75,9 @@
               <div class="bulletin-card__title">{{ bulletin.title }}</div>
               <div class="small text-muted">
                 {% if bulletin.sent_at %}
-                  Envoye le {{ bulletin.sent_at|date:"d/m/Y H:i" }}
+                  Envoyé le {{ bulletin.sent_at|date:"d/m/Y H:i" }}
                 {% else %}
-                  Cree le {{ bulletin.created_at|date:"d/m/Y H:i" }}
+                  Créé le {{ bulletin.created_at|date:"d/m/Y H:i" }}
                 {% endif %}
               </div>
             </div>
@@ -119,8 +119,8 @@
   <div class="card shadow-sm">
     <div class="card-body">
       <h2 class="h5">Aucun bulletin</h2>
-      <p class="text-muted mb-3">Aucun message n'a encore ete envoye depuis ce compte technicien.</p>
-      <a href="{% url 'technician_bulletin_create' %}" class="btn btn-success">Creer un bulletin</a>
+      <p class="text-muted mb-3">Aucun message n'a encore été envoyé depuis ce compte technicien.</p>
+      <a href="{% url 'technician_bulletin_create' %}" class="btn btn-success">Créer un bulletin</a>
     </div>
   </div>
 {% endif %}

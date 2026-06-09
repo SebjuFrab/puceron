@@ -124,7 +124,7 @@ class RecommendationDismissViewTests(TestCase):
             reverse('recommendation_dismiss', args=[self.record.id]),
             {
                 'dismiss_reason': self.dismiss_reason.id,
-                'dismiss_note': 'Le producteur a deja traite le sujet.',
+                'dismiss_note': 'Le producteur a déjà traite le sujet.',
                 'next': '/mes-recommandations/',
             },
         )
@@ -139,7 +139,7 @@ class RecommendationDismissViewTests(TestCase):
         self.assertEqual(recommendation_response.dismiss_reason, self.dismiss_reason)
         self.assertEqual(
             recommendation_response.dismiss_note,
-            'Le producteur a deja traite le sujet.',
+            'Le producteur a déjà traite le sujet.',
         )
 
 
@@ -315,7 +315,7 @@ class PlantActionEntryTests(TestCase):
                 'scope': 'general',
                 'molecule': '',
                 'auxiliary_taxon': '',
-                'notes': 'Traitement sans molecule precisee.',
+                'notes': 'Traitement sans molécule précisée.',
             },
         )
 
@@ -787,7 +787,7 @@ class TechnicianBulletinWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Types')
         self.assertContains(response, self.bulletin_type.label)
-        self.assertContains(response, 'Priorite')
+        self.assertContains(response, 'Priorité')
         self.assertContains(response, self.priority.label)
         self.assertContains(response, 'class="choice-widget"')
         self.assertNotContains(response, 'class="form-check-input"')
@@ -802,8 +802,8 @@ class TechnicianBulletinWorkflowTests(TestCase):
         )
         crop_1 = Crop.objects.create(name='Aubergine bulletin test')
         crop_2 = Crop.objects.create(name='Concombre bulletin test')
-        department_1 = Department.objects.create(code='97', name='Departement test 97')
-        department_2 = Department.objects.create(code='98', name='Departement test 98')
+        department_1 = Department.objects.create(code='97', name='Département test 97')
+        department_2 = Department.objects.create(code='98', name='Département test 98')
         self.client.force_login(self.technician)
 
         response = self.client.post(
@@ -954,6 +954,8 @@ class TechnicianBulletinWorkflowTests(TestCase):
         list_response = self.client.get(reverse('my_bulletins'))
         self.assertEqual(list_response.status_code, 200)
         self.assertContains(list_response, 'Bulletin producteur')
+        self.assertContains(list_response, 'navbar-menu-badge')
+        self.assertContains(list_response, '<span class="badge rounded-pill text-bg-warning navbar-menu-badge">1</span>')
 
         detail_response = self.client.get(reverse('my_bulletin_detail', args=[recipient.id]))
         self.assertEqual(detail_response.status_code, 200)

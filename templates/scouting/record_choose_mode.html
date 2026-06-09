@@ -38,7 +38,7 @@
 
 <div class="mode-grid">
   <a class="mode-card" href="{% url 'record_create' %}?plant_series={{ selected_series.id }}&mode=count">
-    <h2 class="mode-title">Effectuer un comptage detaille</h2>
+    <h2 class="mode-title">Effectuer un comptage détaillé</h2>
     <p class="mode-text">Saisir les observations feuille par feuille (pucerons, auxiliaires et ravageurs).</p>
   </a>
 
@@ -48,8 +48,8 @@
   </a>
 
   <a class="mode-card" href="{% url 'action_create' %}?plant_series={{ selected_series.id }}">
-    <h2 class="mode-title">Renseigner une action preventive / curative</h2>
-    <p class="mode-text">Saisir une action manuelle, un traitement, ou un lacher d'auxiliaires.</p>
+    <h2 class="mode-title">Renseigner une action préventive / curative</h2>
+    <p class="mode-text">Saisir une action manuelle, un traitement, ou un lâcher d'auxiliaires.</p>
   </a>
 </div>
 {% endblock %}

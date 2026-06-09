@@ -31,12 +31,12 @@ CROP_CHOICES = [
 
 AUXILIARY_MODE_CHOICES = [
     ('total', 'Abondance totale'),
-    ('detailed', 'Detail par type'),
+    ('detailed', 'Détail par type'),
     ('quick', 'Saisie rapide'),
 ]
 
 ENTRY_MODE_CHOICES = [
-    ('detailed', 'Comptage detaille'),
+    ('detailed', 'Comptage détaillé'),
     ('quick', 'Comptage rapide'),
 ]
 
@@ -87,7 +87,7 @@ ORGANIC_MODE_CHOICES = [
 ACTION_CATEGORY_CHOICES = [
     ('manual', 'Manuelle'),
     ('treatment', 'Traitement'),
-    ('release', "Lacher d'auxiliaire"),
+    ('release', "Lâcher d'auxiliaire"),
 ]
 
 ACTION_ICON_CHOICES = [
@@ -95,13 +95,13 @@ ACTION_ICON_CHOICES = [
     ('circle', 'Cercle'),
     ('rectRot', 'Losange'),
     ('rectRounded', 'Rectangle'),
-    ('star', 'Etoile'),
+    ('star', 'Étoile'),
     ('crossRot', 'Croix'),
 ]
 
 ACTION_SCOPE_CHOICES = [
-    ('localized', 'Localisee'),
-    ('general', 'Generalisee'),
+    ('localized', 'Localisée'),
+    ('general', 'Généralisée'),
 ]
 
 RECOMMENDATION_STATUS_CHOICES = [
@@ -157,7 +157,7 @@ class TechnicianStructure(models.Model):
     name = models.CharField(max_length=160, unique=True, verbose_name='Structure')
     address = models.TextField(blank=True, verbose_name='Adresse')
     logo = models.ImageField(upload_to='technician_structures/', blank=True, verbose_name='Logo')
-    generic_contact = models.CharField(max_length=160, blank=True, verbose_name='Contact generic')
+    generic_contact = models.CharField(max_length=160, blank=True, verbose_name='Contact générique')
     website = models.URLField(blank=True, verbose_name='Site web')
 
     class Meta:
@@ -173,23 +173,23 @@ class AccessControlSettings(models.Model):
     default_producer_readonly_message = models.TextField(
         blank=True,
         default=(
-            "Votre compte est actuellement en lecture seule car aucun technicien actif n'est rattache a votre profil."
+            "Votre compte est actuellement en lecture seule car aucun technicien actif n'est rattaché à votre profil."
         ),
         verbose_name='Message global lecture seule producteur',
     )
     default_technician_denied_message = models.TextField(
         blank=True,
         default='Votre licence technicien est inactive. Contactez le super-admin.',
-        verbose_name='Message global acces refuse technicien',
+        verbose_name='Message global accès refusé technicien',
     )
-    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mis a jour le')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mis à jour le')
 
     class Meta:
-        verbose_name = "Parametres d'acces"
-        verbose_name_plural = "Parametres d'acces"
+        verbose_name = "Paramètres d'accès"
+        verbose_name_plural = "Paramètres d'accès"
 
     def __str__(self):
-        return "Parametres d'acces"
+        return "Paramètres d'accès"
 
     @classmethod
     def get_solo(cls):
@@ -218,16 +218,16 @@ class UserProfile(models.Model):
         related_name='profile',
         verbose_name='Utilisateur',
     )
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_PRODUCER, verbose_name='Role')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_PRODUCER, verbose_name='Rôle')
     assigned_technician = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='assigned_producer_profiles',
-        verbose_name='Technicien referent',
+        verbose_name='Technicien référent',
     )
-    department = models.CharField(max_length=10, blank=True, verbose_name='Departement')
+    department = models.CharField(max_length=10, blank=True, verbose_name='Département')
     structure = models.ForeignKey(
         'TechnicianStructure',
         on_delete=models.SET_NULL,
@@ -244,12 +244,12 @@ class UserProfile(models.Model):
     )
     deactivation_message = models.TextField(
         blank=True,
-        verbose_name='Message desactivation / arret de suivi',
+        verbose_name='Message désactivation / arrêt de suivi',
     )
     farm_name = models.CharField(max_length=150, blank=True, verbose_name='Nom de ferme')
     phone = models.CharField(max_length=30, blank=True, verbose_name='Mobile')
     photo = models.ImageField(upload_to='profile_photos/', blank=True, verbose_name='Photo ou logo')
-    farm_address = models.TextField(blank=True, verbose_name='Adresse complete')
+    farm_address = models.TextField(blank=True, verbose_name='Adresse complète')
     street_address = models.CharField(max_length=255, blank=True, verbose_name='Adresse')
     postal_code = models.CharField(max_length=10, blank=True, verbose_name='Code postal')
     city = models.CharField(max_length=120, blank=True, verbose_name='Commune')
@@ -347,9 +347,9 @@ class ProducerTechnicianAssignment(models.Model):
     END_REASON_REASSIGNED = 'reassigned'
     END_REASON_CHOICES = [
         (END_REASON_ADMIN_REMOVED, 'Retrait admin'),
-        (END_REASON_TECHNICIAN_STOP, 'Arret suivi technicien'),
-        (END_REASON_TECHNICIAN_DISABLED, 'Technicien desactive'),
-        (END_REASON_REASSIGNED, 'Reaffectation'),
+        (END_REASON_TECHNICIAN_STOP, 'Arrêt suivi technicien'),
+        (END_REASON_TECHNICIAN_DISABLED, 'Technicien désactivé'),
+        (END_REASON_REASSIGNED, 'Réaffectation'),
     ]
 
     producer_profile = models.ForeignKey(
@@ -392,9 +392,9 @@ class ProducerTechnicianAssignment(models.Model):
     message = models.TextField(
         blank=True,
         verbose_name='Message producteur',
-        help_text='Message affiche au producteur si son acces passe en lecture seule.',
+        help_text='Message affiché au producteur si son accès passe en lecture seule.',
     )
-    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mis a jour le')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mis à jour le')
 
     class Meta:
         ordering = ['-is_active', '-updated_at', '-created_at']
@@ -439,8 +439,8 @@ class TechnicianCoFollowRequest(models.Model):
     STATUS_PARTIAL = 'partial'
     STATUS_CHOICES = [
         (STATUS_PENDING, 'En attente'),
-        (STATUS_ACCEPTED, 'Acceptee'),
-        (STATUS_REJECTED, 'Refusee'),
+        (STATUS_ACCEPTED, 'Acceptée'),
+        (STATUS_REJECTED, 'Refusée'),
         (STATUS_PARTIAL, 'Partielle'),
     ]
 
@@ -463,7 +463,7 @@ class TechnicianCoFollowRequest(models.Model):
         default=STATUS_PENDING,
         verbose_name='Statut',
     )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Cree le')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Créé le')
     responded_at = models.DateTimeField(null=True, blank=True, verbose_name='Traite le')
 
     class Meta:
@@ -501,7 +501,7 @@ class TechnicianCoFollowRequestItem(models.Model):
         max_length=20,
         choices=DECISION_CHOICES,
         default=DECISION_PENDING,
-        verbose_name='Decision',
+        verbose_name='Décision',
     )
     decided_at = models.DateTimeField(null=True, blank=True, verbose_name='Decide le')
 
@@ -535,11 +535,11 @@ class NotificationPreference(models.Model):
         default=False,
         verbose_name='Limiter aux bulletins urgents',
     )
-    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mis a jour le')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mis à jour le')
 
     class Meta:
-        verbose_name = 'Preference de notification'
-        verbose_name_plural = 'Preferences de notification'
+        verbose_name = 'Préférence de notification'
+        verbose_name_plural = 'Préférences de notification'
 
     def __str__(self):
         return f'Notifications - {display_user_name(self.user)}'
@@ -559,7 +559,7 @@ class BulletinMessageType(models.Model):
     CODE_REMINDER = 'reminder'
 
     code = models.SlugField(max_length=50, unique=True, verbose_name='Code')
-    label = models.CharField(max_length=120, unique=True, verbose_name='Libelle')
+    label = models.CharField(max_length=120, unique=True, verbose_name='Libellé')
     display_order = models.PositiveSmallIntegerField(default=1, verbose_name="Ordre d'affichage")
     is_active = models.BooleanField(default=True, verbose_name='Actif')
 
@@ -578,14 +578,14 @@ class BulletinPriority(models.Model):
     CODE_URGENT = 'urgent'
 
     code = models.SlugField(max_length=50, unique=True, verbose_name='Code')
-    label = models.CharField(max_length=120, unique=True, verbose_name='Libelle')
+    label = models.CharField(max_length=120, unique=True, verbose_name='Libellé')
     display_order = models.PositiveSmallIntegerField(default=1, verbose_name="Ordre d'affichage")
     is_active = models.BooleanField(default=True, verbose_name='Actif')
 
     class Meta:
         ordering = ['display_order', 'label']
-        verbose_name = 'Priorite de bulletin'
-        verbose_name_plural = 'Priorites de bulletin'
+        verbose_name = 'Priorité de bulletin'
+        verbose_name_plural = 'Priorités de bulletin'
 
     def __str__(self):
         return self.label
@@ -597,7 +597,7 @@ class BulletinMessage(models.Model):
     STATUS_ARCHIVED = 'archived'
     STATUS_CHOICES = [
         (STATUS_DRAFT, 'Brouillon'),
-        (STATUS_SENT, 'Envoye'),
+        (STATUS_SENT, 'Envoyé'),
         (STATUS_ARCHIVED, 'Archive'),
     ]
 
@@ -613,7 +613,7 @@ class BulletinMessage(models.Model):
         null=True,
         blank=True,
         related_name='created_bulletins',
-        verbose_name='Cree par',
+        verbose_name='Créé par',
     )
     title = models.CharField(max_length=180, verbose_name='Titre')
     body = models.TextField(verbose_name='Message')
@@ -628,7 +628,7 @@ class BulletinMessage(models.Model):
         null=True,
         blank=True,
         related_name='bulletins',
-        verbose_name='Priorite',
+        verbose_name='Priorité',
     )
     crops = models.ManyToManyField(
         'Crop',
@@ -640,7 +640,7 @@ class BulletinMessage(models.Model):
         'Department',
         blank=True,
         related_name='bulletin_messages',
-        verbose_name='Departements',
+        verbose_name='Départements',
     )
     valid_until = models.DateField(null=True, blank=True, verbose_name="Valable jusqu'au")
     status = models.CharField(
@@ -649,9 +649,9 @@ class BulletinMessage(models.Model):
         default=STATUS_DRAFT,
         verbose_name='Statut',
     )
-    sent_at = models.DateTimeField(null=True, blank=True, verbose_name='Envoye le')
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Cree le')
-    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mis a jour le')
+    sent_at = models.DateTimeField(null=True, blank=True, verbose_name='Envoyé le')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Créé le')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mis à jour le')
 
     class Meta:
         ordering = ['-sent_at', '-created_at']
@@ -683,7 +683,7 @@ class BulletinAttachment(models.Model):
     TYPE_FILE = 'file'
     TYPE_CHOICES = [
         (TYPE_PHOTO, 'Photo'),
-        (TYPE_FILE, 'Piece jointe'),
+        (TYPE_FILE, 'Pièce jointe'),
     ]
 
     bulletin = models.ForeignKey(
@@ -695,7 +695,7 @@ class BulletinAttachment(models.Model):
     file = models.FileField(upload_to='bulletins/attachments/', verbose_name='Fichier')
     original_name = models.CharField(max_length=255, blank=True, verbose_name='Nom original')
     attachment_type = models.CharField(max_length=20, choices=TYPE_CHOICES, verbose_name='Type')
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Ajoute le')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Ajouté le')
 
     class Meta:
         ordering = ['attachment_type', 'original_name', 'id']
@@ -723,8 +723,8 @@ class BulletinRecipient(models.Model):
         related_name='bulletin_recipients',
         verbose_name='Producteur',
     )
-    first_opened_at = models.DateTimeField(null=True, blank=True, verbose_name='Premiere ouverture')
-    last_opened_at = models.DateTimeField(null=True, blank=True, verbose_name='Derniere ouverture')
+    first_opened_at = models.DateTimeField(null=True, blank=True, verbose_name='Première ouverture')
+    last_opened_at = models.DateTimeField(null=True, blank=True, verbose_name='Dernière ouverture')
     open_count = models.PositiveIntegerField(default=0, verbose_name="Nombre d'ouvertures")
     acknowledged_at = models.DateTimeField(null=True, blank=True, verbose_name='Pris connaissance le')
     acknowledged_by = models.ForeignKey(
@@ -735,7 +735,7 @@ class BulletinRecipient(models.Model):
         related_name='acknowledged_bulletins',
         verbose_name='Pris connaissance par',
     )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Ajoute le')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Ajouté le')
 
     class Meta:
         ordering = ['producer_profile__farm_name', 'producer_profile__user__username']
@@ -789,7 +789,7 @@ class NotificationDelivery(models.Model):
     STATUS_CHOICES = [
         (STATUS_PENDING, 'En attente'),
         (STATUS_SENT, 'Envoyee'),
-        (STATUS_FAILED, 'Echec'),
+        (STATUS_FAILED, 'Échec'),
         (STATUS_SKIPPED, 'Ignoree'),
     ]
 
@@ -807,7 +807,7 @@ class NotificationDelivery(models.Model):
         verbose_name='Statut',
     )
     error = models.TextField(blank=True, verbose_name='Erreur')
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creee le')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Créée le')
     sent_at = models.DateTimeField(null=True, blank=True, verbose_name='Envoyee le')
 
     class Meta:
@@ -825,7 +825,7 @@ class InfoPage(models.Model):
     intro = models.TextField(blank=True, verbose_name='Introduction')
     content = models.TextField(blank=True, verbose_name='Contenu')
     is_published = models.BooleanField(default=True, verbose_name='Publiee')
-    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mise a jour le')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mise à jour le')
 
     class Meta:
         ordering = ['page_key']
@@ -933,8 +933,8 @@ class Department(models.Model):
 
     class Meta:
         ordering = ['code']
-        verbose_name = 'Departement'
-        verbose_name_plural = 'Departements'
+        verbose_name = 'Département'
+        verbose_name_plural = 'Départements'
 
     def __str__(self):
         return self.label
@@ -1038,7 +1038,7 @@ class Crop(models.Model):
         max_length=30,
         choices=DECISION_AUX_METRIC_CHOICES,
         default='per_plant',
-        verbose_name='Indicateur auxiliaires pour la decision',
+        verbose_name='Indicateur auxiliaires pour la décision',
     )
     is_active = models.BooleanField(default=True, verbose_name='Actif')
 
@@ -1074,13 +1074,13 @@ class Variety(models.Model):
         null=True,
         blank=True,
         related_name='created_varieties',
-        verbose_name='Creee par',
+        verbose_name='Créée par',
     )
 
     class Meta:
         ordering = ['name']
         verbose_name = 'Variete'
-        verbose_name_plural = 'Varietes'
+        verbose_name_plural = 'Variétés'
         constraints = [
             models.UniqueConstraint(fields=['crop', 'name'], name='unique_variety_per_crop')
         ]
@@ -1124,7 +1124,7 @@ class PlantSeries(models.Model):
         related_name='plant_series',
         verbose_name='Producteur',
     )
-    name = models.CharField(max_length=120, verbose_name='Nom de la serie')
+    name = models.CharField(max_length=120, verbose_name='Nom de la série')
     photo = models.ImageField(upload_to='plant_series/', blank=True, verbose_name='Photo')
     crop = models.ForeignKey(Crop, on_delete=models.PROTECT, related_name='plant_series', verbose_name='Culture')
     conduct_type = models.ForeignKey(
@@ -1153,12 +1153,12 @@ class PlantSeries(models.Model):
     plants_count = models.PositiveSmallIntegerField(default=10, verbose_name='Nombre de plants')
     leaves_per_plant = models.PositiveSmallIntegerField(default=3, verbose_name='Nombre de feuilles par plant')
     is_active = models.BooleanField(default=True, verbose_name='Active')
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creee le')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Créée le')
 
     class Meta:
         ordering = ['name']
-        verbose_name = 'Serie de plants'
-        verbose_name_plural = 'Series de plants'
+        verbose_name = 'Série de plants'
+        verbose_name_plural = 'Séries de plants'
         constraints = [
             models.UniqueConstraint(fields=['user', 'year', 'name'], name='unique_series_name_per_user_year')
         ]
@@ -1180,7 +1180,7 @@ class ScoutingRecord(models.Model):
         related_name='records',
         null=True,
         blank=True,
-        verbose_name='Serie de plants',
+        verbose_name='Série de plants',
     )
     crop_ref = models.ForeignKey(
         Crop,
@@ -1206,7 +1206,7 @@ class ScoutingRecord(models.Model):
         related_name='records',
         verbose_name='Variete',
     )
-    department = models.CharField(max_length=10, verbose_name='Departement')
+    department = models.CharField(max_length=10, verbose_name='Département')
     crop = models.CharField(max_length=100, verbose_name='Culture')
     scouting_date = models.DateField(default=timezone.localdate, verbose_name='Date observation')
     year = models.PositiveSmallIntegerField(verbose_name='Annee')
@@ -1227,12 +1227,12 @@ class ScoutingRecord(models.Model):
         null=True,
         blank=True,
         related_name='primary_records',
-        verbose_name='Espece principale de puceron',
+        verbose_name='Espèce principale de puceron',
     )
     auxiliary_mode = models.CharField(max_length=10, choices=AUXILIARY_MODE_CHOICES, default='total', verbose_name='Mode auxiliaires')
     auxiliary_total = models.PositiveIntegerField(default=0, verbose_name='Total auxiliaires')
     comment = models.TextField(blank=True, verbose_name='Commentaire')
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Cree le')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Créé le')
 
     class Meta:
         ordering = ['-year', '-week', '-created_at']
@@ -1372,11 +1372,11 @@ class QuickRecordAphidSpecies(models.Model):
         'AphidSpecies',
         on_delete=models.CASCADE,
         related_name='quick_records',
-        verbose_name='Espece de puceron',
+        verbose_name='Espèce de puceron',
     )
 
     class Meta:
-        verbose_name = 'Espece de puceron observee (rapide)'
+        verbose_name = 'Espèce de puceron observée (rapide)'
         verbose_name_plural = 'Especes de pucerons observees (rapide)'
         constraints = [
             models.UniqueConstraint(fields=['record', 'species'], name='unique_quick_aphid_species_per_record')
@@ -1464,7 +1464,7 @@ class AphidSpecies(models.Model):
         'Molecule',
         related_name='aphid_species',
         blank=True,
-        verbose_name='Molecules de lutte',
+        verbose_name='Molécules de lutte',
     )
     auxiliary_taxa = models.ManyToManyField(
         AuxiliaryTaxon,
@@ -1478,7 +1478,7 @@ class AphidSpecies(models.Model):
 
     class Meta:
         ordering = ['display_order', 'vernacular_name', 'latin_name']
-        verbose_name = 'Espece de puceron'
+        verbose_name = 'Espèce de puceron'
         verbose_name_plural = 'Especes de pucerons'
 
     def __str__(self):
@@ -1505,12 +1505,12 @@ class OtherPestTaxon(models.Model):
 
 class ActionType(models.Model):
     name = models.CharField(max_length=120, unique=True, verbose_name='Nom')
-    category = models.CharField(max_length=20, choices=ACTION_CATEGORY_CHOICES, default='manual', verbose_name='Categorie')
+    category = models.CharField(max_length=20, choices=ACTION_CATEGORY_CHOICES, default='manual', verbose_name='Catégorie')
     chart_icon = models.CharField(
         max_length=20,
         choices=ACTION_ICON_CHOICES,
         blank=True,
-        verbose_name='Icone graphique',
+        verbose_name='Icône graphique',
     )
     display_order = models.PositiveSmallIntegerField(default=1, verbose_name="Ordre d'affichage")
     is_active = models.BooleanField(default=True, verbose_name='Actif')
@@ -1548,13 +1548,13 @@ class ActionType(models.Model):
 class Molecule(models.Model):
     name = models.CharField(max_length=140, verbose_name='Nom')
     crops = models.ManyToManyField(Crop, related_name='molecules', blank=True, verbose_name='Cultures')
-    organic_scope = models.CharField(max_length=10, choices=MOLECULE_ORGANIC_SCOPE_CHOICES, default='both', verbose_name='Portee bio/non bio')
+    organic_scope = models.CharField(max_length=10, choices=MOLECULE_ORGANIC_SCOPE_CHOICES, default='both', verbose_name='Portée bio/non bio')
     is_active = models.BooleanField(default=True, verbose_name='Active')
 
     class Meta:
         ordering = ['name']
-        verbose_name = 'Molecule'
-        verbose_name_plural = 'Molecules'
+        verbose_name = 'Molécule'
+        verbose_name_plural = 'Molécules'
         constraints = [
             models.UniqueConstraint(fields=['name', 'organic_scope'], name='unique_molecule_per_scope')
         ]
@@ -1578,8 +1578,8 @@ class PlantAction(models.Model):
         related_name='entered_plant_actions',
         verbose_name='Saisie par',
     )
-    plant_series = models.ForeignKey(PlantSeries, on_delete=models.PROTECT, related_name='actions', verbose_name='Serie de plants')
-    department = models.CharField(max_length=10, verbose_name='Departement')
+    plant_series = models.ForeignKey(PlantSeries, on_delete=models.PROTECT, related_name='actions', verbose_name='Série de plants')
+    department = models.CharField(max_length=10, verbose_name='Département')
     crop_ref = models.ForeignKey(Crop, on_delete=models.PROTECT, related_name='actions', verbose_name='Culture')
     conduct_type_ref = models.ForeignKey(
         ConductType,
@@ -1599,14 +1599,14 @@ class PlantAction(models.Model):
     )
     action_date = models.DateField(default=timezone.localdate, verbose_name="Date d'action")
     action_type = models.ForeignKey(ActionType, on_delete=models.PROTECT, related_name='actions', verbose_name="Type d'action")
-    scope = models.CharField(max_length=12, choices=ACTION_SCOPE_CHOICES, default='general', verbose_name='Portee')
+    scope = models.CharField(max_length=12, choices=ACTION_SCOPE_CHOICES, default='general', verbose_name='Portée')
     molecule = models.ForeignKey(
         Molecule,
         on_delete=models.PROTECT,
         related_name='actions',
         null=True,
         blank=True,
-        verbose_name='Molecule',
+        verbose_name='Molécule',
     )
     auxiliary_taxon = models.ForeignKey(
         AuxiliaryTaxon,
@@ -1615,7 +1615,7 @@ class PlantAction(models.Model):
         null=True,
         blank=True,
         limit_choices_to={'is_releasable': True},
-        verbose_name='Auxiliaire lache',
+        verbose_name='Auxiliaire lâché',
     )
     decision_lever = models.ForeignKey(
         'DecisionLever',
@@ -1623,28 +1623,28 @@ class PlantAction(models.Model):
         null=True,
         blank=True,
         related_name='actions',
-        verbose_name='Levier active',
+        verbose_name='Levier activé',
     )
-    notes = models.TextField(blank=True, verbose_name='Details')
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creee le')
+    notes = models.TextField(blank=True, verbose_name='Détails')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Créée le')
 
     class Meta:
         ordering = ['-action_date', '-created_at']
-        verbose_name = 'Action preventive ou curative'
-        verbose_name_plural = 'Actions preventives ou curatives'
+        verbose_name = 'Action préventive ou curative'
+        verbose_name_plural = 'Actions préventives ou curatives'
 
     def clean(self):
         errors = {}
         category = self.action_type.category if self.action_type_id else None
         if category != 'treatment' and self.molecule_id:
-            errors['molecule'] = 'La molecule est reservee aux actions de type traitement.'
+            errors['molecule'] = 'La molécule est réservée aux actions de type traitement.'
         if category == 'release':
             if not self.auxiliary_taxon_id:
-                errors['auxiliary_taxon'] = "Choisissez un auxiliaire pour un lacher."
+                errors['auxiliary_taxon'] = "Choisissez un auxiliaire pour un lâcher."
             elif not self.auxiliary_taxon.is_releasable:
-                errors['auxiliary_taxon'] = "Cet auxiliaire n'est pas marque comme lachable."
+                errors['auxiliary_taxon'] = "Cet auxiliaire n'est pas marqué comme lâchable."
         elif self.auxiliary_taxon_id:
-            errors['auxiliary_taxon'] = "L'auxiliaire est reserve au type lacher."
+            errors['auxiliary_taxon'] = "L'auxiliaire est réservé au type lâcher."
         if errors:
             raise ValidationError(errors)
 
@@ -1686,15 +1686,15 @@ class DecisionRule(models.Model):
         blank=True,
         verbose_name='Auxiliaires max exclu',
     )
-    priority = models.PositiveSmallIntegerField(default=100, verbose_name='Priorite')
+    priority = models.PositiveSmallIntegerField(default=100, verbose_name='Priorité')
     is_active = models.BooleanField(default=True, verbose_name='Active')
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creee le')
-    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mise a jour le')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Créée le')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mise à jour le')
 
     class Meta:
         ordering = ['crop__name', 'priority', 'title']
-        verbose_name = 'Regle de decision'
-        verbose_name_plural = 'Regles de decision'
+        verbose_name = 'Règle de décision'
+        verbose_name_plural = 'Règles de décision'
 
     def __str__(self):
         return f'{self.crop.name} - {self.title}'
@@ -1771,13 +1771,13 @@ class DecisionRule(models.Model):
     def clean(self):
         errors = {}
         if self.week_min is not None and self.week_min < 1:
-            errors['week_min'] = 'La semaine min doit etre comprise entre 1 et 53.'
+            errors['week_min'] = 'La semaine min doit être comprise entre 1 et 53.'
         if self.week_max is not None and self.week_max > 53:
-            errors['week_max'] = 'La semaine max doit etre comprise entre 1 et 53.'
+            errors['week_max'] = 'La semaine max doit être comprise entre 1 et 53.'
         if self.week_min is not None and self.week_max is not None and self.week_min > self.week_max:
-            errors['week_max'] = 'La semaine max doit etre superieure ou egale a la semaine min.'
+            errors['week_max'] = 'La semaine max doit être supérieure ou égale à la semaine min.'
         if self.infestation_min is not None and self.infestation_min < 0:
-            errors['infestation_min'] = "La borne min d'infestation doit etre positive."
+            errors['infestation_min'] = "La borne min d'infestation doit être positive."
         if self.infestation_max is not None and self.infestation_max > 100:
             errors['infestation_max'] = "La borne max d'infestation ne peut pas depasser 100 %."
         if (
@@ -1785,9 +1785,9 @@ class DecisionRule(models.Model):
             and self.infestation_max is not None
             and self.infestation_min >= self.infestation_max
         ):
-            errors['infestation_max'] = "La borne max d'infestation doit etre strictement superieure a la borne min."
+            errors['infestation_max'] = "La borne max d'infestation doit être strictement supérieure à la borne min."
         if self.auxiliary_min is not None and self.auxiliary_max is not None and self.auxiliary_min >= self.auxiliary_max:
-            errors['auxiliary_max'] = "La borne max d'auxiliaires doit etre strictement superieure a la borne min."
+            errors['auxiliary_max'] = "La borne max d'auxiliaires doit être strictement supérieure à la borne min."
         if errors:
             raise ValidationError(errors)
 
@@ -1814,14 +1814,14 @@ class DecisionLever(models.Model):
         related_name='decision_levers',
         verbose_name="Type d'action",
     )
-    scope = models.CharField(max_length=12, choices=ACTION_SCOPE_CHOICES, default='general', verbose_name='Portee')
+    scope = models.CharField(max_length=12, choices=ACTION_SCOPE_CHOICES, default='general', verbose_name='Portée')
     molecule = models.ForeignKey(
         Molecule,
         on_delete=models.PROTECT,
         related_name='decision_levers',
         null=True,
         blank=True,
-        verbose_name='Molecule preselectionnee',
+        verbose_name='Molécule présélectionnée',
     )
     auxiliary_taxon = models.ForeignKey(
         AuxiliaryTaxon,
@@ -1830,16 +1830,16 @@ class DecisionLever(models.Model):
         null=True,
         blank=True,
         limit_choices_to={'is_releasable': True},
-        verbose_name='Auxiliaire preselectionne',
+        verbose_name='Auxiliaire présélectionné',
     )
-    notes_template = models.TextField(blank=True, verbose_name='Details preraplis')
+    notes_template = models.TextField(blank=True, verbose_name='Détails préremplis')
     display_order = models.PositiveSmallIntegerField(default=1, verbose_name="Ordre d'affichage")
     is_active = models.BooleanField(default=True, verbose_name='Actif')
 
     class Meta:
         ordering = ['display_order', 'title']
-        verbose_name = 'Levier de decision'
-        verbose_name_plural = 'Leviers de decision'
+        verbose_name = 'Levier de décision'
+        verbose_name_plural = 'Leviers de décision'
 
     def __str__(self):
         return f'{self.rule.title} - {self.title}'
@@ -1848,20 +1848,20 @@ class DecisionLever(models.Model):
         errors = {}
         category = self.action_type.category if self.action_type_id else None
         if self.molecule_id and category != 'treatment':
-            errors['molecule'] = 'La molecule ne peut etre preselectionnee que pour un type traitement.'
+            errors['molecule'] = 'La molécule ne peut être présélectionnée que pour un type traitement.'
         if self.auxiliary_taxon_id:
             if category != 'release':
-                errors['auxiliary_taxon'] = "L'auxiliaire ne peut etre preselectionne que pour un type lacher."
+                errors['auxiliary_taxon'] = "L'auxiliaire ne peut être présélectionné que pour un type lâcher."
             elif not self.auxiliary_taxon.is_releasable:
-                errors['auxiliary_taxon'] = "Cet auxiliaire n'est pas marque comme lachable."
+                errors['auxiliary_taxon'] = "Cet auxiliaire n'est pas marqué comme lâchable."
         if self.molecule_id and self.rule_id and not self.molecule.crops.filter(id=self.rule.crop_id).exists():
-            errors['molecule'] = "La molecule preselectionnee n'est pas autorisee pour la culture de cette regle."
+            errors['molecule'] = "La molécule présélectionnée n'est pas autorisée pour la culture de cette règle."
         if errors:
             raise ValidationError(errors)
 
 
 class RecommendationDismissReason(models.Model):
-    label = models.CharField(max_length=160, unique=True, verbose_name='Libelle')
+    label = models.CharField(max_length=160, unique=True, verbose_name='Libellé')
     requires_comment = models.BooleanField(default=False, verbose_name='Texte libre propose')
     display_order = models.PositiveSmallIntegerField(default=1, verbose_name="Ordre d'affichage")
     is_active = models.BooleanField(default=True, verbose_name='Actif')
@@ -1886,7 +1886,7 @@ class RecommendationResponse(models.Model):
         DecisionRule,
         on_delete=models.CASCADE,
         related_name='responses',
-        verbose_name='Regle de decision',
+        verbose_name='Règle de décision',
     )
     status = models.CharField(max_length=12, choices=RECOMMENDATION_STATUS_CHOICES, verbose_name='Statut')
     handled_by = models.ForeignKey(
@@ -1905,7 +1905,7 @@ class RecommendationResponse(models.Model):
         related_name='responses',
         verbose_name='Motif de non-suivi',
     )
-    dismiss_note = models.TextField(blank=True, verbose_name='Precision libre')
+    dismiss_note = models.TextField(blank=True, verbose_name='Précision libre')
     lever = models.ForeignKey(
         DecisionLever,
         on_delete=models.SET_NULL,
@@ -1920,10 +1920,10 @@ class RecommendationResponse(models.Model):
         null=True,
         blank=True,
         related_name='recommendation_responses',
-        verbose_name='Action creee',
+        verbose_name='Action créée',
     )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creee le')
-    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mise a jour le')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Créée le')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mise à jour le')
 
     class Meta:
         ordering = ['-updated_at']
@@ -1944,15 +1944,15 @@ class RecommendationResponse(models.Model):
                 errors['rule'] = 'La regle ne correspond pas a la culture du comptage.'
         if self.status == 'dismissed':
             if self.lever_id:
-                errors['lever'] = 'Un levier suivi ne peut pas etre renseigne pour une recommandation non suivie.'
+                errors['lever'] = 'Un levier suivi ne peut pas être renseigné pour une recommandation non suivie.'
             if self.action_id:
-                errors['action'] = 'Une action ne peut pas etre liee a une recommandation non suivie.'
+                errors['action'] = 'Une action ne peut pas être liée a une recommandation non suivie.'
         if self.status == 'followed' and self.dismiss_reason_id:
-            errors['dismiss_reason'] = 'Le motif de non-suivi est reserve aux recommandations non suivies.'
+            errors['dismiss_reason'] = 'Le motif de non-suivi est réservé aux recommandations non suivies.'
         if self.dismiss_reason_id and not self.dismiss_reason.is_active:
-            errors['dismiss_reason'] = 'Le motif selectionne est inactif.'
+            errors['dismiss_reason'] = 'Le motif sélectionné est inactif.'
         if self.lever_id and self.rule_id and self.lever.rule_id != self.rule_id:
-            errors['lever'] = 'Le levier doit appartenir a la meme regle que la recommandation.'
+            errors['lever'] = 'Le levier doit appartenir à la même règle que la recommandation.'
         if errors:
             raise ValidationError(errors)
 
@@ -1988,7 +1988,7 @@ class LeafObservation(models.Model):
         null=True,
         blank=True,
         related_name='leaf_observations',
-        verbose_name='Espece de puceron',
+        verbose_name='Espèce de puceron',
     )
     syrphes = models.PositiveSmallIntegerField(default=0, verbose_name='Syrphes')
     anthocorides = models.PositiveSmallIntegerField(default=0, verbose_name='Punaises Anthocorides')

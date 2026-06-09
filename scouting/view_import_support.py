@@ -193,7 +193,7 @@ def _geocode_address(street_address, postal_code, city, cache=None, rate_limiter
     if not street or not postal or not locality:
         return {
             'status': 'missing_input',
-            'message': 'Adresse incomplete: GPS non calcule.',
+            'message': 'Adresse incomplète : GPS non calculé.',
             'latitude': None,
             'longitude': None,
         }
@@ -265,16 +265,16 @@ def _upsert_producer_from_csv_row(row, importer, update_existing, geocode_cache=
     technician = _resolve_import_technician(importer, row.get('technician_ref', ''))
     technician_profile = _get_profile(technician)
     if technician_profile.role != UserProfile.ROLE_TECHNICIAN:
-        raise ValueError(f'{display_user_name(technician)} n est pas technicien.')
+        raise ValueError(f"{display_user_name(technician)} n'est pas technicien.")
     requested_department = (row.get('department') or '').strip()
 
     email = (row.get('email') or '').strip().lower()
     if not email:
-        raise ValueError('Email obligatoire pour identifier ou creer le producteur.')
+        raise ValueError('Email obligatoire pour identifier ou créer le producteur.')
 
     existing_email_user = User.objects.filter(email__iexact=email).first()
     if existing_email_user and not update_existing:
-        raise ValueError(f'Un utilisateur existe deja avec l email {email}.')
+        raise ValueError(f"Un utilisateur existe déjà avec l'email {email}.")
     existing_user = existing_email_user if update_existing else None
     created = False
 
@@ -283,7 +283,7 @@ def _upsert_producer_from_csv_row(row, importer, update_existing, geocode_cache=
             user = existing_user
             profile, _ = UserProfile.objects.get_or_create(user=user)
             if profile.role not in (UserProfile.ROLE_PRODUCER, ''):
-                raise ValueError(f'L utilisateur {display_user_name(user)} existe deja avec un role non producteur.')
+                raise ValueError(f"L'utilisateur {display_user_name(user)} existe déjà avec un rôle non producteur.")
             action = 'updated'
         else:
             user = User(
@@ -322,7 +322,7 @@ def _upsert_producer_from_csv_row(row, importer, update_existing, geocode_cache=
     notes = []
     if requested_department and technician_profile.department and requested_department != technician_profile.department:
         notes.append(
-            f'Departement CSV {requested_department} conserve (filtre independant du rattachement technicien).'
+            f'Département CSV {requested_department} conservé (filtre indépendant du rattachement technicien).'
         )
 
     geocode_result = _geocode_address(

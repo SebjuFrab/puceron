@@ -222,7 +222,7 @@
       <h2 class="h5 mb-3">Demandes de co-suivi</h2>
 
       {% if incoming_cofollow_requests %}
-        <h3 class="h6">Demandes recues</h3>
+        <h3 class="h6">Demandes reçues</h3>
         <div class="table-responsive mb-3">
           <table class="table table-sm align-middle mb-0">
             <thead>
@@ -230,7 +230,7 @@
                 <th>Technicien source</th>
                 <th>Producteurs</th>
                 <th>Statut</th>
-                <th>Creee le</th>
+                <th>Créée le</th>
                 <th class="text-end">Action</th>
               </tr>
             </thead>
@@ -254,7 +254,7 @@
       {% endif %}
 
       {% if outgoing_cofollow_requests %}
-        <h3 class="h6">Demandes envoyees</h3>
+        <h3 class="h6">Demandes envoyées</h3>
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">
             <thead>
@@ -262,7 +262,7 @@
                 <th>Technicien cible</th>
                 <th>Producteurs</th>
                 <th>Statut</th>
-                <th>Creee le</th>
+                <th>Créée le</th>
                 <th class="text-end">Action</th>
               </tr>
             </thead>
@@ -274,7 +274,7 @@
                   <td>{{ request_obj.get_status_display }}</td>
                   <td>{{ request_obj.created_at|date:"d/m/Y H:i" }}</td>
                   <td class="text-end">
-                    <a href="{% url 'technician_cofollow_review' request_obj.id %}" class="btn btn-sm btn-outline-secondary">Detail</a>
+                    <a href="{% url 'technician_cofollow_review' request_obj.id %}" class="btn btn-sm btn-outline-secondary">Détail</a>
                   </td>
                 </tr>
               {% endfor %}
@@ -314,7 +314,7 @@
                 <button type="submit" class="btn btn-outline-success btn-sm">{{ technician.user.get_full_name|default:technician.user.username }}</button>
               </form>
             {% endif %}
-            <a href="{% url 'technician_deactivate' technician.user_id %}" class="btn btn-outline-danger btn-sm">Desactiver</a>
+            <a href="{% url 'technician_deactivate' technician.user_id %}" class="btn btn-outline-danger btn-sm">Désactiver</a>
           </div>
         {% endfor %}
       </div>
@@ -389,7 +389,7 @@
             {% csrf_token %}
             <div class="input-group input-group-sm">
               <input type="text" name="message" class="form-control" placeholder="Message producteur (optionnel)">
-              <button type="submit" class="btn btn-outline-danger">Arret de suivi</button>
+              <button type="submit" class="btn btn-outline-danger">Arrêt de suivi</button>
             </div>
           </form>
         </div>

@@ -137,7 +137,7 @@
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
           <div>
             <h1 class="h4 mb-1">Nouveau bulletin</h1>
-            <p class="text-muted mb-0">Envoi aux producteurs actuellement rattaches au technicien.</p>
+            <p class="text-muted mb-0">Envoi aux producteurs actuellement rattachés au technicien.</p>
           </div>
           <a href="{% url 'technician_bulletin_list' %}" class="btn btn-outline-secondary btn-sm">Retour</a>
         </div>
@@ -157,7 +157,7 @@
             {% if form.types.errors %}<div class="text-danger small mt-1">{{ form.types.errors }}</div>{% endif %}
           </div>
           <div class="col-md-3">
-            <label class="form-label" for="id_priority">Priorite</label>
+            <label class="form-label" for="id_priority">Priorité</label>
             {{ form.priority }}
             {% if form.priority.errors %}<div class="text-danger small mt-1">{{ form.priority.errors }}</div>{% endif %}
           </div>
@@ -178,12 +178,12 @@
             {% if form.crops.errors %}<div class="text-danger small mt-1">{{ form.crops.errors }}</div>{% endif %}
           </div>
           <div class="col-md-6">
-            <label class="form-label">Departements</label>
+            <label class="form-label">Départements</label>
             <div class="choice-list">
               {% if form.departments.field.queryset %}
                 {{ form.departments }}
               {% else %}
-                <div class="text-muted p-2">Aucun departement actif.</div>
+                <div class="text-muted p-2">Aucun département actif.</div>
               {% endif %}
             </div>
             {% if form.departments.errors %}<div class="text-danger small mt-1">{{ form.departments.errors }}</div>{% endif %}
@@ -240,7 +240,7 @@
             {% if form.photos.errors %}<div class="text-danger small mt-1">{{ form.photos.errors }}</div>{% endif %}
           </div>
           <div class="col-md-6">
-            <label class="form-label" for="id_attachments">Pieces jointes</label>
+            <label class="form-label" for="id_attachments">Pièces jointes</label>
             <div class="file-upload-box">
               {{ form.attachments }}
               <div class="file-upload-hint">PDF, Word, Excel, PowerPoint, texte, CSV, ZIP ou image. Maximum 8 fichiers, 15 Mo par fichier.</div>
@@ -252,15 +252,15 @@
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
               <label class="form-label mb-0">Destinataires</label>
               <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="bulletin-select-all">Tout selectionner</button>
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="bulletin-clear-all">Tout deselectionner</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="bulletin-select-all">Tout sélectionner</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="bulletin-clear-all">Tout désélectionner</button>
               </div>
             </div>
             <div class="recipient-list">
               {% if has_available_producers %}
                 {{ form.producers }}
               {% else %}
-                <div class="text-muted p-2">Aucun producteur actif sur ce perimetre technicien.</div>
+                <div class="text-muted p-2">Aucun producteur actif sur ce périmètre technicien.</div>
               {% endif %}
             </div>
             {% if form.producers.errors %}<div class="text-danger small mt-1">{{ form.producers.errors }}</div>{% endif %}

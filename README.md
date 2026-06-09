@@ -38,18 +38,18 @@ DATABASE_HOST=db
 DATABASE_PORT=5432
 ```
 
-## Deploiement cible
+## Déploiement cible
 Machine Debian avec :
 - Docker
 - Docker Compose plugin
 - Nginx installe sur l'hote
 
-Le mode de deploiement prevu est :
+Le mode de déploiement prévu est :
 - conteneur `web` : Django + Gunicorn
 - conteneur `db` : PostgreSQL
 - Nginx Debian : reverse proxy vers `127.0.0.1:8001`
 
-## Arborescence recommandee VPS
+## Arborescence recommandée VPS
 ```bash
 /var/www/puceron/
   .env
@@ -58,7 +58,7 @@ Le mode de deploiement prevu est :
   app/
 ```
 
-## Deploiement VPS
+## Déploiement VPS
 Guide complet :
 
 - [deploy/DEPLOY_DOCKER_DEBIAN.md](deploy/DEPLOY_DOCKER_DEBIAN.md)

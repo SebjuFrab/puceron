@@ -118,7 +118,7 @@ SCOUTING_ADMIN_GROUPS = [
     ('observations', 'Observations', ['PlantSeries', 'ScoutingRecord', 'LeafObservation']),
     (
         'settings',
-        'Parametrage',
+        'Paramétrage',
         [
             'Department',
             'Crop',
@@ -135,7 +135,7 @@ SCOUTING_ADMIN_GROUPS = [
     ),
     (
         'decisions',
-        "Preconisation et plan d'intervention",
+        "Préconisation et plan d'intervention",
         ['PlantAction', 'ActionType', 'DecisionRule', 'DecisionLever'],
     ),
 ]
@@ -246,7 +246,7 @@ def _department_choices(current_value=''):
 
 
 class UserProfileAdminForm(forms.ModelForm):
-    department = forms.ChoiceField(required=False, label='Departement')
+    department = forms.ChoiceField(required=False, label='Département')
 
     class Meta:
         model = UserProfile
@@ -378,7 +378,7 @@ class UserProfileAdmin(admin.ModelAdmin):
             return 0
         return getattr(obj, '_active_producer_count', 0)
 
-    @admin.display(description='Nb series')
+    @admin.display(description='Nb séries')
     def active_series_count(self, obj):
         if obj.role != UserProfile.ROLE_TECHNICIAN:
             return 0
@@ -559,7 +559,7 @@ class BulletinMessageAdmin(admin.ModelAdmin):
     def crop_names(self, obj):
         return obj.crop_labels or '-'
 
-    @admin.display(description='Departements')
+    @admin.display(description='Départements')
     def department_names(self, obj):
         return obj.department_labels or '-'
 

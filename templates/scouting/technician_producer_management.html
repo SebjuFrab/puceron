@@ -31,7 +31,7 @@
         <thead>
           <tr>
             <th>Producteur</th>
-            <th>Nb series</th>
+            <th>Nb séries</th>
             <th>Nb observations</th>
             <th>Derniere connexion</th>
             <th>Techniciens en gestion</th>
@@ -47,7 +47,7 @@
               </td>
               <td>{{ row.series_count }}</td>
               <td>{{ row.observation_count }}</td>
-              <td>{{ row.last_connection_at|date:"d/m/Y H:i"|default:"Jamais connecte" }}</td>
+              <td>{{ row.last_connection_at|date:"d/m/Y H:i"|default:"Jamais connecté" }}</td>
               <td>
                 {% if row.technician_names %}
                   {{ row.technician_names|join:", " }}
@@ -59,12 +59,12 @@
                 <div class="d-inline-flex gap-1 flex-wrap justify-content-end">
                   <form method="post" action="{% url 'producer_control_start' row.producer_id %}" class="d-inline">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-sm btn-success">Prendre le controle</button>
+                    <button type="submit" class="btn btn-sm btn-success">Prendre le contrôle</button>
                   </form>
                   <a href="{% url 'technician_records' %}?producer={{ row.producer_id }}" class="btn btn-sm btn-outline-secondary">Voir</a>
                   <form method="post" action="{% url 'technician_stop_follow' row.producer_id %}" class="js-app-confirm d-inline"
-                        data-confirm-title="Arret de gestion"
-                        data-confirm-message="Confirmer l arret de gestion pour ce producteur ?"
+                        data-confirm-title="Arrêt de gestion"
+                        data-confirm-message="Confirmer l'arrêt de gestion pour ce producteur ?"
                         data-confirm-confirm-label="Arreter"
                         data-confirm-confirm-class="btn-danger">
                     {% csrf_token %}
@@ -76,7 +76,7 @@
             </tr>
           {% empty %}
             <tr>
-              <td colspan="6">Aucun producteur actif sur votre perimetre.</td>
+              <td colspan="6">Aucun producteur actif sur votre périmètre.</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -97,7 +97,7 @@
         <thead>
           <tr>
             <th>Producteur</th>
-            <th>Nb series</th>
+            <th>Nb séries</th>
             <th>Nb observations</th>
             <th>Derniere connexion</th>
             <th>Techniciens en gestion</th>
@@ -113,7 +113,7 @@
               </td>
               <td>{{ row.series_count }}</td>
               <td>{{ row.observation_count }}</td>
-              <td>{{ row.last_connection_at|date:"d/m/Y H:i"|default:"Jamais connecte" }}</td>
+              <td>{{ row.last_connection_at|date:"d/m/Y H:i"|default:"Jamais connecté" }}</td>
               <td>
                 {% if row.technician_names %}
                   {{ row.technician_names|join:", " }}

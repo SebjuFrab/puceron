@@ -1,6 +1,6 @@
 # Guide d'utilisation super-admin
 
-## 1. Role du super-admin
+## 1. Rôle du super-admin
 
 Le super-admin pilote l'outil dans sa globalite.
 
@@ -8,19 +8,19 @@ Il peut :
 
 - administrer les utilisateurs,
 - rattacher les producteurs aux techniciens,
-- gerer les parametres metier,
+- gérer les paramètres métier,
 - configurer les recommandations et les leviers d'action,
 - administrer les pages d'information,
-- gerer les acces API et les tokens,
-- consulter l'ensemble des donnees.
+- gérer les accès API et les tokens,
+- consulter l'ensemble des données.
 
-Le super-admin a donc un role de gouvernance fonctionnelle et technique.
+Le super-admin a donc un rôle de gouvernance fonctionnelle et technique.
 
-## 2. Acces principaux
+## 2. Accès principaux
 
-Le super-admin utilise principalement :
+Le super-admin utilisé principalement :
 
-- l'interface metier de l'application,
+- l'interface métier de l'application,
 - l'admin Django,
 - le CMS Wagtail,
 - les exports Excel,
@@ -30,99 +30,99 @@ Le super-admin utilise principalement :
 
 Le super-admin peut :
 
-- creer un producteur,
-- creer un technicien,
+- créer un producteur,
+- créer un technicien,
 - modifier un utilisateur,
-- changer le technicien referent d'un producteur,
-- corriger les coordonnees et le GPS,
+- changer le technicien référent d'un producteur,
+- corriger les coordonnées et le GPS,
 - intervenir sur tous les departements.
 
-Contrairement a un technicien :
+Contrairement à un technicien :
 
-- il peut creer un producteur pour n'importe quel technicien,
+- il peut créer un producteur pour n'importe quel technicien,
 - il peut modifier les rattachements librement.
 
-## 4. Parametrage metier
+## 4. Paramétrage métier
 
 Le super-admin gere, dans l'admin, les listes de reference suivantes :
 
 - cultures,
 - types de conduite,
-- varietes,
+- variétés,
 - auxiliaires,
-- molecules,
+- molécules,
 - types d'action,
 - motifs de non-suivi,
 - pages d'information et ressources.
 
 Ce parametrage doit rester propre, car il structure :
 
-- la saisie,
+- là saisie,
 - les tableaux,
 - les exports,
 - les recommandations.
 
 ## 5. Gestion des cultures
 
-Pour chaque culture, le super-admin peut definir l'indicateur auxiliaire utilise par le moteur de recommandation.
+Pour chaque culture, le super-admin peut définir l'indicateur auxiliaire utilisé par le moteur de recommandation.
 
-Cet indicateur peut etre :
+Cet indicateur peut être :
 
 - `Auxiliaires / plant`
-- `Auxiliaires / feuille observee`
+- `Auxiliaires / feuille observée`
 - `Auxiliaires / feuille infestee`
 
-Ce choix est important car il change la facon dont les regles de decision sont evaluees.
+Ce choix est important car il change la façon dont les règles de décision sont évaluées.
 
 ## 6. Gestion des auxiliaires
 
 Dans l'admin, le super-admin peut :
 
-- creer ou modifier les auxiliaires,
+- créer ou modifier les auxiliaires,
 - ajouter une photo,
-- indiquer si un auxiliaire est `lachable`.
+- indiquer si un auxiliaire est `lâchable`.
 
-Seuls les auxiliaires marques comme `lachables` peuvent etre proposes dans les actions de type :
+Seuls les auxiliaires marques comme `lâchables` peuvent être proposes dans les actions de type :
 
-- `Lacher d'auxiliaire`
+- `Lâcher d'auxiliaire`
 
-## 7. Gestion des molecules
+## 7. Gestion des molécules
 
-Les molecules sont parametrables par :
+Les molécules sont parametrables par :
 
 - nom,
 - cultures concernees,
-- perimetre `Bio`, `Non bio` ou `Bio et non bio`.
+- périmètre `Bio`, `Non bio` ou `Bio et non bio`.
 
 Lors d'une saisie d'action :
 
-- les molecules proposees sont filtrees selon la culture de la serie,
+- les molécules proposees sont filtrees selon la culture de la série,
 - et selon son mode de conduite.
 
 ## 8. Gestion des types d'action
 
-Le super-admin peut definir ou modifier :
+Le super-admin peut définir ou modifier :
 
 - les types d'action,
 - leur categorie,
-- leur icone de graphique.
+- leur icône de graphique.
 
 Ces types d'action sont utilises :
 
-- dans la saisie d'action,
+- dans là saisie d'action,
 - dans les recommandations,
 - dans les dashboards,
 - dans les historiques d'action.
 
-## 9. Gestion des conseils : regles de decision
+## 9. Gestion des conseils : règles de décision
 
-La partie la plus sensible du parametrage concerne les `Regles de decision`.
+La partie la plus sensible du paramétrage concerne les `Règles de décision`.
 
-Ces regles permettent d'afficher un conseil adapte selon la situation observee.
+Ces règles permettent d'afficher un conseil adapté selon la situation observée.
 
-### 9.1. A quoi sert une regle de decision
+### 9.1. A quoi sert une règle de décision
 
-Une regle de decision permet d'associer a une situation donnee :
+Une règle de décision permet d'associer à une situation donnée :
 
 - un titre de conseil,
 - une description du conseil,
@@ -134,7 +134,7 @@ Exemple :
 
 ### 9.2. Criteres pris en compte
 
-Une regle peut etre definie selon :
+Une règle peut être definie selon :
 
 - la `culture`,
 - la `semaine`,
@@ -145,7 +145,7 @@ Le niveau d'auxiliaires est interprete selon l'indicateur configure sur la cultu
 
 ### 9.3. Logique des bornes
 
-Les regles suivent cette logique :
+Les règles suivent cette logique :
 
 - `borne minimale incluse`
 - `borne maximale exclue`
@@ -170,69 +170,69 @@ Exemples :
 
 ### 9.4. Semaine
 
-La plage de semaines permet de limiter un conseil a une periode de culture.
+La plage de semaines permet de limiter un conseil à une période de culture.
 
 Exemple :
 
-- de la semaine `11` a la semaine `25`
+- de la semaine `11` à la semaine `25`
 
-### 9.5. Bon parametre avant creation
+### 9.5. Bon paramètre avant creation
 
-Avant de creer une regle, il faut verifier :
+Avant de créer une règle, il faut vérifier :
 
 - la bonne culture,
 - le bon indicateur auxiliaire sur la culture,
 - la logique des seuils,
 - l'absence de doublon ou de chevauchement.
 
-### 9.6. Chevauchement des regles
+### 9.6. Chevauchement des règles
 
-Deux regles actives ne doivent pas se chevaucher pour une meme culture.
+Deux règles actives ne doivent pas se chevaucher pour une même culture.
 
-L'outil bloque l'enregistrement si un chevauchement est detecte entre regles actives.
+L'outil bloque l'enregistrement si un chevauchement est detecte entre règles actives.
 
-Le message d'erreur identifie les regles concurrentes.
+Le message d'erreur identifie les règles concurrentes.
 
 Ce point est important :
 
-- des regles inactives peuvent se chevaucher,
-- mais des regles actives concurrentes rendraient le conseil ambigu.
+- des règles inactives peuvent se chevaucher,
+- mais des règles actives concurrentes rendraient le conseil ambigu.
 
-### 9.7. Regles actives / inactives
+### 9.7. Règles actives / inactives
 
-Une regle inactive :
+Une règle inactive :
 
 - reste en base,
 - peut servir de brouillon ou d'archive,
-- n'est pas utilisee dans le moteur de conseil.
+- n'est pas utilisée dans le moteur de conseil.
 
-Une regle active :
+Une règle active :
 
 - est prise en compte dans les recommandations.
 
-### 9.8. Message si aucune regle ne correspond
+### 9.8. Message si aucune règle ne correspond
 
-Si aucune regle ne matche une situation, l'outil affiche :
+Si aucune règle ne matche une situation, l'outil affiche :
 
 - `Situation anormale, vous pouvez appeler votre technicien.`
 
 Il est donc utile de couvrir correctement les principaux cas terrain.
 
-## 10. Gestion des conseils : leviers de decision
+## 10. Gestion des conseils : leviers de décision
 
-Les `Leviers de decision` sont rattaches aux regles.
+Les `Leviers de décision` sont rattachés aux règles.
 
-Ils correspondent aux actions proposees a l'utilisateur.
+Ils correspondent aux actions proposees à l'utilisateur.
 
-Pour chaque levier, le super-admin peut definir :
+Pour chaque levier, le super-admin peut définir :
 
 - un titre,
 - une description,
 - un type d'action preconfigure,
 - une portee preconfiguree,
-- une molecule optionnelle,
+- une molécule optionnelle,
 - un auxiliaire optionnel,
-- un texte de details pre-rempli.
+- un texte de details pré-rempli.
 
 ### 10.1. Usage
 
@@ -243,7 +243,7 @@ Quand un utilisateur clique sur un levier recommande :
 
 ### 10.2. Plusieurs leviers
 
-Une meme regle peut comporter plusieurs leviers.
+Une même règle peut comporter plusieurs leviers.
 
 Cela permet de proposer plusieurs options de gestion selon la situation.
 
@@ -256,7 +256,7 @@ Le super-admin doit aussi surveiller :
 - les recommandations non suivies,
 - les motifs de non-suivi.
 
-Les motifs de non-suivi sont parametres dans l'admin.
+Les motifs de non-suivi sont paramètres dans l'admin.
 
 Exemples :
 
@@ -270,13 +270,13 @@ Le motif `Autre` ouvre un texte libre.
 
 Pour garder un systeme robuste :
 
-- ne pas multiplier inutilement les regles,
+- ne pas multiplier inutilement les règles,
 - garder une logique simple par culture,
 - documenter les seuils utilises,
 - tester les cas limites,
-- verifier les consequences d'une borne ouverte,
-- desactiver une regle obsolete plutot que l'effacer tout de suite,
-- verifier les chevauchements avant mise en production.
+- vérifier les conséquences d'une borne ouverte,
+- désactiver une règle obsolète plutôt que l'effacer tout de suite,
+- vérifier les chevauchements avant mise en production.
 
 ## 13. Pages d'information et CMS
 
@@ -300,7 +300,7 @@ Selon les pages ou reglages, il est possible d'ajouter :
 
 ## 14. Gestion des financeurs et du footer
 
-Les blocs `Financeurs` et `Footer` sont parametres via le CMS / les reglages de site.
+Les blocs `Financeurs` et `Footer` sont paramètres via le CMS / les reglages de site.
 
 Le super-admin peut y ajouter :
 
@@ -312,19 +312,19 @@ Ces informations sont reutilisees sur les pages publiques ou institutionnelles d
 
 ## 15. API et tokens
 
-Le super-admin peut gerer les tokens d'API.
+Le super-admin peut gérer les tokens d'API.
 
 Cette fonction sert notamment a :
 
 - connecter l'outil a n8n,
-- lire ou pousser des donnees,
+- lire ou pousser des données,
 - automatiser certains traitements.
 
-Les tokens doivent etre reserves a des usages identifies.
+Les tokens doivent être réservés a des usages identifiés.
 
 Bonnes pratiques :
 
-- creer un token par usage,
+- créer un token par usage,
 - nommer clairement les tokens,
 - supprimer les tokens inutiles,
 - ne jamais diffuser un token en clair dans un document partage.
@@ -334,49 +334,49 @@ Bonnes pratiques :
 Le super-admin peut consulter :
 
 - les dashboards,
-- les donnees de tous les producteurs,
+- les données de tous les producteurs,
 - les vues technicien,
 - les exports globaux.
 
-Il peut donc verifier :
+Il peut donc vérifier :
 
-- la qualite de la saisie,
-- la coherence des series,
+- la qualité de là saisie,
+- la cohérence des séries,
 - la dynamique de groupe,
 - l'application pratique des recommandations.
 
-## 17. Imports et qualite de donnees
+## 17. Imports et qualité de données
 
-Avant un import CSV de producteurs, verifier :
+Avant un import CSV de producteurs, vérifier :
 
 - l'orthographe des colonnes,
-- la presence du bon technicien referent,
+- la presence du bon technicien référent,
 - les mails,
 - les mobiles,
 - les adresses,
-- la coherence du departement.
+- la cohérence du département.
 
-Apres import :
+Après import :
 
-- verifier quelques comptes,
-- verifier les rattachements,
-- verifier la geolocalisation si besoin.
+- vérifier quelques comptes,
+- vérifier les rattachements,
+- vérifier la géolocalisation si besoin.
 
-## 18. Checks a faire avant ouverture aux utilisateurs
+## 18. Checks à faire avant ouverture aux utilisateurs
 
-Avant de diffuser l'outil a un groupe :
+Avant de diffuser l'outil à un groupe :
 
-1. verifier les cultures,
-2. verifier les varietes,
-3. verifier les auxiliaires et leurs photos,
-4. verifier les molecules,
-5. verifier les types d'action,
-6. verifier les motifs de non-suivi,
-7. verifier les regles de decision,
-8. verifier les leviers associes,
-9. verifier les pages d'information,
-10. verifier les comptes techniciens,
-11. verifier quelques comptes producteurs.
+1. vérifier les cultures,
+2. vérifier les variétés,
+3. vérifier les auxiliaires et leurs photos,
+4. vérifier les molécules,
+5. vérifier les types d'action,
+6. vérifier les motifs de non-suivi,
+7. vérifier les règles de décision,
+8. vérifier les leviers associés,
+9. vérifier les pages d'information,
+10. vérifier les comptes techniciens,
+11. vérifier quelques comptes producteurs.
 
 ## 19. Strategie de maintenance
 
@@ -387,26 +387,26 @@ Je te recommande de distinguer trois niveaux :
   - types de conduite
   - types d'action
 - `parametrage saisonnier`
-  - varietes
-  - series
+  - variétés
+  - séries
   - campagnes annuelles
 - `parametrage conseil`
-  - regles de decision
+  - règles de décision
   - leviers
-  - molecules
+  - molécules
 
 Cette separation simplifie la maintenance.
 
 ## 20. Besoin d'aide
 
-Si un comportement semble incoherent, verifier d'abord :
+Si un comportement semble incohérent, vérifier d'abord :
 
-- la culture de la serie,
-- l'annee,
+- la culture de la série,
+- l'année,
 - la semaine,
 - l'indicateur auxiliaire configure sur la culture,
-- les bornes des regles,
-- l'etat actif / inactif des regles,
-- les chevauchements entre regles actives.
+- les bornes des règles,
+- l'etat actif / inactif des règles,
+- les chevauchements entre règles actives.
 
-Dans la plupart des cas, un probleme de conseil vient d'un parametrage de seuil ou d'un chevauchement logique entre regles.
+Dans la plupart des cas, un probleme de conseil vient d'un parametrage de seuil ou d'un chevauchement logique entre règles.
