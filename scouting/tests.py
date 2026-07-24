@@ -367,6 +367,14 @@ class RecordExportScopeTests(TestCase):
         )
         self.record_1 = self._create_record(self.producer_1, 'Serie export 1', 6)
         self.record_2 = self._create_record(self.producer_2, 'Serie export 2', 3)
+        self.service_plant = ServicePlant.objects.create(
+            code='service-export',
+            name='Basilic export',
+            latin_name='Ocimum basilicum',
+        )
+        self.record_1.plant_series.has_service_plants = True
+        self.record_1.plant_series.save(update_fields=['has_service_plants'])
+        self.record_1.plant_series.service_plants.add(self.service_plant)
         self.action_type = ActionType.objects.create(
             name='Action export',
             category='manual',
@@ -475,6 +483,8 @@ class RecordExportScopeTests(TestCase):
 
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][header.index('Producteur')], 'Ferme export 1')
+        self.assertEqual(rows[0][header.index('Présence de plantes de service')], 'Oui')
+        self.assertEqual(rows[0][header.index('Plantes de service')], 'Basilic export')
         pest_column = header.index('Ravageur export (% feuilles touchées)')
         self.assertEqual(rows[0][pest_column], 20)
 
@@ -483,6 +493,8 @@ class RecordExportScopeTests(TestCase):
 
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][header.index('Producteur')], 'Ferme export 1')
+        self.assertEqual(rows[0][header.index('Présence de plantes de service')], 'Oui')
+        self.assertEqual(rows[0][header.index('Plantes de service')], 'Basilic export')
 
     def test_superuser_export_all_contains_every_producer(self):
         header, rows = self._export_rows(self.admin, scope='all')
@@ -498,6 +510,8 @@ class RecordExportScopeTests(TestCase):
 
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][header.index('Producteur')], 'Ferme export 1')
+        self.assertEqual(rows[0][header.index('Présence de plantes de service')], 'Oui')
+        self.assertEqual(rows[0][header.index('Plantes de service')], 'Basilic export')
 
     def test_other_pest_filter_limits_technician_records(self):
         self.client.force_login(self.technician_1)

@@ -94,6 +94,13 @@ def _record_observed_aphid_species_names(record):
     return ', '.join(labels)
 
 
+def _series_service_plant_export_values(series):
+    if not series:
+        return 'Non', ''
+    names = ', '.join(plant.name for plant in series.service_plants.all())
+    return ('Oui' if series.has_service_plants else 'Non'), names
+
+
 def _require_bulletin_technician(request):
     manager_user = _manager_user(request)
     manager_profile = _get_profile(manager_user)
@@ -1016,6 +1023,7 @@ def export_records_view(request):
             'quick_aphid_species__species',
             'quick_auxiliary_counts__taxon',
             'quick_other_pest_counts__taxon',
+            'plant_series__service_plants',
             'leaf_observations__aphid_species',
             'leaf_observations__auxiliary_observations__taxon',
             'leaf_observations__other_pest_observations__taxon',
@@ -1040,6 +1048,8 @@ def export_records_view(request):
         'Technicien(s)',
         'Département',
         'Série',
+        'Présence de plantes de service',
+        'Plantes de service',
         'Culture',
         'Conduite',
         'Variété',
@@ -1065,12 +1075,17 @@ def export_records_view(request):
         means = rec.species_means_per_plant()
         pest_percentages = rec.other_pest_percentages(pest_taxa)
         producer_profile = rec.user.profile
+        service_plant_presence, service_plant_names = _series_service_plant_export_values(
+            rec.plant_series
+        )
         row = [
             producer_profile.farm_name or display_user_name(rec.user),
             rec.user.username,
             ', '.join(_active_technician_names_for_profile(producer_profile)),
             rec.department,
             rec.plant_series.name if rec.plant_series else '',
+            service_plant_presence,
+            service_plant_names,
             rec.crop_ref.name if rec.crop_ref_id and rec.crop_ref else (rec.plant_series.crop.name if rec.plant_series_id and rec.plant_series else rec.crop),
             rec.conduct_type_ref.name if rec.conduct_type_ref else '',
             rec.variety_ref.name if rec.variety_ref else '',
@@ -1127,7 +1142,7 @@ def export_actions_view(request):
         'crop_ref',
         'molecule',
         'auxiliary_taxon',
-    ).prefetch_related(active_assignments)
+    ).prefetch_related(active_assignments, 'plant_series__service_plants')
 
     if scope == 'all' and _is_technician(manager_user):
         if not manager_user.is_superuser:
@@ -1168,6 +1183,8 @@ def export_actions_view(request):
             'Technicien(s)',
             'Département',
             'Série',
+            'Présence de plantes de service',
+            'Plantes de service',
             'Culture',
             'Année',
             'Date action',
@@ -1181,6 +1198,9 @@ def export_actions_view(request):
 
     for action in qs.order_by('-action_date', '-created_at'):
         producer_profile = action.user.profile
+        service_plant_presence, service_plant_names = _series_service_plant_export_values(
+            action.plant_series
+        )
         crop_name = (
             action.crop_ref.name
             if action.crop_ref_id and action.crop_ref
@@ -1193,6 +1213,8 @@ def export_actions_view(request):
                 ', '.join(_active_technician_names_for_profile(producer_profile)),
                 action.department,
                 action.plant_series.name if action.plant_series else '',
+                service_plant_presence,
+                service_plant_names,
                 crop_name,
                 action.plant_series.year if action.plant_series else '',
                 action.action_date.isoformat(),
