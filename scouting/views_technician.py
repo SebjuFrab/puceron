@@ -27,6 +27,7 @@ from .models import (
     BulletinRecipient,
     NotificationDelivery,
     NotificationPreference,
+    OtherPestTaxon,
     PlantAction,
     PlantSeries,
     ProducerTechnicianAssignment,
@@ -69,6 +70,28 @@ def _active_technician_names_for_profile(profile):
         seen.add(name)
         names.append(name)
     return names
+
+
+def _record_observed_aphid_species_names(record):
+    if record.entry_mode == 'quick':
+        species = [row.species for row in record.quick_aphid_species.all() if row.species_id]
+    else:
+        species = [
+            leaf.aphid_species
+            for leaf in record.leaf_observations.all()
+            if leaf.aphid_present and leaf.aphid_species_id
+        ]
+    if record.primary_aphid_species_id:
+        species.append(record.primary_aphid_species)
+
+    labels = []
+    seen_ids = set()
+    for item in species:
+        if item.id in seen_ids:
+            continue
+        seen_ids.add(item.id)
+        labels.append(str(item))
+    return ', '.join(labels)
 
 
 def _require_bulletin_technician(request):
@@ -971,52 +994,81 @@ def export_records_view(request):
     effective_user = _effective_user(request)
     manager_user = _manager_user(request)
     scope = request.GET.get('scope', 'me')
-    if scope == 'all' and _is_technician(manager_user):
-        qs = ScoutingRecord.objects.select_related(
+
+    active_assignments = Prefetch(
+        'user__profile__technician_assignments',
+        queryset=ProducerTechnicianAssignment.objects.filter(is_active=True).select_related('technician'),
+        to_attr='active_assignments_prefetched',
+    )
+    qs = (
+        ScoutingRecord.objects.select_related(
             'user',
+            'user__profile',
             'primary_aphid_species',
             'plant_series',
+            'plant_series__crop',
             'crop_ref',
             'conduct_type_ref',
             'variety_ref',
-        ).prefetch_related('leaf_observations')
+        )
+        .prefetch_related(
+            active_assignments,
+            'quick_aphid_species__species',
+            'quick_auxiliary_counts__taxon',
+            'quick_other_pest_counts__taxon',
+            'leaf_observations__aphid_species',
+            'leaf_observations__auxiliary_observations__taxon',
+            'leaf_observations__other_pest_observations__taxon',
+        )
+    )
+
+    if scope == 'all' and _is_technician(manager_user):
         if not manager_user.is_superuser:
             qs = qs.filter(_technician_visibility_q(manager_user)).distinct()
     else:
-        qs = (
-            ScoutingRecord.objects.filter(user=effective_user)
-            .select_related('user', 'primary_aphid_species', 'plant_series', 'crop_ref', 'conduct_type_ref', 'variety_ref')
-            .prefetch_related('leaf_observations')
-        )
+        qs = qs.filter(user=effective_user)
 
     qs = _filter_records(request, qs)
     taxa = list(AuxiliaryTaxon.objects.order_by('display_order', 'name'))
+    pest_taxa = list(OtherPestTaxon.objects.order_by('display_order', 'name'))
     wb = Workbook()
     ws = wb.active
     ws.title = 'Comptages'
     header = [
-        'Utilisateur',
+        'Producteur',
+        'Identifiant',
+        'Technicien(s)',
         'Département',
-        'Serie',
+        'Série',
         'Culture',
         'Conduite',
-        'Variete',
+        'Variété',
         'Date saisie',
-        'Annee',
+        'Année',
         'Semaine',
+        'Mode de saisie',
+        'Plants observés',
+        'Feuilles observées',
+        'Feuilles infestées de pucerons',
         'Puceron principal',
-        '% feuilles infestees',
+        'Espèces de pucerons observées',
+        '% feuilles infestées',
         'Auxiliaires total',
         'Auxiliaires/plant',
         'Niveau risque',
         'Commentaire',
     ]
     header.extend([f'{taxon.name} (moy/plant)' for taxon in taxa])
+    header.extend([f'{taxon.name} (% feuilles touchées)' for taxon in pest_taxa])
     ws.append(header)
     for rec in qs:
         means = rec.species_means_per_plant()
+        pest_percentages = rec.other_pest_percentages(pest_taxa)
+        producer_profile = rec.user.profile
         row = [
-            display_user_name(rec.user),
+            producer_profile.farm_name or display_user_name(rec.user),
+            rec.user.username,
+            ', '.join(_active_technician_names_for_profile(producer_profile)),
             rec.department,
             rec.plant_series.name if rec.plant_series else '',
             rec.crop_ref.name if rec.crop_ref_id and rec.crop_ref else (rec.plant_series.crop.name if rec.plant_series_id and rec.plant_series else rec.crop),
@@ -1025,7 +1077,12 @@ def export_records_view(request):
             rec.scouting_date.isoformat(),
             rec.year,
             rec.week,
+            rec.get_entry_mode_display(),
+            rec.observed_plants_count,
+            rec.observed_leaves_count,
+            rec.aphid_infested_leaves_count,
             str(rec.primary_aphid_species or ''),
+            _record_observed_aphid_species_names(rec),
             float(rec.aphid_infested_percent),
             rec.auxiliary_total,
             rec.auxiliaries_per_plant,
@@ -1033,6 +1090,7 @@ def export_records_view(request):
             rec.comment,
         ]
         row.extend([means.get(taxon.id, 0) for taxon in taxa])
+        row.extend([pest_percentages.get(taxon.id, 0) for taxon in pest_taxa])
         ws.append(row)
 
     content = BytesIO()
@@ -1055,30 +1113,27 @@ def export_actions_view(request):
     manager_user = _manager_user(request)
     scope = request.GET.get('scope', 'me')
 
+    active_assignments = Prefetch(
+        'user__profile__technician_assignments',
+        queryset=ProducerTechnicianAssignment.objects.filter(is_active=True).select_related('technician'),
+        to_attr='active_assignments_prefetched',
+    )
+    qs = PlantAction.objects.select_related(
+        'user',
+        'user__profile',
+        'action_type',
+        'plant_series',
+        'plant_series__crop',
+        'crop_ref',
+        'molecule',
+        'auxiliary_taxon',
+    ).prefetch_related(active_assignments)
+
     if scope == 'all' and _is_technician(manager_user):
-        qs = PlantAction.objects.select_related(
-            'user',
-            'user__profile',
-            'action_type',
-            'plant_series',
-            'plant_series__crop',
-            'crop_ref',
-            'molecule',
-            'auxiliary_taxon',
-        )
         if not manager_user.is_superuser:
             qs = qs.filter(_technician_visibility_q(manager_user)).distinct()
     else:
-        qs = PlantAction.objects.filter(user=effective_user).select_related(
-            'user',
-            'user__profile',
-            'action_type',
-            'plant_series',
-            'plant_series__crop',
-            'crop_ref',
-            'molecule',
-            'auxiliary_taxon',
-        )
+        qs = qs.filter(user=effective_user)
 
     department = request.GET.get('department')
     technician = request.GET.get('technician')
@@ -1108,7 +1163,9 @@ def export_actions_view(request):
     ws.title = 'Actions'
     ws.append(
         [
-            'Utilisateur',
+            'Producteur',
+            'Identifiant',
+            'Technicien(s)',
             'Département',
             'Série',
             'Culture',
@@ -1123,6 +1180,7 @@ def export_actions_view(request):
     )
 
     for action in qs.order_by('-action_date', '-created_at'):
+        producer_profile = action.user.profile
         crop_name = (
             action.crop_ref.name
             if action.crop_ref_id and action.crop_ref
@@ -1130,7 +1188,9 @@ def export_actions_view(request):
         )
         ws.append(
             [
-                display_user_name(action.user),
+                producer_profile.farm_name or display_user_name(action.user),
+                action.user.username,
+                ', '.join(_active_technician_names_for_profile(producer_profile)),
                 action.department,
                 action.plant_series.name if action.plant_series else '',
                 crop_name,

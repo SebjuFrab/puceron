@@ -1360,6 +1360,33 @@ class ScoutingRecord(models.Model):
         divisor = divisor or 10
         return {taxon.id: round(totals[taxon.id] / float(divisor), 2) for taxon in taxa}
 
+    def other_pest_percentages(self, taxa=None):
+        taxa = list(taxa) if taxa is not None else list(
+            OtherPestTaxon.objects.order_by('display_order', 'name')
+        )
+        infested_leaf_counts = {taxon.id: 0 for taxon in taxa}
+
+        if self.entry_mode == 'quick':
+            for row in self.quick_other_pest_counts.all():
+                infested_leaf_counts[row.taxon_id] = row.infested_leaves_count
+            observed_leaves = self.observed_leaves_count
+        else:
+            for leaf in self.leaf_observations.all():
+                taxon_ids = {
+                    observation.taxon_id
+                    for observation in leaf.other_pest_observations.all()
+                }
+                for taxon_id in taxon_ids:
+                    infested_leaf_counts[taxon_id] = infested_leaf_counts.get(taxon_id, 0) + 1
+            observed_leaves = self.observed_leaves_count or len(self.leaf_observations.all())
+
+        if not observed_leaves:
+            return {taxon.id: 0 for taxon in taxa}
+        return {
+            taxon.id: round((infested_leaf_counts.get(taxon.id, 0) / float(observed_leaves)) * 100, 2)
+            for taxon in taxa
+        }
+
 
 class QuickRecordAphidSpecies(models.Model):
     record = models.ForeignKey(

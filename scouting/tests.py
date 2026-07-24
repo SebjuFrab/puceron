@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from io import BytesIO
 import tempfile
 
 from django.contrib.auth import get_user_model
@@ -7,9 +8,11 @@ from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
+from openpyxl import load_workbook
 
 from .models import (
     ActionType,
+    AphidSpecies,
     BulletinAttachment,
     BulletinMessage,
     BulletinMessageType,
@@ -22,10 +25,12 @@ from .models import (
     DecisionRule,
     NotificationDelivery,
     NotificationPreference,
+    OtherPestTaxon,
     PlantAction,
     PlantSeries,
     ProducerTechnicianAssignment,
     QuickRecordAuxiliaryCount,
+    QuickRecordOtherPestCount,
     RecommendationDismissReason,
     RecommendationResponse,
     ScoutingRecord,
@@ -324,6 +329,185 @@ class PlantActionEntryTests(TestCase):
         action = PlantAction.objects.get()
         self.assertEqual(action.action_type, self.treatment_type)
         self.assertIsNone(action.molecule_id)
+
+
+class RecordExportScopeTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser(
+            username='admin-export',
+            email='admin-export@example.test',
+            password='secret',
+        )
+        self.technician_1 = self._create_technician('technician-export-1')
+        self.technician_2 = self._create_technician('technician-export-2')
+        self.producer_1 = self._create_producer(
+            'producer-export-1',
+            'Ferme export 1',
+            self.technician_1,
+        )
+        self.producer_2 = self._create_producer(
+            'producer-export-2',
+            'Ferme export 2',
+            self.technician_2,
+        )
+        self.crop = Crop.objects.create(name='Culture export')
+        self.conduct_type = ConductType.objects.create(name='Conduite export')
+        self.variety = Variety.objects.create(
+            crop=self.crop,
+            name='Variete export',
+            created_by=self.admin,
+        )
+        self.aphid_species = AphidSpecies.objects.create(
+            code='aphid-export',
+            vernacular_name='Puceron export',
+        )
+        self.other_pest = OtherPestTaxon.objects.create(
+            code='pest-export',
+            name='Ravageur export',
+        )
+        self.record_1 = self._create_record(self.producer_1, 'Serie export 1', 6)
+        self.record_2 = self._create_record(self.producer_2, 'Serie export 2', 3)
+        self.action_type = ActionType.objects.create(
+            name='Action export',
+            category='manual',
+        )
+        self._create_action(self.record_1)
+        self._create_action(self.record_2)
+
+    def _create_technician(self, username):
+        technician = get_user_model().objects.create_user(username=username, password='secret')
+        UserProfile.objects.create(
+            user=technician,
+            role=UserProfile.ROLE_TECHNICIAN,
+            department='29',
+        )
+        return technician
+
+    def _create_producer(self, username, farm_name, technician):
+        producer = get_user_model().objects.create_user(username=username, password='secret')
+        profile = UserProfile.objects.create(
+            user=producer,
+            role=UserProfile.ROLE_PRODUCER,
+            department='29',
+            farm_name=farm_name,
+        )
+        ProducerTechnicianAssignment.objects.create(
+            producer_profile=profile,
+            technician=technician,
+            is_active=True,
+        )
+        return producer
+
+    def _create_record(self, producer, series_name, pest_count):
+        series = PlantSeries.objects.create(
+            user=producer,
+            name=series_name,
+            crop=self.crop,
+            conduct_type=self.conduct_type,
+            organic_mode='bio',
+            variety=self.variety,
+            year=2026,
+            plants_count=10,
+            leaves_per_plant=3,
+        )
+        record = ScoutingRecord.objects.create(
+            user=producer,
+            plant_series=series,
+            crop_ref=self.crop,
+            conduct_type_ref=self.conduct_type,
+            variety_ref=self.variety,
+            department='29',
+            crop=self.crop.name,
+            scouting_date=date.fromisocalendar(2026, 20, 2),
+            year=2026,
+            week=20,
+            entry_mode='quick',
+            observed_plants_count=10,
+            observed_leaves_count=30,
+            aphid_infested_leaves_count=5,
+            aphid_infested_percent=Decimal('16.67'),
+            primary_aphid_species=self.aphid_species,
+            auxiliary_mode='quick',
+            auxiliary_total=0,
+        )
+        QuickRecordOtherPestCount.objects.create(
+            record=record,
+            taxon=self.other_pest,
+            infested_leaves_count=pest_count,
+        )
+        return record
+
+    def _create_action(self, record):
+        return PlantAction.objects.create(
+            user=record.user,
+            entered_by=record.user,
+            plant_series=record.plant_series,
+            department=record.department,
+            crop_ref=self.crop,
+            conduct_type_ref=self.conduct_type,
+            variety_ref=self.variety,
+            action_date=record.scouting_date,
+            action_type=self.action_type,
+            scope='general',
+            notes='Action exportee',
+        )
+
+    def _export_rows(self, user, **params):
+        self.client.force_login(user)
+        response = self.client.get(reverse('export_records'), params)
+        self.assertEqual(response.status_code, 200)
+        workbook = load_workbook(BytesIO(response.content), read_only=True, data_only=True)
+        worksheet = workbook.active
+        rows = list(worksheet.iter_rows(values_only=True))
+        return list(rows[0]), [list(row) for row in rows[1:]]
+
+    def _export_action_rows(self, user, **params):
+        self.client.force_login(user)
+        response = self.client.get(reverse('export_actions'), params)
+        self.assertEqual(response.status_code, 200)
+        workbook = load_workbook(BytesIO(response.content), read_only=True, data_only=True)
+        worksheet = workbook.active
+        rows = list(worksheet.iter_rows(values_only=True))
+        return list(rows[0]), [list(row) for row in rows[1:]]
+
+    def test_producer_export_contains_own_record_and_other_pest_column(self):
+        header, rows = self._export_rows(self.producer_1)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][header.index('Producteur')], 'Ferme export 1')
+        pest_column = header.index('Ravageur export (% feuilles touchées)')
+        self.assertEqual(rows[0][pest_column], 20)
+
+    def test_technician_export_all_is_limited_to_assigned_producers(self):
+        header, rows = self._export_rows(self.technician_1, scope='all')
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][header.index('Producteur')], 'Ferme export 1')
+
+    def test_superuser_export_all_contains_every_producer(self):
+        header, rows = self._export_rows(self.admin, scope='all')
+
+        producer_column = header.index('Producteur')
+        self.assertSetEqual(
+            {row[producer_column] for row in rows},
+            {'Ferme export 1', 'Ferme export 2'},
+        )
+
+    def test_technician_action_export_is_limited_to_assigned_producers(self):
+        header, rows = self._export_action_rows(self.technician_1, scope='all')
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][header.index('Producteur')], 'Ferme export 1')
+
+    def test_other_pest_filter_limits_technician_records(self):
+        self.client.force_login(self.technician_1)
+        response = self.client.get(
+            reverse('my_records'),
+            {'other_pest': str(self.other_pest.id)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context['records']), [self.record_1])
 
 
 class TechnicianDashboardComparisonTests(TestCase):

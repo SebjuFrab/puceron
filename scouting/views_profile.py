@@ -24,16 +24,66 @@ from .view_access import (
 )
 
 
-def _unique_ordered_labels(values):
-    labels = []
-    seen = set()
+def _unique_ordered_objects(values):
+    objects = []
+    seen_ids = set()
     for value in values:
-        label = str(value).strip()
-        if not label or label in seen:
+        if not value or value.pk in seen_ids:
             continue
-        seen.add(label)
-        labels.append(label)
-    return labels
+        seen_ids.add(value.pk)
+        objects.append(value)
+    return objects
+
+
+def _active_technicians(profile):
+    return [
+        assignment.technician
+        for assignment in profile.technician_assignments.all()
+        if assignment.is_active
+    ]
+
+
+def _record_aphid_species(record):
+    if record.entry_mode == 'quick':
+        species = list(
+            row.species for row in record.quick_aphid_species.all() if row.species_id
+        )
+    else:
+        species = [
+            leaf.aphid_species
+            for leaf in record.leaf_observations.all()
+            if leaf.aphid_present and leaf.aphid_species_id
+        ]
+    if record.primary_aphid_species_id:
+        species.append(record.primary_aphid_species)
+    return _unique_ordered_objects(species)
+
+
+def _record_auxiliary_taxa(record):
+    if record.entry_mode == 'quick':
+        return _unique_ordered_objects(
+            row.taxon for row in record.quick_auxiliary_counts.all() if row.count > 0
+        )
+    return _unique_ordered_objects(
+        observation.taxon
+        for leaf in record.leaf_observations.all()
+        for observation in leaf.auxiliary_observations.all()
+        if observation.count > 0
+    )
+
+
+def _record_other_pest_taxa(record):
+    if record.entry_mode == 'quick':
+        return _unique_ordered_objects(
+            row.taxon
+            for row in record.quick_other_pest_counts.all()
+            if row.infested_leaves_count > 0
+        )
+    return _unique_ordered_objects(
+        observation.taxon
+        for leaf in record.leaf_observations.all()
+        for observation in leaf.other_pest_observations.all()
+    )
 
 
 def _record_filter_value(record, key):
@@ -54,6 +104,21 @@ def _record_filter_value(record, key):
     if key == 'series':
         return str(record.plant_series_id or '')
     return ''
+
+
+def _record_filter_values(record, key):
+    if key == 'technician':
+        return {str(technician.id) for technician in _active_technicians(record.user.profile)}
+    if key == 'aphid_species':
+        return {str(species.id) for species in _record_aphid_species(record)}
+    if key == 'auxiliary':
+        return {str(taxon.id) for taxon in _record_auxiliary_taxa(record)}
+    if key == 'other_pest':
+        return {str(taxon.id) for taxon in _record_other_pest_taxa(record)}
+    if key == 'entry_mode':
+        return {record.entry_mode}
+    value = _record_filter_value(record, key)
+    return {value} if value else set()
 
 
 def _action_filter_value(action, key):
@@ -78,12 +143,19 @@ def _action_filter_value(action, key):
     return ''
 
 
+def _action_filter_values(action, key):
+    if key == 'technician':
+        return {str(technician.id) for technician in _active_technicians(action.user.profile)}
+    value = _action_filter_value(action, key)
+    return {value} if value else set()
+
+
 def _matches_prior_filters(value_getter, item, filters, ordered_keys, current_key):
     for key in ordered_keys:
         if key == current_key:
             break
         selected_value = filters.get(key) or ''
-        if selected_value and value_getter(item, key) != selected_value:
+        if selected_value and selected_value not in value_getter(item, key):
             return False
     return True
 
@@ -135,6 +207,7 @@ def my_records_view(request):
             'primary_aphid_species',
         )
         .prefetch_related(
+            'user__profile__technician_assignments__technician',
             'leaf_observations__aphid_species',
             'leaf_observations__auxiliary_observations__taxon',
             'leaf_observations__other_pest_observations__taxon',
@@ -153,7 +226,7 @@ def my_records_view(request):
         'crop_ref',
         'molecule',
         'auxiliary_taxon',
-    )
+    ).prefetch_related('user__profile__technician_assignments__technician')
 
     if technician_scope:
         if not manager_user.is_superuser:
@@ -172,6 +245,10 @@ def my_records_view(request):
     filter_technician = (request.GET.get('technician') or '').strip()
     filter_producer = (request.GET.get('producer') or '').strip()
     filter_series = (request.GET.get('series') or '').strip()
+    filter_aphid_species = (request.GET.get('aphid_species') or '').strip()
+    filter_auxiliary = (request.GET.get('auxiliary') or '').strip()
+    filter_other_pest = (request.GET.get('other_pest') or '').strip()
+    filter_entry_mode = (request.GET.get('entry_mode') or '').strip()
 
     records = _filter_records(request, base_records).order_by('-scouting_date', '-created_at')
     actions = base_actions
@@ -202,24 +279,33 @@ def my_records_view(request):
         'crop': filter_crop,
         'year': filter_year,
         'series': filter_series,
+        'aphid_species': filter_aphid_species,
+        'auxiliary': filter_auxiliary,
+        'other_pest': filter_other_pest,
+        'entry_mode': filter_entry_mode,
     }
     ordered_filter_keys = ['department']
     if show_technician_filter:
         ordered_filter_keys.append('technician')
     if show_producer_column:
         ordered_filter_keys.append('producer')
-    ordered_filter_keys.extend(['crop', 'year', 'series'])
+    ordered_filter_keys.extend(
+        ['crop', 'year', 'series', 'aphid_species', 'auxiliary', 'other_pest', 'entry_mode']
+    )
 
     crop_options_map = {}
     series_options_map = {}
     producer_options_map = {}
     technician_options_map = {}
     department_options_map = {}
+    aphid_species_options_map = {}
+    auxiliary_options_map = {}
+    other_pest_options_map = {}
     year_values = set()
 
     for rec in base_records_list:
         if show_department_column and _matches_prior_filters(
-            _record_filter_value,
+            _record_filter_values,
             rec,
             active_filters,
             ordered_filter_keys,
@@ -229,41 +315,65 @@ def my_records_view(request):
             if department_value:
                 department_options_map[department_value] = department_labels.get(department_value, department_value)
         if show_technician_filter and _matches_prior_filters(
-            _record_filter_value,
+            _record_filter_values,
             rec,
             active_filters,
             ordered_filter_keys,
             'technician',
         ):
-            technician_id = _record_filter_value(rec, 'technician')
-            if technician_id and rec.user.profile.assigned_technician_id:
-                technician_options_map[rec.user.profile.assigned_technician_id] = display_user_name(
-                    rec.user.profile.assigned_technician
-                )
+            for technician in _active_technicians(rec.user.profile):
+                technician_options_map[technician.id] = display_user_name(technician)
         if show_producer_column and _matches_prior_filters(
-            _record_filter_value,
+            _record_filter_values,
             rec,
             active_filters,
             ordered_filter_keys,
             'producer',
         ):
             producer_options_map[rec.user_id] = rec.user.profile.farm_name or display_user_name(rec.user)
-        if _matches_prior_filters(_record_filter_value, rec, active_filters, ordered_filter_keys, 'crop'):
+        if _matches_prior_filters(_record_filter_values, rec, active_filters, ordered_filter_keys, 'crop'):
             crop = rec.crop_ref or (rec.plant_series.crop if rec.plant_series_id and rec.plant_series else None)
             if crop:
                 crop_options_map[crop.id] = crop.name
-        if _matches_prior_filters(_record_filter_value, rec, active_filters, ordered_filter_keys, 'year') and rec.year:
+        if _matches_prior_filters(_record_filter_values, rec, active_filters, ordered_filter_keys, 'year') and rec.year:
             year_values.add(rec.year)
-        if _matches_prior_filters(_record_filter_value, rec, active_filters, ordered_filter_keys, 'series'):
+        if _matches_prior_filters(_record_filter_values, rec, active_filters, ordered_filter_keys, 'series'):
             if rec.plant_series_id and rec.plant_series:
                 series_label = rec.plant_series.name
                 if show_producer_column:
                     series_label = f"{rec.plant_series.name} - {rec.user.profile.farm_name or display_user_name(rec.user)}"
                 series_options_map[rec.plant_series_id] = series_label
+        if technician_scope and _matches_prior_filters(
+            _record_filter_values,
+            rec,
+            active_filters,
+            ordered_filter_keys,
+            'aphid_species',
+        ):
+            for species in _record_aphid_species(rec):
+                aphid_species_options_map[species.id] = str(species)
+        if technician_scope and _matches_prior_filters(
+            _record_filter_values,
+            rec,
+            active_filters,
+            ordered_filter_keys,
+            'auxiliary',
+        ):
+            for taxon in _record_auxiliary_taxa(rec):
+                auxiliary_options_map[taxon.id] = taxon.name
+        if technician_scope and _matches_prior_filters(
+            _record_filter_values,
+            rec,
+            active_filters,
+            ordered_filter_keys,
+            'other_pest',
+        ):
+            for taxon in _record_other_pest_taxa(rec):
+                other_pest_options_map[taxon.id] = taxon.name
 
     for action in base_actions_list:
         if show_department_column and _matches_prior_filters(
-            _action_filter_value,
+            _action_filter_values,
             action,
             active_filters,
             ordered_filter_keys,
@@ -273,33 +383,30 @@ def my_records_view(request):
             if department_value:
                 department_options_map[department_value] = department_labels.get(department_value, department_value)
         if show_technician_filter and _matches_prior_filters(
-            _action_filter_value,
+            _action_filter_values,
             action,
             active_filters,
             ordered_filter_keys,
             'technician',
         ):
-            technician_id = _action_filter_value(action, 'technician')
-            if technician_id and action.user.profile.assigned_technician_id:
-                technician_options_map[action.user.profile.assigned_technician_id] = display_user_name(
-                    action.user.profile.assigned_technician
-                )
+            for technician in _active_technicians(action.user.profile):
+                technician_options_map[technician.id] = display_user_name(technician)
         if show_producer_column and _matches_prior_filters(
-            _action_filter_value,
+            _action_filter_values,
             action,
             active_filters,
             ordered_filter_keys,
             'producer',
         ):
             producer_options_map[action.user_id] = action.user.profile.farm_name or display_user_name(action.user)
-        if _matches_prior_filters(_action_filter_value, action, active_filters, ordered_filter_keys, 'crop'):
+        if _matches_prior_filters(_action_filter_values, action, active_filters, ordered_filter_keys, 'crop'):
             crop = action.crop_ref or (action.plant_series.crop if action.plant_series_id and action.plant_series else None)
             if crop:
                 crop_options_map[crop.id] = crop.name
-        if _matches_prior_filters(_action_filter_value, action, active_filters, ordered_filter_keys, 'year'):
+        if _matches_prior_filters(_action_filter_values, action, active_filters, ordered_filter_keys, 'year'):
             if action.plant_series_id and action.plant_series and action.plant_series.year:
                 year_values.add(action.plant_series.year)
-        if _matches_prior_filters(_action_filter_value, action, active_filters, ordered_filter_keys, 'series'):
+        if _matches_prior_filters(_action_filter_values, action, active_filters, ordered_filter_keys, 'series'):
             if action.plant_series_id and action.plant_series:
                 series_label = action.plant_series.name
                 if show_producer_column:
@@ -313,33 +420,14 @@ def my_records_view(request):
             if rec.crop_ref_id and rec.crop_ref
             else (rec.plant_series.crop.name if rec.plant_series_id and rec.plant_series else rec.crop or '-')
         )
-        if rec.entry_mode == 'quick':
-            aphid_species = _unique_ordered_labels(
-                row.species for row in rec.quick_aphid_species.all() if row.species_id
-            )
-            auxiliaries = _unique_ordered_labels(
-                row.taxon for row in rec.quick_auxiliary_counts.all() if row.count > 0
-            )
-            other_pests = _unique_ordered_labels(
-                row.taxon for row in rec.quick_other_pest_counts.all() if row.infested_leaves_count > 0
-            )
-        else:
-            aphid_species = _unique_ordered_labels(
-                leaf.aphid_species for leaf in rec.leaf_observations.all() if leaf.aphid_present and leaf.aphid_species
-            )
-            auxiliaries = _unique_ordered_labels(
-                aux.taxon for leaf in rec.leaf_observations.all() for aux in leaf.auxiliary_observations.all() if aux.count > 0
-            )
-            other_pests = _unique_ordered_labels(
-                pest.taxon
-                for leaf in rec.leaf_observations.all()
-                for pest in leaf.other_pest_observations.all()
-            )
+        aphid_species = _record_aphid_species(rec)
+        auxiliaries = _record_auxiliary_taxa(rec)
+        other_pests = _record_other_pest_taxa(rec)
         rec.aphid_species_label = str(rec.primary_aphid_species) if rec.primary_aphid_species_id else '-'
         rec.infestation_pct = float(rec.aphid_infested_percent or 0)
-        rec.aphid_species_list = ', '.join(aphid_species) if aphid_species else '-'
-        rec.auxiliary_species_list = ', '.join(auxiliaries) if auxiliaries else '-'
-        rec.other_pest_species_list = ', '.join(other_pests) if other_pests else '-'
+        rec.aphid_species_list = ', '.join(str(item) for item in aphid_species) if aphid_species else '-'
+        rec.auxiliary_species_list = ', '.join(str(item) for item in auxiliaries) if auxiliaries else '-'
+        rec.other_pest_species_list = ', '.join(str(item) for item in other_pests) if other_pests else '-'
     for action in actions:
         action.producer_label = action.user.profile.farm_name or display_user_name(action.user)
         action.crop_label = (
@@ -381,14 +469,25 @@ def my_records_view(request):
                 'technician': filter_technician,
                 'producer': filter_producer,
                 'series': filter_series,
+                'aphid_species': filter_aphid_species,
+                'auxiliary': filter_auxiliary,
+                'other_pest': filter_other_pest,
+                'entry_mode': filter_entry_mode,
             },
             'show_technician_filter': show_technician_filter,
+            'show_advanced_filters': technician_scope,
             'year_options': sorted(year_values, reverse=True),
             'crop_options': sorted(crop_options_map.items(), key=lambda item: item[1].lower()),
             'series_options': sorted(series_options_map.items(), key=lambda item: item[1].lower()),
             'producer_options': sorted(producer_options_map.items(), key=lambda item: item[1].lower()),
             'technician_options': sorted(technician_options_map.items(), key=lambda item: item[1].lower()),
             'department_options': sorted(department_options_map.items(), key=lambda item: item[0]),
+            'aphid_species_options': sorted(
+                aphid_species_options_map.items(),
+                key=lambda item: item[1].lower(),
+            ),
+            'auxiliary_options': sorted(auxiliary_options_map.items(), key=lambda item: item[1].lower()),
+            'other_pest_options': sorted(other_pest_options_map.items(), key=lambda item: item[1].lower()),
         },
     )
 

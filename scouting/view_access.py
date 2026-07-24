@@ -300,6 +300,10 @@ def _filter_records(request, queryset):
     technician = request.GET.get('technician')
     producer = request.GET.get('producer')
     series = request.GET.get('series')
+    aphid_species = request.GET.get('aphid_species')
+    auxiliary = request.GET.get('auxiliary')
+    other_pest = request.GET.get('other_pest')
+    entry_mode = request.GET.get('entry_mode')
 
     if year:
         queryset = queryset.filter(year=year)
@@ -316,6 +320,33 @@ def _filter_records(request, queryset):
         queryset = queryset.filter(user_id=producer)
     if series:
         queryset = queryset.filter(plant_series_id=series)
+    if aphid_species:
+        queryset = queryset.filter(
+            Q(primary_aphid_species_id=aphid_species)
+            | Q(quick_aphid_species__species_id=aphid_species)
+            | Q(
+                leaf_observations__aphid_present=True,
+                leaf_observations__aphid_species_id=aphid_species,
+            )
+        )
+    if auxiliary:
+        queryset = queryset.filter(
+            Q(quick_auxiliary_counts__taxon_id=auxiliary, quick_auxiliary_counts__count__gt=0)
+            | Q(
+                leaf_observations__auxiliary_observations__taxon_id=auxiliary,
+                leaf_observations__auxiliary_observations__count__gt=0,
+            )
+        )
+    if other_pest:
+        queryset = queryset.filter(
+            Q(
+                quick_other_pest_counts__taxon_id=other_pest,
+                quick_other_pest_counts__infested_leaves_count__gt=0,
+            )
+            | Q(leaf_observations__other_pest_observations__taxon_id=other_pest)
+        )
+    if entry_mode:
+        queryset = queryset.filter(entry_mode=entry_mode)
     return queryset.distinct()
 
 

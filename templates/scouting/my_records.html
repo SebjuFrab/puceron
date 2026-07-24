@@ -46,7 +46,9 @@
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <h1 class="h4 mb-0">Mes saisies</h1>
-  <a href="{{ export_url }}" class="btn btn-outline-success records-export-btn">Exporter Excel</a>
+  <a href="{{ export_url }}" class="btn btn-outline-success records-export-btn">
+    {% if export_scope_all %}Exporter tous les comptages{% else %}Exporter mes comptages{% endif %}
+  </a>
 </div>
 
 <form method="get" class="card shadow-sm border-0 mb-4" id="records-filter-form">
@@ -118,6 +120,47 @@
         </select>
       </div>
 
+      {% if show_advanced_filters %}
+      <div class="col-12 col-md-3">
+        <label for="filter-aphid-species" class="form-label">Espèce de puceron</label>
+        <select id="filter-aphid-species" name="aphid_species" class="form-select" data-filter-order="7">
+          <option value="">Toutes</option>
+          {% for species_id, species_name in aphid_species_options %}
+          <option value="{{ species_id }}" {% if filter_values.aphid_species == species_id|stringformat:'s' %}selected{% endif %}>{{ species_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12 col-md-3">
+        <label for="filter-auxiliary" class="form-label">Auxiliaire</label>
+        <select id="filter-auxiliary" name="auxiliary" class="form-select" data-filter-order="8">
+          <option value="">Tous</option>
+          {% for taxon_id, taxon_name in auxiliary_options %}
+          <option value="{{ taxon_id }}" {% if filter_values.auxiliary == taxon_id|stringformat:'s' %}selected{% endif %}>{{ taxon_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12 col-md-3">
+        <label for="filter-other-pest" class="form-label">Autre ravageur</label>
+        <select id="filter-other-pest" name="other_pest" class="form-select" data-filter-order="9">
+          <option value="">Tous</option>
+          {% for taxon_id, taxon_name in other_pest_options %}
+          <option value="{{ taxon_id }}" {% if filter_values.other_pest == taxon_id|stringformat:'s' %}selected{% endif %}>{{ taxon_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12 col-md-3">
+        <label for="filter-entry-mode" class="form-label">Mode de saisie</label>
+        <select id="filter-entry-mode" name="entry_mode" class="form-select" data-filter-order="10">
+          <option value="">Tous</option>
+          <option value="quick" {% if filter_values.entry_mode == 'quick' %}selected{% endif %}>Rapide</option>
+          <option value="detailed" {% if filter_values.entry_mode == 'detailed' %}selected{% endif %}>Détaillé</option>
+        </select>
+      </div>
+      {% endif %}
+
       <div class="col-12 col-md-auto d-flex gap-2 align-items-center">
         <a href="{% url 'my_records' %}" class="btn btn-outline-secondary">Réinitialiser</a>
         <noscript>
@@ -168,6 +211,10 @@
         <span class="record-card__label">Auxiliaires observés</span>
         <span class="record-card__value">{{ rec.auxiliary_species_list|default:'-' }}</span>
       </div>
+      <div class="record-card__stat">
+        <span class="record-card__label">Autres ravageurs</span>
+        <span class="record-card__value">{{ rec.other_pest_species_list|default:'-' }}</span>
+      </div>
       {% if show_department_column %}
       <div class="record-card__stat">
         <span class="record-card__label">Dept</span>
@@ -206,6 +253,7 @@
         <th>Puceron principal</th>
         <th>Espèces observées</th>
         <th>Auxiliaires observés</th>
+        <th>Autres ravageurs</th>
         <th>% infesté</th>
         <th>Aux/plant</th>
         <th>Risque</th>
@@ -225,6 +273,7 @@
         <td>{{ rec.aphid_species_label|default:'-' }}</td>
         <td>{{ rec.aphid_species_list|default:'-' }}</td>
         <td>{{ rec.auxiliary_species_list|default:'-' }}</td>
+        <td>{{ rec.other_pest_species_list|default:'-' }}</td>
         <td>{{ rec.infestation_pct|floatformat:2 }}</td>
         <td>{{ rec.auxiliaries_per_plant|floatformat:2 }}</td>
         <td>{{ rec.risk_level }}</td>
@@ -239,7 +288,7 @@
       </tr>
       {% empty %}
       <tr>
-        <td colspan="{% if show_producer_column and show_department_column %}14{% elif show_producer_column or show_department_column %}13{% else %}12{% endif %}">Aucune donnée.</td>
+        <td colspan="{% if show_producer_column and show_department_column %}15{% elif show_producer_column or show_department_column %}14{% else %}13{% endif %}">Aucune donnée.</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -248,7 +297,9 @@
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4 mb-2">
   <h2 class="h4 mb-0">Mes actions préventives / curatives</h2>
-  <a href="{{ export_actions_url }}" class="btn btn-outline-success records-export-btn">Exporter Excel</a>
+  <a href="{{ export_actions_url }}" class="btn btn-outline-success records-export-btn">
+    {% if export_scope_all %}Exporter toutes les actions{% else %}Exporter mes actions{% endif %}
+  </a>
 </div>
 
 <div class="d-md-none">
