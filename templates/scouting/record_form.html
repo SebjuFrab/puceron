@@ -676,6 +676,7 @@ let auxQuickTaxonId = '';
 let auxPressTimer = null;
 let auxLongPressTriggered = false;
 const draftStorageKey = "puceron:draft:record:user-{{ user.id }}:{% if record_obj %}record-{{ record_obj.id }}{% else %}series-{{ selected_series.id }}{% endif %}";
+const draftContextToken = "{{ draft_context_token|escapejs }}";
 const clearDraftFlagKey = 'puceron:clearDraftKey';
 const initialLeafData = {{ initial_leaf_data_json|safe }};
 const totalPlants = parseInt("{{ plants|length }}", 10) || 1;
@@ -1078,6 +1079,7 @@ function collectDraftData() {
     touched[String(plant)] = isPlantSpeciesTouched(plant);
   }
   return {
+    contextToken: draftContextToken,
     savedAt: new Date().toISOString(),
     currentPlant,
     showAllPlants,
@@ -1182,7 +1184,12 @@ function loadStoredDraft() {
   try {
     const raw = localStorage.getItem(draftStorageKey);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const draft = JSON.parse(raw);
+    if (!draft || draft.contextToken !== draftContextToken) {
+      localStorage.removeItem(draftStorageKey);
+      return null;
+    }
+    return draft;
   } catch (e) {
     return null;
   }
@@ -1526,10 +1533,10 @@ if (mainForm) {
       return;
     }
     if (draftTimer) clearTimeout(draftTimer);
-    saveDraft();
     try {
       sessionStorage.setItem(clearDraftFlagKey, draftStorageKey);
     } catch (e) {}
+    clearStoredDraft();
     isSubmitting = true;
     allowUnload = true;
     isDirty = false;

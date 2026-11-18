@@ -636,6 +636,21 @@ class TechnicianDashboardComparisonTests(TestCase):
         self.assertEqual(aphid_reference['data'], [50.0])
         self.assertEqual(aux_reference['data'], [0.3])
 
+    def test_technician_chart_legends_use_farm_names(self):
+        context = self._context(
+            crop=str(self.crop.id),
+            year='2026',
+            organic_mode='bio',
+            comparison_mode='none',
+        )
+
+        labels_by_id = {
+            dataset['id']: dataset['label']
+            for dataset in context['aphid_datasets']
+        }
+        self.assertEqual(labels_by_id[self.series_1.id], 'GAEC A')
+        self.assertEqual(labels_by_id[self.series_2.id], 'GAEC B')
+
     def test_average_reference_respects_technician_filters(self):
         context = self._context(
             crop=str(self.crop.id),

@@ -502,6 +502,18 @@ def _record_form_context(
     aphid_species_list,
     default_aphid_species,
 ):
+    if record_obj:
+        draft_context_token = f'record-{record_obj.id}'
+    else:
+        latest_record_id = (
+            ScoutingRecord.objects.filter(plant_series=selected_series)
+            .order_by('-created_at', '-id')
+            .values_list('id', flat=True)
+            .first()
+            or 0
+        )
+        draft_context_token = f'series-{selected_series.id}:latest-{latest_record_id}'
+
     return {
         'form': form,
         'plants': plants,
@@ -518,6 +530,7 @@ def _record_form_context(
         'aphid_species_options': _serialize_aphid_species(aphid_species_list),
         'default_aphid_species_id': default_aphid_species.id if default_aphid_species else '',
         'default_aphid_species_label': str(default_aphid_species) if default_aphid_species else 'Non déterminé',
+        'draft_context_token': draft_context_token,
     }
 
 

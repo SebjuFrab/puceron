@@ -91,14 +91,14 @@ def _serialize_action_details(action):
 
 
 
-def _series_chart_dataset(series, weeks, record_map, color):
+def _series_chart_dataset(series, weeks, record_map, color, label=None):
     values = []
     for week in weeks:
         record = record_map.get(week)
         values.append(record if record is not None else None)
     return {
         'id': series.id,
-        'label': series.name,
+        'label': label or series.name,
         'data': values,
         'borderColor': color,
         'backgroundColor': color,
@@ -954,13 +954,31 @@ def _technician_dashboard_context(request):
 
     aphid_datasets = []
     aux_datasets = []
+    producer_name_by_series_id = {
+        series.id: series.user.profile.farm_name or display_user_name(series.user)
+        for series in displayed_series
+    }
+    producer_name_counts = defaultdict(int)
+    for producer_name in producer_name_by_series_id.values():
+        producer_name_counts[producer_name] += 1
+
     for index, series in enumerate(displayed_series):
         color = DASHBOARD_SERIES_COLORS[index % len(DASHBOARD_SERIES_COLORS)]
-        aphid_datasets.append(_series_chart_dataset(series, weeks, aphid_by_series.get(series.id, {}), color))
-        aux_datasets.append(_series_chart_dataset(series, weeks, aux_by_series.get(series.id, {}), color))
+        producer_name = producer_name_by_series_id[series.id]
+        chart_label = (
+            f'{producer_name} — {series.name}'
+            if producer_name_counts[producer_name] > 1
+            else producer_name
+        )
+        aphid_datasets.append(
+            _series_chart_dataset(series, weeks, aphid_by_series.get(series.id, {}), color, label=chart_label)
+        )
+        aux_datasets.append(
+            _series_chart_dataset(series, weeks, aux_by_series.get(series.id, {}), color, label=chart_label)
+        )
         series.chart_color = color
         series.latest_record = last_record_by_series.get(series.id)
-        series.producer_name = series.user.profile.farm_name or display_user_name(series.user)
+        series.producer_name = producer_name
 
     comparison_aphid_by_week = defaultdict(list)
     comparison_aux_by_week = defaultdict(list)
