@@ -606,7 +606,15 @@ class BulletinAttachmentAdmin(admin.ModelAdmin):
 
 @admin.register(NotificationDelivery)
 class NotificationDeliveryAdmin(admin.ModelAdmin):
-    list_display = ('recipient', 'channel', 'status', 'created_at', 'sent_at')
+    list_display = (
+        'recipient',
+        'channel',
+        'status',
+        'attempt_count',
+        'next_attempt_at',
+        'created_at',
+        'sent_at',
+    )
     list_filter = ('channel', 'status', 'created_at', 'sent_at')
     search_fields = (
         'recipient__bulletin__title',
@@ -614,6 +622,7 @@ class NotificationDeliveryAdmin(admin.ModelAdmin):
         'recipient__producer_profile__user__username',
     )
     autocomplete_fields = ('recipient',)
+    readonly_fields = ('attempt_count', 'last_attempt_at', 'created_at', 'updated_at', 'sent_at')
 
 
 @admin.register(AccessControlSettings)

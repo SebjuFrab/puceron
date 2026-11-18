@@ -1,14 +1,20 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from io import BytesIO
 import tempfile
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from openpyxl import load_workbook
+from rest_framework.test import APIClient, APIRequestFactory
+
+from .api_serializers import ScoutingRecordSerializer
 
 from .models import (
     ActionType,
@@ -41,6 +47,213 @@ from .models import (
     Variety,
 )
 from .view_dashboard_support import _technician_dashboard_context
+
+
+class ServiceWorkerSecurityTests(TestCase):
+    def test_service_worker_only_caches_public_resources(self):
+        response = self.client.get(reverse('service_worker'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Cache-Control'], 'no-cache, no-store, must-revalidate')
+        self.assertContains(response, "url.pathname.startsWith('/static/')")
+        self.assertContains(response, "if (!isPublicCacheRequest(req))")
+        self.assertNotContains(response, "const URLS = ['/', '/offline/', '/accounts/login/']")
+
+    def test_offline_fallback_contains_no_authenticated_identity(self):
+        user = get_user_model().objects.create_user(username='offline-user', password='secret')
+        UserProfile.objects.create(user=user, role=UserProfile.ROLE_PRODUCER)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse('offline'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, user.username)
+        self.assertNotContains(response, 'Déconnexion')
+
+
+class ApiWriteAccessTests(TestCase):
+    def setUp(self):
+        self.technician = get_user_model().objects.create_user(
+            username='api-technician',
+            password='secret',
+        )
+        UserProfile.objects.create(
+            user=self.technician,
+            role=UserProfile.ROLE_TECHNICIAN,
+            license_status=UserProfile.LICENSE_STATUS_ACTIVE,
+            department='35',
+        )
+        self.producer = get_user_model().objects.create_user(
+            username='api-producer',
+            password='secret',
+        )
+        self.producer_profile = UserProfile.objects.create(
+            user=self.producer,
+            role=UserProfile.ROLE_PRODUCER,
+            department='35',
+        )
+        self.crop = Crop.objects.create(name='Culture API')
+        self.conduct_type = ConductType.objects.create(name='Conduite API')
+        self.variety = Variety.objects.create(
+            crop=self.crop,
+            name='Variété API',
+            created_by=self.technician,
+        )
+        self.series = PlantSeries.objects.create(
+            user=self.producer,
+            name='Série API',
+            crop=self.crop,
+            conduct_type=self.conduct_type,
+            organic_mode='bio',
+            variety=self.variety,
+            year=2026,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(self.producer)
+
+    def _record_payload(self):
+        return {
+            'plant_series': self.series.id,
+            'scouting_date': '2026-04-15',
+            'entry_mode': 'detailed',
+            'observed_plants_count': 10,
+            'observed_leaves_count': 30,
+            'aphid_infested_leaves_count': 0,
+            'aphid_infested_percent': '0.00',
+            'auxiliary_total': 0,
+            'comment': '',
+            'leaf_observations': [],
+        }
+
+    def test_producer_without_active_technician_cannot_write_through_api(self):
+        record_response = self.client.post(reverse('api-records-list'), self._record_payload(), format='json')
+        series_response = self.client.patch(
+            reverse('api-plant-series-detail', args=[self.series.id]),
+            {'name': 'Série modifiée'},
+            format='json',
+        )
+
+        self.assertEqual(record_response.status_code, 403)
+        self.assertEqual(series_response.status_code, 403)
+        self.assertFalse(ScoutingRecord.objects.exists())
+        self.series.refresh_from_db()
+        self.assertEqual(self.series.name, 'Série API')
+
+    def test_producer_with_active_technician_can_write_through_api(self):
+        ProducerTechnicianAssignment.objects.create(
+            producer_profile=self.producer_profile,
+            technician=self.technician,
+            is_active=True,
+        )
+
+        response = self.client.patch(
+            reverse('api-plant-series-detail', args=[self.series.id]),
+            {'name': 'Série autorisée'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.series.refresh_from_db()
+        self.assertEqual(self.series.name, 'Série autorisée')
+
+    def test_technician_cannot_create_a_series_owned_by_their_own_account(self):
+        self.client.force_authenticate(self.technician)
+        response = self.client.post(
+            reverse('api-plant-series-list'),
+            {
+                'name': 'Série technicien invalide',
+                'crop': self.crop.id,
+                'conduct_type': self.conduct_type.id,
+                'organic_mode': 'bio',
+                'variety': self.variety.id,
+                'year': 2026,
+                'plants_count': 10,
+                'leaves_per_plant': 3,
+                'is_active': True,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(PlantSeries.objects.filter(name='Série technicien invalide').exists())
+
+    def test_record_create_is_rolled_back_when_nested_write_fails(self):
+        ProducerTechnicianAssignment.objects.create(
+            producer_profile=self.producer_profile,
+            technician=self.technician,
+            is_active=True,
+        )
+        request = APIRequestFactory().post('/api/records/', self._record_payload(), format='json')
+        request.user = self.producer
+        serializer = ScoutingRecordSerializer(data=self._record_payload(), context={'request': request})
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+        with patch.object(ScoutingRecordSerializer, '_save_leaves', side_effect=RuntimeError('nested failure')):
+            with self.assertRaises(RuntimeError):
+                serializer.save()
+
+        self.assertFalse(ScoutingRecord.objects.exists())
+
+    def test_record_update_restores_existing_leaves_when_nested_write_fails(self):
+        ProducerTechnicianAssignment.objects.create(
+            producer_profile=self.producer_profile,
+            technician=self.technician,
+            is_active=True,
+        )
+        record = ScoutingRecord.objects.create(
+            user=self.producer,
+            plant_series=self.series,
+            crop_ref=self.crop,
+            conduct_type_ref=self.conduct_type,
+            variety_ref=self.variety,
+            department='35',
+            crop=self.crop.name,
+            scouting_date=date(2026, 4, 8),
+            year=2026,
+            week=15,
+            entry_mode='detailed',
+            observed_plants_count=10,
+            observed_leaves_count=1,
+            aphid_infested_leaves_count=0,
+            aphid_infested_percent=Decimal('0.00'),
+            auxiliary_total=0,
+            comment='Avant modification',
+        )
+        record.leaf_observations.create(
+            plant_number=1,
+            leaf_position='leaf_1',
+            aphid_present=False,
+        )
+        payload = {
+            'comment': 'Après modification',
+            'leaf_observations': [
+                {
+                    'plant_number': 1,
+                    'leaf_position': 'leaf_1',
+                    'aphid_present': True,
+                    'auxiliary_observations': [],
+                    'other_pest_observations': [],
+                }
+            ],
+        }
+        request = APIRequestFactory().patch('/api/records/1/', payload, format='json')
+        request.user = self.producer
+        serializer = ScoutingRecordSerializer(
+            record,
+            data=payload,
+            partial=True,
+            context={'request': request},
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+        with patch.object(ScoutingRecordSerializer, '_save_leaves', side_effect=RuntimeError('nested failure')):
+            with self.assertRaises(RuntimeError):
+                serializer.save()
+
+        record.refresh_from_db()
+        self.assertEqual(record.comment, 'Avant modification')
+        self.assertEqual(record.leaf_observations.count(), 1)
+        self.assertFalse(record.leaf_observations.get().aphid_present)
 
 
 class RecommendationDismissViewTests(TestCase):
@@ -1221,33 +1434,87 @@ class TechnicianBulletinWorkflowTests(TestCase):
         )
         self.client.force_login(self.technician)
 
-        with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.post(
-                reverse('technician_bulletin_create'),
-                {
-                    'title': 'Bulletin email',
-                    'types': [str(self.bulletin_type.id)],
-                    'priority': str(self.priority.id),
-                    'crops': [],
-                    'departments': [],
-                    'valid_until': '',
-                    'body': '<p>Message email.</p>',
-                    'producers': [str(self.producer_profile_1.id)],
-                },
-            )
+        response = self.client.post(
+            reverse('technician_bulletin_create'),
+            {
+                'title': 'Bulletin email',
+                'types': [str(self.bulletin_type.id)],
+                'priority': str(self.priority.id),
+                'crops': [],
+                'departments': [],
+                'valid_until': '',
+                'body': '<p>Message email.</p>',
+                'producers': [str(self.producer_profile_1.id)],
+            },
+        )
 
         bulletin = BulletinMessage.objects.get(title='Bulletin email')
         self.assertRedirects(response, reverse('technician_bulletin_detail', args=[bulletin.id]))
+        self.assertEqual(len(mail.outbox), 0)
+        delivery = NotificationDelivery.objects.get(
+            recipient__bulletin=bulletin,
+            channel=NotificationDelivery.CHANNEL_EMAIL,
+        )
+        self.assertEqual(delivery.status, NotificationDelivery.STATUS_PENDING)
+
+        call_command('process_notification_deliveries')
+
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn('Bulletin email', mail.outbox[0].subject)
-        self.assertEqual(
-            NotificationDelivery.objects.filter(
-                recipient__bulletin=bulletin,
-                channel=NotificationDelivery.CHANNEL_EMAIL,
-                status=NotificationDelivery.STATUS_SENT,
-            ).count(),
-            1,
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, NotificationDelivery.STATUS_SENT)
+        self.assertEqual(delivery.attempt_count, 1)
+        self.assertIsNotNone(delivery.sent_at)
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        NOTIFICATION_MAX_ATTEMPTS=2,
+        NOTIFICATION_RETRY_DELAY_SECONDS=1,
+    )
+    def test_bulletin_email_failure_is_retried_then_marked_failed(self):
+        self.producer_profile_1.user.email = 'producer-retry@example.test'
+        self.producer_profile_1.user.save(update_fields=['email'])
+        NotificationPreference.objects.update_or_create(
+            user=self.producer_profile_1.user,
+            defaults={
+                'bulletin_email_enabled': True,
+                'bulletin_email_urgent_only': False,
+            },
         )
+        self.client.force_login(self.technician)
+        self.client.post(
+            reverse('technician_bulletin_create'),
+            {
+                'title': 'Bulletin retry',
+                'types': [str(self.bulletin_type.id)],
+                'priority': str(self.priority.id),
+                'crops': [],
+                'departments': [],
+                'valid_until': '',
+                'body': '<p>Message retry.</p>',
+                'producers': [str(self.producer_profile_1.id)],
+            },
+        )
+        delivery = NotificationDelivery.objects.get(
+            recipient__bulletin__title='Bulletin retry',
+            channel=NotificationDelivery.CHANNEL_EMAIL,
+        )
+
+        with patch('scouting.notification_service.send_mail', side_effect=RuntimeError('SMTP indisponible')):
+            call_command('process_notification_deliveries')
+            delivery.refresh_from_db()
+            self.assertEqual(delivery.status, NotificationDelivery.STATUS_PENDING)
+            self.assertEqual(delivery.attempt_count, 1)
+            self.assertIsNotNone(delivery.next_attempt_at)
+
+            delivery.next_attempt_at = timezone.now() - timedelta(seconds=1)
+            delivery.save(update_fields=['next_attempt_at'])
+            call_command('process_notification_deliveries')
+
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, NotificationDelivery.STATUS_FAILED)
+        self.assertEqual(delivery.attempt_count, 2)
+        self.assertIsNone(delivery.next_attempt_at)
 
 
 class SuperAdminTechnicianManagementTests(TestCase):

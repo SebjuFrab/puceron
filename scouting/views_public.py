@@ -73,11 +73,28 @@ def manifest_view(request):
 
 def service_worker_view(request):
     js = """
-const CACHE_NAME = 'puceron-v3';
-const URLS = ['/', '/offline/', '/accounts/login/'];
+const CACHE_NAME = 'puceron-public-v4';
+const PUBLIC_URLS = ['/offline/'];
+
+function isPublicCacheRequest(req) {
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return false;
+  return (
+    url.pathname.startsWith('/static/') ||
+    url.pathname === '/offline/' ||
+    url.pathname === '/manifest.webmanifest'
+  );
+}
+
+function cachePublicResponse(req, res) {
+  if (!res || !res.ok || res.redirected) return res;
+  const copy = res.clone();
+  caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
+  return res;
+}
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(URLS)));
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(PUBLIC_URLS)));
   self.skipWaiting();
 });
 
@@ -91,26 +108,31 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
+
+  if (!isPublicCacheRequest(req)) {
+    if (req.mode === 'navigate') {
+      event.respondWith(fetch(req).catch(() => caches.match('/offline/')));
+    }
+    return;
+  }
+
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req).then(res => {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
-        return res;
-      }).catch(() => caches.match(req).then(cached => cached || caches.match('/offline/')))
+      fetch(req)
+        .then(res => cachePublicResponse(req, res))
+        .catch(() => caches.match(req).then(cached => cached || caches.match('/offline/')))
     );
     return;
   }
   event.respondWith(
-    caches.match(req).then(cached => cached || fetch(req).then(res => {
-      const copy = res.clone();
-      caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
-      return res;
-    }))
+    caches.match(req).then(cached => cached || fetch(req).then(res => cachePublicResponse(req, res)))
   );
 });
 """
-    return HttpResponse(js, content_type='application/javascript')
+    response = HttpResponse(js, content_type='application/javascript')
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Service-Worker-Allowed'] = '/'
+    return response
 
 
 @login_required

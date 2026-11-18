@@ -27,6 +27,27 @@ services:
       - ../staticfiles:/app/staticfiles
     ports:
       - "127.0.0.1:8001:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/ >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  worker:
+    build:
+      context: .
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      RUN_STARTUP_TASKS: "0"
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    command: python manage.py process_notification_deliveries --watch --sleep 5
 
 volumes:
   postgres_data:

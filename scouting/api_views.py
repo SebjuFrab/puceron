@@ -1,6 +1,7 @@
 from django.db.models import Q
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from .api_serializers import (
@@ -36,6 +37,23 @@ class IsAdminOrReadOnly(permissions.BasePermission):
         return request.user and request.user.is_staff
 
 
+class HasActiveWriteAccess(permissions.BasePermission):
+    message = "Votre compte n'est pas autorisé à modifier les données."
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.method in permissions.SAFE_METHODS or request.user.is_superuser:
+            return True
+
+        profile = UserProfile.objects.get_or_create(user=request.user)[0]
+        if profile.role == UserProfile.ROLE_TECHNICIAN:
+            return profile.has_active_license
+        if profile.role == UserProfile.ROLE_PRODUCER:
+            return profile.has_active_technician()
+        return False
+
+
 class UserProfileViewSet(viewsets.ModelViewSet):
     serializer_class = UserProfileSerializer
 
@@ -48,6 +66,8 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['destroy']:
             return [permissions.IsAdminUser()]
+        if self.action in ['update', 'partial_update']:
+            return [HasActiveWriteAccess()]
         return [permissions.IsAuthenticated()]
 
     @action(detail=False, methods=['get'])
@@ -88,6 +108,8 @@ class VarietyViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['update', 'partial_update', 'destroy']:
             return [permissions.IsAdminUser()]
+        if self.action == 'create':
+            return [HasActiveWriteAccess()]
         return [permissions.IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -96,6 +118,7 @@ class VarietyViewSet(viewsets.ModelViewSet):
 
 class PlantSeriesViewSet(viewsets.ModelViewSet):
     serializer_class = PlantSeriesSerializer
+    permission_classes = [HasActiveWriteAccess]
 
     def get_queryset(self):
         user = self.request.user
@@ -110,11 +133,17 @@ class PlantSeriesViewSet(viewsets.ModelViewSet):
         return qs.filter(user=user)
 
     def perform_create(self, serializer):
+        profile = UserProfile.objects.get_or_create(user=self.request.user)[0]
+        if self.request.user.is_superuser or profile.role != UserProfile.ROLE_PRODUCER:
+            raise PermissionDenied(
+                "La création d'une série via l'API doit être effectuée depuis un compte producteur."
+            )
         serializer.save(user=self.request.user)
 
 
 class ScoutingRecordViewSet(viewsets.ModelViewSet):
     serializer_class = ScoutingRecordSerializer
+    permission_classes = [HasActiveWriteAccess]
 
     def get_queryset(self):
         user = self.request.user

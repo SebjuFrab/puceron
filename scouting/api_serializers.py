@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from .models import (
@@ -114,6 +115,7 @@ class ScoutingRecordSerializer(serializers.ModelSerializer):
             'created_at',
         ]
 
+    @transaction.atomic
     def create(self, validated_data):
         leaves_data = validated_data.pop('leaf_observations', [])
         request = self.context['request']
@@ -143,6 +145,7 @@ class ScoutingRecordSerializer(serializers.ModelSerializer):
         record.recompute_from_leaf_observations()
         return record
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         leaves_data = validated_data.pop('leaf_observations', None)
         if 'scouting_date' in validated_data:

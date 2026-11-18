@@ -1,8 +1,10 @@
 #!/bin/sh
 set -eu
 
-echo "Waiting for database..."
-python manage.py migrate --noinput
-python manage.py collectstatic --noinput
+if [ "${RUN_STARTUP_TASKS:-1}" = "1" ]; then
+    echo "Applying database migrations..."
+    python manage.py migrate --noinput
+    python manage.py collectstatic --noinput
+fi
 
 exec "$@"

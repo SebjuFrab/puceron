@@ -212,6 +212,10 @@ DEFAULT_FROM_EMAIL = os.environ.get(
     'PUCERON <no-reply@puceron.agrobio-bretagne.org>',
 )
 SERVER_EMAIL = os.environ.get('DJANGO_SERVER_EMAIL', DEFAULT_FROM_EMAIL)
+PUBLIC_BASE_URL = os.environ.get('DJANGO_PUBLIC_BASE_URL', 'http://127.0.0.1:8000').rstrip('/')
+NOTIFICATION_MAX_ATTEMPTS = env_int('DJANGO_NOTIFICATION_MAX_ATTEMPTS', 3)
+NOTIFICATION_RETRY_DELAY_SECONDS = env_int('DJANGO_NOTIFICATION_RETRY_DELAY_SECONDS', 300)
+NOTIFICATION_PROCESSING_TIMEOUT_SECONDS = env_int('DJANGO_NOTIFICATION_PROCESSING_TIMEOUT_SECONDS', 900)
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

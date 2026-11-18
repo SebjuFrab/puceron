@@ -26,6 +26,18 @@ docker compose up -d --build
 docker compose logs -f web
 ```
 
+Le service `worker` traite les notifications email en arriere-plan. Verifiez
+qu'il est actif apres le demarrage :
+
+```bash
+docker compose ps
+docker compose logs --tail=100 worker
+```
+
+Le conteneur `web` applique les migrations avant de demarrer. Le `worker`
+attend que le site soit sain et ne lance pas une seconde migration en
+parallele.
+
 ## 4. Creer l'admin Django
 ```bash
 cd /var/www/puceron/app
@@ -60,4 +72,12 @@ git pull
 docker compose up -d --build
 docker compose exec web python manage.py migrate
 docker compose exec web python manage.py collectstatic --noinput
+docker compose logs --tail=100 worker
+```
+
+Pour traiter ponctuellement la file sans attendre le prochain cycle du
+worker :
+
+```bash
+docker compose exec web python manage.py process_notification_deliveries
 ```

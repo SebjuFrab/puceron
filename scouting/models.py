@@ -783,11 +783,13 @@ class NotificationDelivery(models.Model):
     ]
 
     STATUS_PENDING = 'pending'
+    STATUS_PROCESSING = 'processing'
     STATUS_SENT = 'sent'
     STATUS_FAILED = 'failed'
     STATUS_SKIPPED = 'skipped'
     STATUS_CHOICES = [
         (STATUS_PENDING, 'En attente'),
+        (STATUS_PROCESSING, 'En cours'),
         (STATUS_SENT, 'Envoyee'),
         (STATUS_FAILED, 'Échec'),
         (STATUS_SKIPPED, 'Ignoree'),
@@ -807,13 +809,24 @@ class NotificationDelivery(models.Model):
         verbose_name='Statut',
     )
     error = models.TextField(blank=True, verbose_name='Erreur')
+    target_url = models.URLField(max_length=500, blank=True, verbose_name='Lien cible')
+    attempt_count = models.PositiveSmallIntegerField(default=0, verbose_name='Nombre de tentatives')
+    last_attempt_at = models.DateTimeField(null=True, blank=True, verbose_name='Dernière tentative')
+    next_attempt_at = models.DateTimeField(null=True, blank=True, verbose_name='Prochaine tentative')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Créée le')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Mise à jour le')
     sent_at = models.DateTimeField(null=True, blank=True, verbose_name='Envoyee le')
 
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Livraison de notification'
         verbose_name_plural = 'Livraisons de notification'
+        indexes = [
+            models.Index(
+                fields=['channel', 'status', 'next_attempt_at'],
+                name='notification_queue_idx',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.recipient_id} - {self.channel} - {self.status}'

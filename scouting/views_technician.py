@@ -11,7 +11,6 @@ from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils.html import strip_tags
 from django.utils import timezone
 
 try:
@@ -25,8 +24,6 @@ from .models import (
     AuxiliaryTaxon,
     BulletinMessage,
     BulletinRecipient,
-    NotificationDelivery,
-    NotificationPreference,
     OtherPestTaxon,
     PlantAction,
     PlantSeries,
@@ -36,6 +33,7 @@ from .models import (
     TechnicianCoFollowRequestItem,
     UserProfile,
 )
+from .notification_service import queue_bulletin_email_notifications
 from .utils import display_user_name
 from .views_support import (
     ACTING_PRODUCER_SESSION_KEY,
@@ -123,61 +121,6 @@ def _bulletin_producer_queryset(manager_user):
     return _accessible_producer_profiles(manager_user).select_related('user').distinct()
 
 
-def _send_bulletin_email_notifications(request, recipient_ids):
-    recipients = (
-        BulletinRecipient.objects.filter(id__in=recipient_ids)
-        .select_related('bulletin', 'bulletin__priority', 'producer_profile', 'producer_profile__user')
-        .prefetch_related('bulletin__types')
-    )
-    for recipient in recipients:
-        producer_user = recipient.producer_profile.user
-        delivery = NotificationDelivery.objects.create(
-            recipient=recipient,
-            channel=NotificationDelivery.CHANNEL_EMAIL,
-            status=NotificationDelivery.STATUS_PENDING,
-        )
-        if not producer_user.email:
-            delivery.status = NotificationDelivery.STATUS_SKIPPED
-            delivery.error = 'Email producteur non renseigné.'
-            delivery.save(update_fields=['status', 'error'])
-            continue
-        preference = NotificationPreference.objects.get_or_create(user=producer_user)[0]
-        if not preference.wants_bulletin_email(recipient.bulletin):
-            delivery.status = NotificationDelivery.STATUS_SKIPPED
-            delivery.error = 'Désactivé par le producteur.'
-            delivery.save(update_fields=['status', 'error'])
-            continue
-
-        detail_url = request.build_absolute_uri(reverse('my_bulletin_detail', args=[recipient.id]))
-        body_preview = strip_tags(recipient.bulletin.body or '').strip()
-        if len(body_preview) > 700:
-            body_preview = f'{body_preview[:700]}...'
-        try:
-            send_mail(
-                subject=f'Nouveau bulletin PUCERON: {recipient.bulletin.title}',
-                message=(
-                    f'Un nouveau bulletin est disponible dans PUCERON.\n\n'
-                    f'Titre: {recipient.bulletin.title}\n'
-                    f'Types: {recipient.bulletin.type_labels or "-"}\n'
-                    f'Priorité: {recipient.bulletin.priority_label or "-"}\n\n'
-                    f'{body_preview}\n\n'
-                    f'Ouvrir le bulletin: {detail_url}'
-                ),
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
-                recipient_list=[producer_user.email],
-                fail_silently=False,
-            )
-        except Exception as exc:
-            delivery.status = NotificationDelivery.STATUS_FAILED
-            delivery.error = str(exc)
-            delivery.save(update_fields=['status', 'error'])
-            continue
-
-        delivery.status = NotificationDelivery.STATUS_SENT
-        delivery.sent_at = timezone.now()
-        delivery.save(update_fields=['status', 'sent_at'])
-
-
 @login_required
 def technician_bulletin_list_view(request):
     manager_user, manager_profile, error_response = _require_bulletin_technician(request)
@@ -256,7 +199,7 @@ def technician_bulletin_create_view(request):
                         producer_profile__in=producers,
                     ).values_list('id', flat=True)
                 )
-                transaction.on_commit(lambda: _send_bulletin_email_notifications(request, recipient_ids))
+                queue_bulletin_email_notifications(request, recipient_ids)
             messages.success(request, 'Bulletin envoye aux producteurs selectionnes.')
             return redirect('technician_bulletin_detail', bulletin.id)
         editor_body = getattr(form, 'sanitized_body', '')
